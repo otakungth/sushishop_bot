@@ -473,8 +473,14 @@ class GroupTicketInfoModal(Modal, title="📋 แบบฟอร์ม Robux Gro
     async def on_submit(self, interaction: discord.Interaction):
         try:
             robux = int(self.robux_amount.value)
-            rate = 4.5
-            price = robux / rate
+            if (robux < 1500):
+                rate = 4.5
+                price = robux / rate
+                return price
+            else:
+                rate = 5
+                price = robux / rate
+                return price
             price_str = f"{price:,.0f} บาท"
 
             customer_embed = discord.Embed(title="📨 รายละเอียดการสั่งซื้อ Robux Group", color=0x00FF99)
@@ -601,6 +607,7 @@ server_on()
 # เริ่มการทำงานบอท
 
 bot.run(os.getenv("TOKEN"))
+
 
 
 
