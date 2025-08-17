@@ -601,10 +601,41 @@ class GroupTicketFullActionView(View):
         await discord.utils.sleep_until(discord.utils.utcnow() + datetime.timedelta(seconds=5))
         await self.channel.delete()
 # --------------------------------------------------------------------------------------------------
+
+# --------------------------------------------------------------------------------------------------
+# คิดเลขเรทของ Gamepass / Group
+@bot.command()
+async def gp(ctx, robux: int):
+    """คำนวณราคาจากจำนวน Robux (Gamepass)"""
+    try:
+        rate = 6.5
+        price = robux / rate
+        price_str = f"{price:,.0f} บาท"
+        await ctx.send(f"🎮 Gamepass {robux:,} Robux = **{price_str}** (เรท {rate})")
+    except Exception as e:
+        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
+
+
+@bot.command()
+async def g(ctx, robux: int):
+    """คำนวณราคาจากจำนวน Robux (Group)"""
+    try:
+        if robux < 1500:
+            rate = 4.5
+        else:
+            rate = 5
+
+        price = robux / rate
+        price_str = f"{price:,.0f} บาท"
+        await ctx.send(f"👥 Group {robux:,} Robux = **{price_str}** (เรท {rate})")
+    except Exception as e:
+        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
+# --------------------------------------------------------------------------------------------------
 server_on()
 # เริ่มการทำงานบอท
 
 bot.run(os.getenv("TOKEN"))
+
 
 
 
