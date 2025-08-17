@@ -421,13 +421,13 @@ async def rg(ctx):
     group_open = not group_open
     status = "✅ Robux Group เปิด" if group_open else "❌ Robux Group ปิด"
     await ctx.send(f"📌 สถานะ Robux Group ถูกเปลี่ยนเป็น: **{status}**", delete_after=5)
-    if ctx.channel.name == "🛒-โรบัคกลุ่ม-เรท4․2":
+    if ctx.channel.name == "🛒โรกลุ่มเรท 4.5 ซื้อมากกว่า 500 บาทเรท 5":
         await opengroup(ctx)
 
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def opengroup(ctx):
-    if ctx.channel.name != "🛒-โรบัคกลุ่ม-เรท4․2":
+    if ctx.channel.name != "🛒โรกลุ่มเรท 4.5 ซื้อมากกว่า 500 บาทเรท 5":
         await ctx.message.delete()
         return
 
@@ -601,4 +601,5 @@ server_on()
 # เริ่มการทำงานบอท
 
 bot.run(os.getenv("TOKEN"))
+
 
