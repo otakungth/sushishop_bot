@@ -421,13 +421,13 @@ async def rg(ctx):
     group_open = not group_open
     status = "✅ Robux Group เปิด" if group_open else "❌ Robux Group ปิด"
     await ctx.send(f"📌 สถานะ Robux Group ถูกเปลี่ยนเป็น: **{status}**", delete_after=5)
-    if ctx.channel.name == "🛒โรกลุ่มเรท 4.5 ซื้อมากกว่า 500 บาทเรท 5":
+    if ctx.channel.name == "🛒-โรกลุ่ม-เรท4․5":
         await opengroup(ctx)
 
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def opengroup(ctx):
-    if ctx.channel.name != "🛒โรกลุ่มเรท 4.5 ซื้อมากกว่า 500 บาทเรท 5":
+    if ctx.channel.name != "🛒-โรกลุ่ม-เรท4․5":
         await ctx.message.delete()
         return
 
@@ -439,7 +439,7 @@ async def opengroup(ctx):
     embed = discord.Embed(
         title="🍣 Sushi Shop 🍣",
         description=(
-            "# **🛒โรกลุ่มเรท 4.2 ซื้อมากกว่า 500 บาทเรท 4.5**\n\n"
+            "# **🛒โรกลุ่มเรท 4.5 ซื้อมากกว่า 500 บาทเรท 5**\n\n"
             "กดปุ่ม 'เปิดตั๋ว' เพื่อสั่งซื้อได้เลยครับ\n\n"
             "เข้ากลุ่มนี้: https://www.roblox.com/communities/34713179/VALKYs \n\n"
             "⚠️ กรุณาเข้ากลุ่มให้ครบ 15 วัน ⚠️\n\n"
@@ -473,7 +473,7 @@ class GroupTicketInfoModal(Modal, title="📋 แบบฟอร์ม Robux Gro
     async def on_submit(self, interaction: discord.Interaction):
         try:
             robux = int(self.robux_amount.value)
-            rate = 4.2
+            rate = 4.5
             price = robux / rate
             price_str = f"{price:,.0f} บาท"
 
@@ -601,5 +601,6 @@ server_on()
 # เริ่มการทำงานบอท
 
 bot.run(os.getenv("TOKEN"))
+
 
 
