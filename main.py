@@ -112,13 +112,13 @@ async def sushi(ctx):
     shop_open = not shop_open
     status = "✅ ร้านเปิด" if shop_open else "❌ ร้านปิด"
     await ctx.send(f"📌 สถานะร้านถูกเปลี่ยนเป็น: **{status}**", delete_after=5)
-    if ctx.channel.name == "🛒-กดเกมพาสเรท-6․2":
+    if ctx.channel.name == "🛒-เกมพาสเรท-6․5":
         await openshop(ctx)
 
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def openshop(ctx):
-    if ctx.channel.name != "🛒-กดเกมพาสเรท-6․2":
+    if ctx.channel.name != "🛒-เกมพาสเรท-6․5":
         await ctx.message.delete()
         return
 
@@ -128,7 +128,7 @@ async def openshop(ctx):
 
     embed = discord.Embed(
         title="🍣 Sushi Shop 🍣",
-        description=("# **กดเกมพาสเรท 6.2**\n\n"
+        description=("# **กดเกมพาสเรท 6.5**\n\n"
                      "กดปุ่ม 'เปิดตั๋ว' เพื่อกดเดมพาสหรือสอบถามได้เลยครับ\n\n"
                      "หากลูกค้ามีปัญหาได้รับของผิดสามาถติดต่อทีมงานได้เลยนะครับ"),
         color=0xFFD700
@@ -228,7 +228,7 @@ class TicketInfoModal(Modal, title="📋 แบบฟอร์มสั่งส
     async def on_submit(self, interaction: discord.Interaction):
         try:
             robux = int(self.robux_amount.value)
-            rate = 6.2
+            rate = 6.5
             price = robux / rate
             price_str = f"{price:,.0f} บาท"
 
@@ -599,4 +599,5 @@ class GroupTicketFullActionView(View):
 # --------------------------------------------------------------------------------------------------
 server_on()
 # เริ่มการทำงานบอท
+
 bot.run(os.getnev('TOKEN'))
