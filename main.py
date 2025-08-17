@@ -600,4 +600,5 @@ class GroupTicketFullActionView(View):
 server_on()
 # เริ่มการทำงานบอท
 
-bot.run(os.getnev('TOKEN'))
+bot.run(os.getenv("TOKEN"))
+
