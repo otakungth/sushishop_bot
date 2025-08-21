@@ -115,7 +115,7 @@ async def sushi(ctx):
     shop_open = not shop_open
     status = "✅ ร้านเปิด" if shop_open else "❌ ร้านปิด"
     await ctx.send(f"📌 สถานะร้านถูกเปลี่ยนเป็น: **{status}**", delete_after=5)
-    if ctx.channel.name == GAMEPASS_CHANNEL_ID:
+    if ctx.channel.id == GAMEPASS_CHANNEL_ID:
         await openshop(ctx) 
 
 @bot.command()
