@@ -139,7 +139,7 @@ async def openshop(ctx):
         ),
         color=0xFFD700
     )
-    embed.set_image(url="https://media1.tenor.com/images/f26ada4a540fd3e09bd249d2c97487ab/tenor.gif")
+    embed.set_image(url="https://images-ext-1.discordapp.net/external/iXUMUOrOP3QmehvAKqH9320A_DZHjsYhbYoVp7T1H9s/https/media.tenor.com/Npd1vTDJclQAAAPo/flower-cat.mp4")
     await ctx.send(embed=embed, view=OpenTicketView())
     await ctx.message.delete()
 
@@ -644,6 +644,7 @@ server_on()
 # เริ่มการทำงานบอท
 
 bot.run(os.getenv("TOKEN"))
+
 
 
 
