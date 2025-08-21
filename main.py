@@ -104,6 +104,9 @@ async def qr(ctx):
     embed.set_image(url="https://media.discordapp.net/attachments/722832040860319835/1402994996600111114/186-8-06559-8.png")
     await ctx.send(embed=embed)
     await ctx.message.delete()
+# --------------------------------------------------------------------------------------------------
+# Gamepass
+GAMEPASS_CHANNEL_ID = 1361044752975532152
 
 @bot.command()
 @commands.has_permissions(administrator=True)
@@ -112,30 +115,35 @@ async def sushi(ctx):
     shop_open = not shop_open
     status = "✅ ร้านเปิด" if shop_open else "❌ ร้านปิด"
     await ctx.send(f"📌 สถานะร้านถูกเปลี่ยนเป็น: **{status}**", delete_after=5)
-    if ctx.channel.name == "🛒-เกมพาสเรท-6․5":
-        await openshop(ctx)
+    if ctx.channel.name == GAMEPASS_CHANNEL_ID:
+        await openshop(ctx) 
 
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def openshop(ctx):
-    if ctx.channel.name != "🛒-เกมพาสเรท-6․5":
+    if ctx.channel.id != GAMEPASS_CHANNEL_ID:
         await ctx.message.delete()
         return
 
+    # ลบข้อความเก่าๆ ของบอทในช่องนี้
     async for msg in ctx.channel.history(limit=20):
         if msg.author == bot.user:
             await msg.delete()
 
     embed = discord.Embed(
         title="🍣 Sushi Shop 🍣",
-        description=("# **กดเกมพาสเรท 6.5**\n\n"
-                     "กดปุ่ม 'เปิดตั๋ว' เพื่อกดเดมพาสหรือสอบถามได้เลยครับ\n\n"
-                     "หากลูกค้ามีปัญหาได้รับของผิดสามาถติดต่อทีมงานได้เลยนะครับ"),
+        description=(
+            "# **กดเกมพาสเรท 6.5**\n\n"
+            "กดปุ่ม 'เปิดตั๋ว' เพื่อกดเกมพาสหรือสอบถามได้เลยครับ\n\n"
+            "หากลูกค้ามีปัญหาได้รับของผิดสามารถติดต่อทีมงานได้เลยนะครับ"
+        ),
         color=0xFFD700
     )
-    embed.set_image(url="https://images-ext-1.discordapp.net/external/JsgntATil5p7IrFUu4cGZFdEpkCQVEVETklBaH-6WbE/%3Fitemid%3D19304883/https/media1.tenor.com/images/f26ada4a540fd3e09bd249d2c97487ab/tenor.gif")
+    embed.set_image(url="https://media1.tenor.com/images/f26ada4a540fd3e09bd249d2c97487ab/tenor.gif")
     await ctx.send(embed=embed, view=OpenTicketView())
     await ctx.message.delete()
+
+# --------------------------------------------------------------------------------------------------
 
 @bot.command()
 @commands.has_permissions(administrator=True)
@@ -635,6 +643,7 @@ server_on()
 # เริ่มการทำงานบอท
 
 bot.run(os.getenv("TOKEN"))
+
 
 
 
