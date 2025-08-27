@@ -133,7 +133,7 @@ async def openshop(ctx):
     embed = discord.Embed(
         title="🍣 Sushi Shop 🍣",
         description=(
-            "# **กดเกมพาสเรท 6.5**\n\n"
+            "# **กดเกมพาสเรท 7**\n\n"
             "กดปุ่ม 'เปิดตั๋ว' เพื่อกดเกมพาสหรือสอบถามได้เลยครับ\n\n"
             "หากลูกค้ามีปัญหาได้รับของผิดสามารถติดต่อทีมงานได้เลยนะครับ"
         ),
@@ -236,7 +236,7 @@ class TicketInfoModal(Modal, title="📋 แบบฟอร์มสั่งส
     async def on_submit(self, interaction: discord.Interaction):
         try:
             robux = int(self.robux_amount.value)
-            rate = 6.5
+            rate = 7
             price = robux / rate
             price_str = f"{price:,.0f} บาท"
 
@@ -617,7 +617,7 @@ class GroupTicketFullActionView(View):
 async def gp(ctx, robux: int):
     """คำนวณราคาจากจำนวน Robux (Gamepass)"""
     try:
-        rate = 6.5
+        rate = 7
         price = robux / rate
         price_str = f"{price:,.0f} บาท"
         await ctx.send(f"🎮 Gamepass {robux:,} Robux = **{price_str}** (เรท {rate})")
@@ -644,6 +644,7 @@ server_on()
 # เริ่มการทำงานบอท
 
 bot.run(os.getenv("TOKEN"))
+
 
 
 
