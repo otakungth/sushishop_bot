@@ -1,10 +1,10 @@
-import os
+from keep_alive import keep_alive
 import datetime
 import discord
 from discord.ext import commands
 from discord.ui import View, Button, Modal, TextInput
 
-from server import server_on
+keep_alive()
 
 # ตั้งค่าพื้นฐาน
 intents = discord.Intents.default()
@@ -104,9 +104,6 @@ async def qr(ctx):
     embed.set_image(url="https://media.discordapp.net/attachments/722832040860319835/1402994996600111114/186-8-06559-8.png")
     await ctx.send(embed=embed)
     await ctx.message.delete()
-# --------------------------------------------------------------------------------------------------
-# Gamepass
-GAMEPASS_CHANNEL_ID = 1361044752975532152
 
 @bot.command()
 @commands.has_permissions(administrator=True)
@@ -115,35 +112,30 @@ async def sushi(ctx):
     shop_open = not shop_open
     status = "✅ ร้านเปิด" if shop_open else "❌ ร้านปิด"
     await ctx.send(f"📌 สถานะร้านถูกเปลี่ยนเป็น: **{status}**", delete_after=5)
-    if ctx.channel.id == GAMEPASS_CHANNEL_ID:
-        await openshop(ctx) 
+    if ctx.channel.name == "🛒-เกมพาสเรท-6․5":
+        await openshop(ctx)
 
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def openshop(ctx):
-    if ctx.channel.id != GAMEPASS_CHANNEL_ID:
+    if ctx.channel.name != "🛒-เกมพาสเรท-6․5":
         await ctx.message.delete()
         return
 
-    # ลบข้อความเก่าๆ ของบอทในช่องนี้
     async for msg in ctx.channel.history(limit=20):
         if msg.author == bot.user:
             await msg.delete()
 
     embed = discord.Embed(
         title="🍣 Sushi Shop 🍣",
-        description=(
-            "# **กดเกมพาสเรท 7**\n\n"
-            "กดปุ่ม 'เปิดตั๋ว' เพื่อกดเกมพาสหรือสอบถามได้เลยครับ\n\n"
-            "หากลูกค้ามีปัญหาได้รับของผิดสามารถติดต่อทีมงานได้เลยนะครับ"
-        ),
+        description=("# **กดเกมพาสเรท 6.5**\n\n"
+                     "กดปุ่ม 'เปิดตั๋ว' เพื่อกดเดมพาสหรือสอบถามได้เลยครับ\n\n"
+                     "หากลูกค้ามีปัญหาได้รับของผิดสามาถติดต่อทีมงานได้เลยนะครับ"),
         color=0xFFD700
     )
-    embed.set_thumbnail(url="https://media.discordapp.net/attachments/717757556889747657/1403684950770847754/noFilter.png?ex=689872fb&is=6897217b&hm=5e55202bef3413971c139963f7e23834ccd7cbd6528966dcdf6303ddb2c13d22&=&format=webp&quality=lossless")
+    embed.set_image(url="https://images-ext-1.discordapp.net/external/JsgntATil5p7IrFUu4cGZFdEpkCQVEVETklBaH-6WbE/%3Fitemid%3D19304883/https/media1.tenor.com/images/f26ada4a540fd3e09bd249d2c97487ab/tenor.gif")
     await ctx.send(embed=embed, view=OpenTicketView())
     await ctx.message.delete()
-
-# --------------------------------------------------------------------------------------------------
 
 @bot.command()
 @commands.has_permissions(administrator=True)
@@ -173,22 +165,11 @@ async def ty(ctx):
             description=(
                 "ขอบคุณที่ใช้บริการกับเรา หากไม่มีปัญหาเพิ่มเติม "
                 "สามารถกดปุ่มด้านล่างเพื่อปิดตั๋วได้เลย\n\n"
-                "⏳ **หากไม่ได้กดปิดตั๋ว ตั๋วจะถูกปิดอัตโนมัติใน 1 ชั่วโมง**"
+                "🔒 ตั๋วนี้จะไม่ปิดอัตโนมัติจนกว่าจะมีคนกดปุ่มปิดตั๋ว"
             ),
             color=0x00FF00
         )
         await ctx.send(embed=embed, view=CloseTicketView(ctx.channel))
-
-        async def auto_close():
-            await discord.utils.sleep_until(discord.utils.utcnow() + datetime.timedelta(hours=1))
-            if ctx.channel and ctx.channel.name.startswith("ticket-"):
-                try:
-                    await ctx.send("⏳ ไม่มีการตอบกลับ ตั๋วนี้จะถูกปิดอัตโนมัติ")
-                    await ctx.channel.delete()
-                except:
-                    pass
-
-        bot.loop.create_task(auto_close())
 
     await ctx.message.delete()
 
@@ -236,7 +217,7 @@ class TicketInfoModal(Modal, title="📋 แบบฟอร์มสั่งส
     async def on_submit(self, interaction: discord.Interaction):
         try:
             robux = int(self.robux_amount.value)
-            rate = 7
+            rate = 6.5
             price = robux / rate
             price_str = f"{price:,.0f} บาท"
 
@@ -313,23 +294,11 @@ class ProductDeliveredView(discord.ui.View):
             description=(
                 "ขอบคุณที่ใช้บริการกับเรา หากไม่มีปัญหาเพิ่มเติม "
                 "สามารถกดปุ่มด้านล่างเพื่อปิดตั๋วได้เลย\n\n"
-                "⏳ **หากไม่ได้กดปิดตั๋ว ตั๋วจะถูกปิดอัตโนมัติใน 1 ชั่วโมง**"
+                "🔒 ตั๋วนี้จะไม่ปิดอัตโนมัติจนกว่าจะมีคนกดปุ่มปิดตั๋ว"
             ),
             color=0x00FF00
         )
         await interaction.channel.send(embed=embed, view=CloseTicketView(interaction.channel))
-
-        # ตั้ง auto close 1 ชั่วโมง
-        async def auto_close():
-            await discord.utils.sleep_until(discord.utils.utcnow() + datetime.timedelta(hours=1))
-            if interaction.channel and interaction.channel.name.startswith("ticket-"):
-                try:
-                    await interaction.channel.send("⏳ ไม่มีการตอบกลับ ตั๋วนี้จะถูกปิดอัตโนมัติ")
-                    await interaction.channel.delete()
-                except:
-                    pass
-
-        interaction.client.loop.create_task(auto_close())
 
         await interaction.response.send_message("✅ ทำเครื่องหมายว่าส่งสินค้าสำเร็จแล้ว", ephemeral=True)
 
@@ -421,7 +390,6 @@ async def on_interaction(interaction: discord.Interaction):
 # --------------------------------------------------------------------------------------------------
 # สถานะร้าน Robux Group
 group_open = True
-GROUP_CHANNEL_ID = 1361554847526162532
 
 @bot.command()
 @commands.has_permissions(administrator=True)
@@ -430,13 +398,13 @@ async def rg(ctx):
     group_open = not group_open
     status = "✅ Robux Group เปิด" if group_open else "❌ Robux Group ปิด"
     await ctx.send(f"📌 สถานะ Robux Group ถูกเปลี่ยนเป็น: **{status}**", delete_after=5)
-    if ctx.channel.id == GROUP_CHANNEL_ID:
+    if ctx.channel.name == "🛒-โรบัคกลุ่ม-เรท4․2":
         await opengroup(ctx)
 
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def opengroup(ctx):
-    if ctx.channel.id != GROUP_CHANNEL_ID:
+    if ctx.channel.name != "🛒-โรบัคกลุ่ม-เรท4․2":
         await ctx.message.delete()
         return
 
@@ -448,7 +416,7 @@ async def opengroup(ctx):
     embed = discord.Embed(
         title="🍣 Sushi Shop 🍣",
         description=(
-            "# **🛒โรกลุ่มเรท 4.5 ซื้อมากกว่า 500 บาทเรท 5**\n\n"
+            "# **🛒โรกลุ่มเรท 4.2 ซื้อมากกว่า 500 บาทเรท 4.5**\n\n"
             "กดปุ่ม 'เปิดตั๋ว' เพื่อสั่งซื้อได้เลยครับ\n\n"
             "เข้ากลุ่มนี้: https://www.roblox.com/communities/34713179/VALKYs \n\n"
             "⚠️ กรุณาเข้ากลุ่มให้ครบ 15 วัน ⚠️\n\n"
@@ -457,7 +425,7 @@ async def opengroup(ctx):
         ),
         color=0x00AAFF
     )
-    embed.set_thumbnail(url="https://media.discordapp.net/attachments/717757556889747657/1403684950770847754/noFilter.png?ex=689872fb&is=6897217b&hm=5e55202bef3413971c139963f7e23834ccd7cbd6528966dcdf6303ddb2c13d22&=&format=webp&quality=lossless")# เปลี่ยนเป็นรูปที่คุณต้องการ
+    embed.set_thumbnail(url="https://media.discordapp.net/attachments/717757556889747657/1403684950770847754/noFilter.png?ex=689872fb&is=6897217b&hm=5e55202bef3413971c139963f7e23834ccd7cbd6528966dcdf6303ddb2c13d22&=&format=webp&quality=lossless")
     await ctx.send(embed=embed, view=OpenGroupTicketView())
     await ctx.message.delete()
 
@@ -482,11 +450,7 @@ class GroupTicketInfoModal(Modal, title="📋 แบบฟอร์ม Robux Gro
     async def on_submit(self, interaction: discord.Interaction):
         try:
             robux = int(self.robux_amount.value)
-            if robux < 1500:
-                rate = 4.5
-            else:
-                rate = 5
-
+            rate = 4.2
             price = robux / rate
             price_str = f"{price:,.0f} บาท"
 
@@ -609,44 +573,10 @@ class GroupTicketFullActionView(View):
         await interaction.response.send_message("📪 กำลังปิดตั๋วใน 5 วินาที...", ephemeral=True)
         await discord.utils.sleep_until(discord.utils.utcnow() + datetime.timedelta(seconds=5))
         await self.channel.delete()
-# --------------------------------------------------------------------------------------------------
 
 # --------------------------------------------------------------------------------------------------
-# คิดเลขเรทของ Gamepass / Group
-@bot.command()
-async def gp(ctx, robux: int):
-    """คำนวณราคาจากจำนวน Robux (Gamepass)"""
-    try:
-        rate = 7
-        price = robux / rate
-        price_str = f"{price:,.0f} บาท"
-        await ctx.send(f"🎮 Gamepass {robux:,} Robux = **{price_str}** (เรท {rate})")
-    except Exception as e:
-        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
-
-
-@bot.command()
-async def g(ctx, robux: int):
-    """คำนวณราคาจากจำนวน Robux (Group)"""
-    try:
-        if robux < 1500:
-            rate = 4.5
-        else:
-            rate = 5
-
-        price = robux / rate
-        price_str = f"{price:,.0f} บาท"
-        await ctx.send(f"👥 Group {robux:,} Robux = **{price_str}** (เรท {rate})")
-    except Exception as e:
-        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
-# --------------------------------------------------------------------------------------------------
-server_on()
 # เริ่มการทำงานบอท
-
-bot.run(os.getenv("TOKEN"))
-
-
-
+bot.run("TOKEN")  # เปลี่ยนเป็นโทเคนของบอทคุณ
 
 
 
