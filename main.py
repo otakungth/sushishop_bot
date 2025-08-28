@@ -228,7 +228,6 @@ class OpenTicketView(View):
             self.add_item(Button(label="❌ ร้านปิดชั่วคราว", style=discord.ButtonStyle.danger, disabled=True))
 
 class TicketInfoModal(Modal, title="📋 แบบฟอร์มสั่งสินค้า"):
-    user_name = TextInput(label="🪪 ชื่อในเกม?", placeholder="Username", required=True)
     map_name = TextInput(label="🗺 ชื่อแมพที่จะกด?", placeholder="พิมพ์ชื่อแมพ เช่น All Star Tower Defense X", required=True)
     gamepass_name = TextInput(label="💸กดเกมพาสอะไร?", placeholder="พิมพ์ชื่อเกมพาส เช่น x3 Speed 3 ชิ้น", required=True)
     robux_amount = TextInput(label="🎟 รวมทั้งหมดกี่ Robux?", placeholder="พิมพ์จำนวนRobux เช่น 995", required=True)
@@ -241,7 +240,6 @@ class TicketInfoModal(Modal, title="📋 แบบฟอร์มสั่งส
             price_str = f"{price:,.0f} บาท"
 
             customer_embed = discord.Embed(title="📨 รายละเอียดการสั่งซื้อ", color=0x00FF99)
-            customer_embed.add_field(name="🪪 ชื่อในเกม", value=self.user_name.value, inline=False)
             customer_embed.add_field(name="🗺️ แมพ", value=self.map_name.value, inline=False)
             customer_embed.add_field(name="🎟 เกมพาส", value=self.gamepass_name.value, inline=False)
             customer_embed.add_field(name="💸 จำนวน Robux", value=self.robux_amount.value, inline=True)
@@ -639,4 +637,5 @@ server_on()
 # เริ่มการทำงานบอท
 
 bot.run(os.getenv("TOKEN"))
+
 
