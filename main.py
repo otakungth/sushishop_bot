@@ -1,10 +1,7 @@
-from keep_alive import keep_alive
 import datetime
 import discord
 from discord.ext import commands
 from discord.ui import View, Button, Modal, TextInput
-
-keep_alive()
 
 # ตั้งค่าพื้นฐาน
 intents = discord.Intents.default()
@@ -577,6 +574,7 @@ class GroupTicketFullActionView(View):
 # --------------------------------------------------------------------------------------------------
 # เริ่มการทำงานบอท
 bot.run("TOKEN")  # เปลี่ยนเป็นโทเคนของบอทคุณ
+
 
 
 
