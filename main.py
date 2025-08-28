@@ -614,29 +614,24 @@ class GroupTicketFullActionView(View):
 # --------------------------------------------------------------------------------------------------
 # คิดเลขเรทของ Gamepass / Group
 @bot.command()
-async def gp(ctx, robux: int):
-    """คำนวณราคาจากจำนวน Robux (Gamepass)"""
+async def gp(ctx, *expression):
+    """คำนวณราคาจากจำนวน Robux (Gamepass) รองรับ +, *, x"""
     try:
+        expr = "".join(expression).lower().replace("x", "*")
+        if not expr or not all(c in "0123456789+*- " for c in expr):
+            await ctx.send("❌ รูปแบบไม่ถูกต้อง กรุณาใช้เฉพาะตัวเลขและ + หรือ * (เช่น `!gp 500+200` หรือ `!gp 70*10`)")
+            return
+
+        total_robux = eval(expr)
+        if not isinstance(total_robux, (int, float)) or total_robux <= 0:
+            await ctx.send("❌ กรุณากรอกจำนวนที่มากกว่า 0")
+            return
+
         rate = 7
-        price = robux / rate
+        price = total_robux / rate
         price_str = f"{price:,.0f} บาท"
-        await ctx.send(f"🎮 Gamepass {robux:,} Robux = **{price_str}** (เรท {rate})")
-    except Exception as e:
-        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
+        await ctx.send(f"🎮 Gamepass {total_robux:,} Robux = **{price_str}** (เรท {rate})")
 
-
-@bot.command()
-async def g(ctx, robux: int):
-    """คำนวณราคาจากจำนวน Robux (Group)"""
-    try:
-        if robux < 1500:
-            rate = 4.5
-        else:
-            rate = 5
-
-        price = robux / rate
-        price_str = f"{price:,.0f} บาท"
-        await ctx.send(f"👥 Group {robux:,} Robux = **{price_str}** (เรท {rate})")
     except Exception as e:
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
 # --------------------------------------------------------------------------------------------------
@@ -644,3 +639,4 @@ server_on()
 # เริ่มการทำงานบอท
 
 bot.run(os.getenv("TOKEN"))
+
