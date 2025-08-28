@@ -101,32 +101,21 @@ async def sushi(ctx):
     global shop_open
     shop_open = not shop_open  # toggle เปิด/ปิดร้าน
 
-    # เปลี่ยนชื่อช่อง
-    if shop_open:
-        await ctx.channel.edit(name="🟢เกมพาสเรท 7")
-    else:
-        await ctx.channel.edit(name="🔴เกมพาสเรท 7")
+    status = "✅ ร้านเปิด" if shop_open else "❌ ร้านปิด"
+    await ctx.send(f"📌 สถานะร้านถูกเปลี่ยนเป็น: **{status}**", delete_after=5)
+
+    # เปลี่ยนชื่อช่องตามสถานะ
+    new_name = "🟢เกมพาสเรท 7" if shop_open else "🔴เกมพาสเรท 7"
+    await ctx.channel.edit(name=new_name)
 
     # ลบข้อความเก่าของบอท
     async for msg in ctx.channel.history(limit=20):
         if msg.author == bot.user:
             await msg.delete()
 
-    # ส่ง embed เปิดร้าน/ปิดร้าน
-    if shop_open:
-        embed = discord.Embed(
-            title="🛒 ร้านเปิดแล้ว!",
-            description="ตอนนี้สามารถสั่งซื้อ **Gamepass** ได้เลย\n\n📌 เรท 7",
-            color=discord.Color.green()
-        )
-    else:
-        embed = discord.Embed(
-            title="⛔ ร้านปิดแล้ว",
-            description="ไม่สามารถสั่งซื้อ Gamepass ได้ในตอนนี้",
-            color=discord.Color.red()
-        )
-
-    await ctx.send(embed=embed)
+    # ถ้าร้านเปิด ให้ส่งหน้า openshop ทันที
+    if shop_open and ctx.channel.id == GAMEPASS_CHANNEL_ID:
+        await openshop.callback(ctx)  # เรียก callback ของ command ตรง ๆ
 
 @bot.command()
 @commands.has_permissions(administrator=True)
@@ -260,6 +249,7 @@ async def shutdown(ctx):
 # --------------------------------------------------------------------------------------------------
 server_on()
 bot.run(os.getenv("TOKEN"))
+
 
 
 
