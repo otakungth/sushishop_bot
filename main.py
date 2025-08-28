@@ -99,17 +99,34 @@ GAMEPASS_CHANNEL_ID = 1361044752975532152
 @commands.has_permissions(administrator=True)
 async def sushi(ctx):
     global shop_open
-    shop_open = not shop_open
-    status = "✅ ร้านเปิด" if shop_open else "❌ ร้านปิด"
-    await ctx.send(f"📌 สถานะร้านถูกเปลี่ยนเป็น: **{status}**", delete_after=5)
+    shop_open = not shop_open  # toggle เปิด/ปิดร้าน
 
-    channel = ctx.guild.get_channel(GAMEPASS_CHANNEL_ID)
-    if channel:
-        new_name = "🟢เกมพาสเรท 7" if shop_open else "🔴เกมพาสเรท 7"
-        await channel.edit(name=new_name)
+    # เปลี่ยนชื่อช่อง
+    if shop_open:
+        await ctx.channel.edit(name="🟢เกมพาสเรท 7")
+    else:
+        await ctx.channel.edit(name="🔴เกมพาสเรท 7")
 
-    if ctx.channel.id == GAMEPASS_CHANNEL_ID:
-        await openshop(ctx)
+    # ลบข้อความเก่าของบอท
+    async for msg in ctx.channel.history(limit=20):
+        if msg.author == bot.user:
+            await msg.delete()
+
+    # ส่ง embed เปิดร้าน/ปิดร้าน
+    if shop_open:
+        embed = discord.Embed(
+            title="🛒 ร้านเปิดแล้ว!",
+            description="ตอนนี้สามารถสั่งซื้อ **Gamepass** ได้เลย\n\n📌 เรท 7",
+            color=discord.Color.green()
+        )
+    else:
+        embed = discord.Embed(
+            title="⛔ ร้านปิดแล้ว",
+            description="ไม่สามารถสั่งซื้อ Gamepass ได้ในตอนนี้",
+            color=discord.Color.red()
+        )
+
+    await ctx.send(embed=embed)
 
 @bot.command()
 @commands.has_permissions(administrator=True)
@@ -236,3 +253,4 @@ async def g(ctx, *, expr: str):
 # --------------------------------------------------------------------------------------------------
 server_on()
 bot.run(os.getenv("TOKEN"))
+
