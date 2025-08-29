@@ -19,6 +19,61 @@ SALES_LOG_CHANNEL_ID = 1402993077643120720
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # --------------------------------------------------------------------------------------------------
+# ฟังก์ชันคำนวณราคา (อัปเดตรองรับสัญลักษณ์เพิ่มเติม)
+def calculate_price(expression: str) -> tuple:
+    """คำนวณราคาจากนิพจน์ทางคณิตศาสตร์"""
+    try:
+        # แทนที่สัญลักษณ์ต่างๆ ให้เป็นรูปแบบที่ Python เข้าใจ
+        expression = expression.replace('×', '*').replace('x', '*').replace('÷', '/')
+        
+        # ตรวจสอบความปลอดภัยของนิพจน์
+        allowed_chars = set('0123456789+-*/. ')
+        if not all(c in allowed_chars for c in expression):
+            return None, "❌ นิพจน์ไม่ถูกต้อง กรุณาใช้เฉพาะตัวเลขและสัญลักษณ์ทางคณิตศาสตร์"
+        
+        # คำนวณผลลัพธ์
+        result = eval(expression)
+        
+        # คำนวณราคาตามเรท
+        rate = 7
+        price = result / rate
+        
+        return result, f"{price:,.0f} บาท"
+    except ZeroDivisionError:
+        return None, "❌ ไม่สามารถหารด้วยศูนย์ได้"
+    except Exception as e:
+        return None, f"❌ เกิดข้อผิดพลาดในการคำนวณ: {str(e)}"
+
+# --------------------------------------------------------------------------------------------------
+# คำสั่ง !gp สำหรับคำนวณราคา
+@bot.command()
+async def gp(ctx, *, expression: str):
+    """คำนวณราคา Robux เป็นบาท"""
+    # ลบคำสั่งออก
+    await ctx.message.delete()
+    
+    # คำนวณราคา
+    robux_amount, price = calculate_price(expression)
+    
+    if robux_amount is None:
+        await ctx.send(price, delete_after=10)
+        return
+    
+    # สร้าง Embed แสดงผล
+    embed = discord.Embed(
+        title="🧮 ผลการคำนวณ",
+        color=0x00FF99,
+        timestamp=discord.utils.utcnow()
+    )
+    
+    embed.add_field(name="💸 จำนวน Robux", value=f"{robux_amount:,.0f}", inline=True)
+    embed.add_field(name="💰 ราคาตามเรท 7", value=price, inline=True)
+    embed.add_field(name="📝 นิพจน์", value=expression, inline=False)
+    embed.set_footer(text=f"คำนวณโดย {ctx.author.display_name}")
+    
+    await ctx.send(embed=embed, delete_after=30)
+
+# --------------------------------------------------------------------------------------------------
 # ฟังก์ชันส่งบันทึกการขาย (เวอร์ชั่นอัปเดต)
 async def send_sale_log(embed_data: discord.Embed, interaction: discord.Interaction = None, ctx: commands.Context = None, delivered_by: discord.Member = None):
     """ส่ง Embed ไปยังห้องบันทึกการขาย"""
@@ -91,7 +146,6 @@ async def send_sale_log(embed_data: discord.Embed, interaction: discord.Interact
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดในการส่งบันทึกการขาย: {e}")
 
-
 # --------------------------------------------------------------------------------------------------
 # คำสั่งต่างๆ
 @bot.command()
@@ -104,6 +158,7 @@ async def qr(ctx):
     embed.set_image(url="https://media.discordapp.net/attachments/722832040860319835/1402994996600111114/186-8-06559-8.png")
     await ctx.send(embed=embed)
     await ctx.message.delete()
+
 # --------------------------------------------------------------------------------------------------
 # Gamepass
 GAMEPASS_CHANNEL_ID = 1361044752975532152
@@ -474,168 +529,5 @@ class OpenGroupTicketView(View):
             self.add_item(Button(label="❌ ร้านปิดชั่วคราว", style=discord.ButtonStyle.danger, disabled=True))
 
 class GroupTicketInfoModal(Modal, title="📋 แบบฟอร์ม Robux Group"):
-    user_name = TextInput(label="🪪 ชื่อในเกม", placeholder="Username", required=True)
-    robux_amount = TextInput(label="💸 ต้องการกดทั้งหมดกี่ Robux?", placeholder="กรอกจำนวน Robux ที่ต้องการ", required=True)
-
-    async def on_submit(self, interaction: discord.Interaction):
-        try:
-            robux = int(self.robux_amount.value)
-            if robux < 1500:
-                rate = 4.5
-            else:
-                rate = 5
-
-            price = robux / rate
-            price_str = f"{price:,.0f} บาท"
-
-            customer_embed = discord.Embed(title="📨 รายละเอียดการสั่งซื้อ Robux Group", color=0x00FF99)
-            customer_embed.add_field(name="🪪 ชื่อในเกม", value=self.user_name.value, inline=False)
-            customer_embed.add_field(name="💸 จำนวน Robux", value=self.robux_amount.value, inline=True)
-            customer_embed.add_field(name="💰 ราคาตามเรท", value=price_str, inline=True)
-            customer_embed.set_footer(text="ทีมงานจะตรวจสอบและตอบกลับโดยเร็วที่สุดครับ")
-
-            confirm_embed = customer_embed.copy()
-            confirm_embed.set_footer(text=f"🧾 ผู้ใช้: {interaction.user}")
-
-            view = ConfirmTicketView(embed_data=confirm_embed)
-            await interaction.response.send_message(embed=customer_embed, view=view, ephemeral=False)
-
-        except ValueError:
-            await interaction.response.send_message("❌ กรุณากรอกจำนวน Robux เป็นตัวเลข", ephemeral=True)
-
-# --------------------------------------------------------------------------------------------------
-# เพิ่ม Event สำหรับปุ่มเปิดตั๋ว Robux Group
-class GoToTicketView(discord.ui.View):
-    def __init__(self, channel):
-        super().__init__(timeout=None)
-        self.add_item(
-            discord.ui.Button(
-                label="ไปที่ตั๋ว",
-                url=channel.jump_url,
-                style=discord.ButtonStyle.link
-            )
-        )
-        
-async def handle_open_ticket(interaction, category_name, view_class, mention_user=False):
-    guild = interaction.guild
-    user = interaction.user
-
-    if guild is None:
-        await interaction.response.send_message("❌ คำสั่งนี้ใช้ได้เฉพาะในเซิร์ฟเวอร์", ephemeral=True)
-        return
-
-    channel_name = f"ticket-{user.name}-{user.id}"
-    existing_channel = discord.utils.get(guild.text_channels, name=channel_name)
-
-    if isinstance(user, discord.Member) and existing_channel and existing_channel.permissions_for(user).read_messages:
-        await interaction.response.send_message("📌 คุณมีตั๋วเปิดอยู่แล้ว!", ephemeral=True)
-        return
-
-    overwrites = {
-        guild.default_role: discord.PermissionOverwrite(read_messages=False),
-        guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True),
-        user: discord.PermissionOverwrite(read_messages=True, send_messages=True)
-    }
-
-    admin_role = guild.get_role(1361016912259055896)
-    if admin_role:
-        overwrites[admin_role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
-
-    category = discord.utils.get(guild.categories, name=category_name)
-    if category is None:
-        await interaction.response.send_message(f"❌ ไม่พบหมวดหมู่ {category_name}", ephemeral=True)
-        return
-
-    channel = await guild.create_text_channel(
-        name=channel_name,
-        overwrites=overwrites,
-        reason="New ticket",
-        category=category
-    )
-    await interaction.response.send_message(
-        content="📩 เปิดตั๋วเรียบร้อย!",
-        view=GoToTicketView(channel),
-        ephemeral=True
-    )
-
-    # แท็กเรียกพนักงานก่อน embed
-    if admin_role:
-        await channel.send(content=admin_role.mention)
-
-    # Embed แสดงข้อมูล
-    welcome_embed = discord.Embed(
-        title="🍣 Sushi Shop 🍣",
-        description=(
-            "ลูกค้า :\n\n"
-            f"{user.mention}\n\n"
-            "พนักงาน :\n\n"
-            f"{admin_role.mention if admin_role else 'ไม่พบพนักงาน'}\n\n"
-            "🎟️ กรุณากรอกข้อมูลด้านล่างเพื่อเริ่มต้นการสั่งซื้อ"
-        ),
-        color=0x00FF99
-    )
-    welcome_embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png?ex=689872fb&is=6897217b&hm=5e55202bef3413971c139963f7e23834ccd7cbd6528966dcdf6303ddb2c13d22&")
-    welcome_embed.set_footer(text="Sushi Gamepass Service")
-
-    await channel.send(embed=welcome_embed, view=view_class(channel, user))
-
-# --------------------------------------------------------------------------------------------------
-# View สำหรับ Robux Group
-class GroupTicketFullActionView(View):
-    def __init__(self, channel: discord.TextChannel, owner: discord.Member):
-        super().__init__(timeout=None)
-        self.channel = channel
-        self.owner = owner
-
-    @discord.ui.button(label="📝 กรอกแบบฟอร์ม Robux Group", style=discord.ButtonStyle.primary)
-    async def open_form(self, interaction: discord.Interaction, button: Button):
-        await interaction.response.send_modal(GroupTicketInfoModal())
-
-    @discord.ui.button(label="📤 ช่องทางการโอนเงิน", style=discord.ButtonStyle.success)
-    async def payment_info(self, interaction: discord.Interaction, button: Button):
-        embed = discord.Embed(title="📤 ช่องทางการโอนเงิน").set_image(
-            url="https://media.discordapp.net/attachments/722832040860319835/1402994996600111114/186-8-06559-8.png"
-        )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-
-    @discord.ui.button(label="🔒 ปิดตั๋ว", style=discord.ButtonStyle.danger)
-    async def close_ticket(self, interaction: discord.Interaction, button: Button):
-        if interaction.user.id != self.owner.id:
-            await interaction.response.send_message("❌ คุณไม่ใช่เจ้าของตั๋วนี้", ephemeral=True)
-            return
-
-        await interaction.response.send_message("📪 กำลังปิดตั๋วใน 5 วินาที...", ephemeral=True)
-        await discord.utils.sleep_until(discord.utils.utcnow() + datetime.timedelta(seconds=5))
-        await self.channel.delete()
-# --------------------------------------------------------------------------------------------------
-
-# --------------------------------------------------------------------------------------------------
-# คิดเลขเรทของ Gamepass / Group
-@bot.command()
-async def gp(ctx, *expression):
-    """คำนวณราคาจากจำนวน Robux (Gamepass) รองรับ +, *, x"""
-    try:
-        expr = "".join(expression).lower().replace("x", "*")
-        if not expr or not all(c in "0123456789+*- " for c in expr):
-            await ctx.send("❌ รูปแบบไม่ถูกต้อง กรุณาใช้เฉพาะตัวเลขและ + หรือ * (เช่น `!gp 500+200` หรือ `!gp 70*10`)")
-            return
-
-        total_robux = eval(expr)
-        if not isinstance(total_robux, (int, float)) or total_robux <= 0:
-            await ctx.send("❌ กรุณากรอกจำนวนที่มากกว่า 0")
-            return
-
-        rate = 7
-        price = total_robux / rate
-        price_str = f"{price:,.0f} บาท"
-        await ctx.send(f"🎮 Gamepass {total_robux:,} Robux = **{price_str}** (เรท {rate})")
-
-    except Exception as e:
-        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
-# --------------------------------------------------------------------------------------------------
-server_on()
-# เริ่มการทำงานบอท
-
-bot.run(os.getenv("TOKEN"))
-
+    user_na
 
