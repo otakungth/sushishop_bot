@@ -14,7 +14,37 @@ shop_open = True
 # ห้องบันทึกการขาย
 SALES_LOG_CHANNEL_ID = 1402993077643120720
 
-bot = commands.Bot(command_prefix="!", intents=intents)
+# ตรวจสอบว่าบอทกำลังรันอยู่แล้วหรือไม่
+bot_instance = None
+
+class MyBot(commands.Bot):
+    def __init__(self):
+        super().__init__(command_prefix="!", intents=intents)
+        self.has_started = False
+
+    async def on_ready(self):
+        if not self.has_started:
+            self.has_started = True
+            print(f"✅ บอทออนไลน์แล้ว: {self.user}")
+            await self.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name="ร้าน Sushi Shop"))
+            
+            # ลงทะเบียนคำสั่ง
+            await self.register_commands()
+
+    async def register_commands(self):
+        """ลงทะเบียนคำสั่งทั้งหมด"""
+        # ลบคำสั่งเก่าทั้งหมด (ถ้ามี)
+        self.tree.clear_commands(guild=None)
+        
+        # ลงทะเบียนคำสั่งสแลชใหม่
+        try:
+            await self.tree.sync()
+            print("✅ ซิงค์คำสั่งเสร็จสิ้น")
+        except Exception as e:
+            print(f"⚠️ ไม่สามารถซิงค์คำสั่ง: {e}")
+
+# สร้างอินสแตนซ์บอท
+bot = MyBot()
 
 # --------------------------------------------------------------------------------------------------
 # ฟังก์ชันคำนวณราคา (อัปเดตรองรับสัญลักษณ์เพิ่มเติม)
@@ -48,13 +78,16 @@ def calculate_price(expression: str) -> tuple:
 async def gp(ctx, *, expression: str):
     """คำนวณราคา Robux เป็นบาท"""
     # ลบคำสั่งออก
-    await ctx.message.delete()
+    try:
+        await ctx.message.delete()
+    except:
+        pass
     
     # คำนวณราคา
     robux_amount, price = calculate_price(expression)
     
     if robux_amount is None:
-        await ctx.send(price, delete_after=10)
+        msg = await ctx.send(price, delete_after=10)
         return
     
     # สร้าง Embed แสดงผล
@@ -438,12 +471,6 @@ class CloseTicketView(discord.ui.View):
         await self.channel.delete()
 
 # --------------------------------------------------------------------------------------------------
-# Events
-@bot.event
-async def on_ready():
-    print(f"✅ บอทออนไลน์แล้ว: {bot.user}")
-    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name="ร้าน Sushi Shop"))
-
 async def handle_open_ticket(interaction, category_name, view_class, mention_user):
     """ฟังก์ชันจัดการการเปิดตั๋ว"""
     try:
@@ -591,7 +618,7 @@ class GroupTicketFullActionView(View):
 
     @discord.ui.button(label="📤 ช่องทางการโอนเงิน", style=discord.ButtonStyle.success)
     async def payment_info(self, interaction: discord.Interaction, button: Button):
-        embed = discord.Embed(title="📤 ช่องทางการโอนเงิน").set_image(
+        embed = discord.Emembed(title="📤 ช่องทางการโอนเงิน").set_image(
             url="https://media.discordapp.net/attachments/722832040860319835/1402994996600111114/186-8-06559-8.png"
         )
         await interaction.response.send_message(embed=embed, ephemeral=True)
@@ -615,6 +642,13 @@ if __name__ == "__main__":
         print("❌ ไม่พบ Discord Bot Token ใน environment variables")
         print("⚠️ กรุณาตั้งค่า DISCORD_BOT_TOKEN ใน environment variables ของ Render")
         exit(1)
+    
+    # ตรวจสอบว่าบอทกำลังทำงานอยู่แล้วหรือไม่
+    if bot_instance is not None:
+        print("⚠️ บอทกำลังทำงานอยู่แล้ว")
+        exit(0)
+        
+    bot_instance = bot
     
     try:
         bot.run(token)
