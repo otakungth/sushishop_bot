@@ -4,8 +4,6 @@ import discord
 from discord.ext import commands
 from discord.ui import View, Button, Modal, TextInput
 
-from server import server_on
-
 # ตั้งค่าพื้นฐาน
 intents = discord.Intents.default()
 intents.message_content = True
@@ -302,7 +300,7 @@ class TicketInfoModal(Modal, title="📋 แบบฟอร์มสั่งส
             customer_embed.set_footer(text="ทีมงานจะตอบกลับโดยเร็วที่สุดครับ")
 
             confirm_embed = discord.Embed(title="📨 รายละเอียดการสั่งซื้อ", color=0x00FF99)
-            confirm_embed.add_field(name="🪪 ชื่อในเกม", value=self.user_name.value, inline=False)
+            confirm_embed.add_field(name="🪪 ชื่อในเกม", value="N/A", inline=False)
             confirm_embed.add_field(name="🗺️ แมพ", value=self.map_name.value, inline=False)
             confirm_embed.add_field(name="🎟 เกมพาส", value=self.gamepass_name.value, inline=False)
             confirm_embed.add_field(name="💸 จำนวน Robux", value=self.robux_amount.value, inline=True)
@@ -446,6 +444,44 @@ async def on_ready():
     print(f"✅ บอทออนไลน์แล้ว: {bot.user}")
     await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name="ร้าน Sushi Shop"))
 
+async def handle_open_ticket(interaction, category_name, view_class, mention_user):
+    """ฟังก์ชันจัดการการเปิดตั๋ว"""
+    try:
+        guild = interaction.guild
+        category = discord.utils.get(guild.categories, name=category_name)
+        
+        if not category:
+            await interaction.response.send_message("❌ ไม่พบหมวดหมู่ที่กำหนด", ephemeral=True)
+            return
+            
+        # สร้างช่องใหม่
+        overwrites = {
+            guild.default_role: discord.PermissionOverwrite(read_messages=False),
+            interaction.user: discord.PermissionOverwrite(read_messages=True, send_messages=True),
+            guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)
+        }
+        
+        channel = await category.create_text_channel(
+            name=f"ticket-{interaction.user.id}",
+            overwrites=overwrites
+        )
+        
+        # ส่งข้อความต้อนรับ
+        welcome_msg = f"👋 {interaction.user.mention} ยินดีต้อนรับสู่ตั๋ว支援ของคุณ!" if mention_user else "👋 ยินดีต้อนรับสู่ตั๋ว支援ของคุณ!"
+        
+        embed = discord.Embed(
+            title="🎫 ตั๋ว支援ถูกเปิดแล้ว",
+            description="กรุณากรอกข้อมูลด้านล่างเพื่อดำเนินการต่อ",
+            color=0x00FF00
+        )
+        
+        await channel.send(welcome_msg, embed=embed, view=view_class(channel, interaction.user))
+        await interaction.response.send_message(f"✅ เปิดตั๋ว支援เรียบร้อยแล้ว: {channel.mention}", ephemeral=True)
+        
+    except Exception as e:
+        print(f"❌ เกิดข้อผิดพลาดในการเปิดตั๋ว: {e}")
+        await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการเปิดตั๋ว", ephemeral=True)
+
 @bot.event
 async def on_interaction(interaction: discord.Interaction):
     if not interaction.data:
@@ -460,15 +496,6 @@ async def on_interaction(interaction: discord.Interaction):
             view_class=TicketFullActionView,
             mention_user=True
         )
-
-    elif custom_id == "open_group_ticket":
-        await handle_open_ticket(
-            interaction,
-            category_name="💰Robux Group💰",
-            view_class=GroupTicketFullActionView,
-            mention_user=False
-        )
-
 
 # --------------------------------------------------------------------------------------------------
 # --------------------------------------------------------------------------------------------------
@@ -510,7 +537,7 @@ async def opengroup(ctx):
         ),
         color=0x00AAFF
     )
-    embed.set_thumbnail(url="https://media.discordapp.net/attachments/717757556889747657/1403684950770847754/noFilter.png?ex=689872fb&is=6897217b&hm=5e55202bef3413971c139963f7e23834ccd7cbd6528966dcdf6303ddb2c13d22&=&format=webp&quality=lossless")# เปลี่ยนเป็นรูปที่คุณต้องการ
+    embed.set_thumbnail(url="https://media.discordapp.net/attachments/717757556889747657/1403684950770847754/noFilter.png?ex=689872fb&is=6897217b&hm=5e55202bef3413971c139963f7e23834ccd7cbd6528966dcdf6303ddb2c13d22&=&format=webp&quality=lossless")
     await ctx.send(embed=embed, view=OpenGroupTicketView())
     await ctx.message.delete()
 
@@ -529,5 +556,68 @@ class OpenGroupTicketView(View):
             self.add_item(Button(label="❌ ร้านปิดชั่วคราว", style=discord.ButtonStyle.danger, disabled=True))
 
 class GroupTicketInfoModal(Modal, title="📋 แบบฟอร์ม Robux Group"):
-    user_na
+    user_name = TextInput(label="🪪 ชื่อในเกม", placeholder="พิมพ์ชื่อในเกมของคุณ", required=True)
+    group_name = TextInput(label="👥 ชื่อกลุ่ม", placeholder="พิมพ์ชื่อกลุ่มที่ต้องการซื้อ", required=True)
+    robux_amount = TextInput(label="🎟 จำนวน Robux", placeholder="พิมพ์จำนวน Robux ที่ต้องการ", required=True)
 
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            robux = int(self.robux_amount.value)
+            rate = 4.5 if robux < 500 else 5
+            price = robux / rate
+            price_str = f"{price:,.0f} บาท"
+
+            customer_embed = discord.Embed(title="📨 รายละเอียดการสั่งซื้อ Group", color=0x00AAFF)
+            customer_embed.add_field(name="🪪 ชื่อในเกม", value=self.user_name.value, inline=False)
+            customer_embed.add_field(name="👥 ชื่อกลุ่ม", value=self.group_name.value, inline=False)
+            customer_embed.add_field(name="💸 จำนวน Robux", value=self.robux_amount.value, inline=True)
+            customer_embed.add_field(name="💰 ราคา", value=price_str, inline=True)
+            customer_embed.set_footer(text="ทีมงานจะตอบกลับโดยเร็วที่สุดครับ")
+
+            await interaction.response.send_message(embed=customer_embed, ephemeral=False)
+
+        except ValueError:
+            await interaction.response.send_message("❌ กรุณากรอกจำนวน Robux เป็นตัวเลข", ephemeral=True)
+
+class GroupTicketFullActionView(View):
+    def __init__(self, channel: discord.TextChannel, owner: discord.Member):
+        super().__init__(timeout=None)
+        self.channel = channel
+        self.owner = owner
+
+    @discord.ui.button(label="📝 กรอกแบบฟอร์ม Group", style=discord.ButtonStyle.primary)
+    async def open_form(self, interaction: discord.Interaction, button: Button):
+        await interaction.response.send_modal(GroupTicketInfoModal())
+
+    @discord.ui.button(label="📤 ช่องทางการโอนเงิน", style=discord.ButtonStyle.success)
+    async def payment_info(self, interaction: discord.Interaction, button: Button):
+        embed = discord.Embed(title="📤 ช่องทางการโอนเงิน").set_image(
+            url="https://media.discordapp.net/attachments/722832040860319835/1402994996600111114/186-8-06559-8.png"
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @discord.ui.button(label="🔒 ปิดตั๋ว", style=discord.ButtonStyle.danger)
+    async def close_ticket(self, interaction: discord.Interaction, button: Button):
+        if interaction.user.id != self.owner.id:
+            await interaction.response.send_message("❌ คุณไม่ใช่เจ้าของตั๋วนี้", ephemeral=True)
+            return
+
+        await interaction.response.send_message("📪 กำลังปิดตั๋วใน 5 วินาที...", ephemeral=True)
+        await discord.utils.sleep_until(discord.utils.utcnow() + datetime.timedelta(seconds=5))
+        await self.channel.delete()
+
+# --------------------------------------------------------------------------------------------------
+# เริ่มการทำงานของบอท
+if __name__ == "__main__":
+    # ตรวจสอบว่ามี TOKEN ใน environment variables หรือไม่
+    token = os.environ.get('DISCORD_BOT_TOKEN')
+    if not token:
+        print("❌ ไม่พบ Discord Bot Token ใน environment variables")
+        print("⚠️ กรุณาตั้งค่า DISCORD_BOT_TOKEN ใน environment variables ของ Render")
+        exit(1)
+    
+    try:
+        bot.run(token)
+    except Exception as e:
+        print(f"❌ เกิดข้อผิดพลาดในการเริ่มบอท: {e}")
+        exit(1)
