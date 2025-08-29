@@ -119,21 +119,15 @@ GAMEPASS_CHANNEL_ID = 1361044752975532152
 async def sushi(ctx):
     global shop_open
     shop_open = not shop_open
-    status = "✅ ร้านเปิด" if shop_open else "❌ ร้านปิด"
-    await ctx.send(f"📌 สถานะร้านถูกเปลี่ยนเป็น: **{status}**", delete_after=5)
 
-    # เปลี่ยนชื่อ channel ตามสถานะ
-    try:
-        if shop_open:
-            await ctx.channel.edit(name=f"🟢เกมพาสเรท {gamepass_rate}")
-            # เปิดร้าน → ส่ง embed เปิดร้านใหม่
-            if ctx.channel.id == GAMEPASS_CHANNEL_ID:
-                await openshop(ctx)
-        else:
-            await ctx.channel.edit(name=f"🔴เกมพาสเรท {gamepass_rate}")
-            # ปิดร้าน → ไม่ต้องเรียก openshop
-    except Exception as e:
-        print(f"❌ ไม่สามารถเปลี่ยนชื่อ channel: {e}")
+    status = "✅ ร้านเปิด" if shop_open else "❌ ร้านปิด"
+    await ctx.send(
+        f"📌 สถานะร้านถูกเปลี่ยนเป็น: **{status}**",
+        delete_after=5
+    )
+
+    if ctx.channel.id == GAMEPASS_CHANNEL_ID:
+        await openshop(ctx)
         
 @bot.command()
 @commands.has_permissions(administrator=True)
@@ -444,20 +438,15 @@ GROUP_CHANNEL_ID = 1361554847526162532
 async def rg(ctx):
     global group_open
     group_open = not group_open
-    status = "✅ Robux Group เปิด" if group_open else "❌ Robux Group ปิด"
-    await ctx.send(f"📌 สถานะ Robux Group ถูกเปลี่ยนเป็น: **{status}**", delete_after=5)
 
-    try:
-        if group_open:
-            await ctx.channel.edit(name=f"🟢Robux Group เรท {group_rate_low}/{group_rate_high}")
-            # เปิดร้าน → ส่ง embed เปิดร้านใหม่
-            if ctx.channel.id == GROUP_CHANNEL_ID:
-                await opengroup(ctx)
-        else:
-            await ctx.channel.edit(name=f"🔴Robux Group เรท {group_rate_low}/{group_rate_high}")
-            # ปิดร้าน → ไม่ต้องเรียก opengroup
-    except Exception as e:
-        print(f"❌ ไม่สามารถเปลี่ยนชื่อ channel: {e}")
+    status = "✅ Robux Group เปิด" if group_open else "❌ Robux Group ปิด"
+    await ctx.send(
+        f"📌 สถานะ Robux Group ถูกเปลี่ยนเป็น: **{status}**",
+        delete_after=5
+    )
+
+    if ctx.channel.id == GROUP_CHANNEL_ID:
+        await opengroup(ctx)
 
 @bot.command()
 @commands.has_permissions(administrator=True)
@@ -715,6 +704,7 @@ server_on()
 # เริ่มการทำงานบอท
 
 bot.run(os.getenv("TOKEN"))
+
 
 
 
