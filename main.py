@@ -618,15 +618,15 @@ class GroupTicketFullActionView(View):
 async def gp(ctx, *, expression: str):
     """คำนวณราคาจากจำนวน Robux (Gamepass)"""
     try:
-        # แทน 'x' ด้วย '*' เพื่อรองรับการใช้ x แทนการคูณ
-        expression = expression.lower().replace("x", "*")
+        # รองรับ x และ ÷
+        expression = expression.lower().replace("x", "*").replace("÷", "/")
 
         # อนุญาตเฉพาะตัวเลข + - * / () ช่องว่าง
         if not re.match(r"^[\d\s\+\-\*\/\(\)]+$", expression):
-            await ctx.send("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / ()")
+            await ctx.send("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / ÷ ()")
             return
 
-        robux = eval(expression)  # ใช้ eval คำนวณ (เพราะเช็ค regex ไว้แล้ว ปลอดภัย)
+        robux = eval(expression)  
         rate = 7
         price = robux / rate
         price_str = f"{price:,.0f} บาท"
@@ -641,10 +641,10 @@ async def gp(ctx, *, expression: str):
 async def g(ctx, *, expression: str):
     """คำนวณราคาจากจำนวน Robux (Group)"""
     try:
-        expression = expression.lower().replace("x", "*")
+        expression = expression.lower().replace("x", "*").replace("÷", "/")
 
         if not re.match(r"^[\d\s\+\-\*\/\(\)]+$", expression):
-            await ctx.send("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / ()")
+            await ctx.send("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / ÷ ()")
             return
 
         robux = eval(expression)
@@ -666,3 +666,4 @@ server_on()
 # เริ่มการทำงานบอท
 
 bot.run(os.getenv("TOKEN"))
+
