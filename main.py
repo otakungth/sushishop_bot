@@ -449,9 +449,9 @@ async def rg(ctx):
     # เปลี่ยนชื่อ channel ตามสถานะ
     try:
         if group_open:
-            await ctx.channel.edit(name=f"🟢Robux Group เรท {group_rate_low}")
+            await ctx.channel.edit(name=f"🟢โรกลุ่มเรท {group_rate_low}")
         else:
-            await ctx.channel.edit(name=f"🔴Robux Group เรท {group_rate_low}")
+            await ctx.channel.edit(name=f"🔴โรกลุ่มเรท {group_rate_low}")
     except Exception as e:
         print(f"❌ ไม่สามารถเปลี่ยนชื่อ channel: {e}")
 
@@ -714,6 +714,7 @@ server_on()
 # เริ่มการทำงานบอท
 
 bot.run(os.getenv("TOKEN"))
+
 
 
 
