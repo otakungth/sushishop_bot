@@ -6,6 +6,10 @@ from discord.ui import View, Button, Modal, TextInput
 import re
 
 from server import server_on
+# ตั้งค่าเรท
+gamepass_rate = 7
+group_rate_low = 4.5
+group_rate_high = 5
 
 # ตั้งค่าพื้นฐาน
 intents = discord.Intents.default()
@@ -13,6 +17,7 @@ intents.message_content = True
 intents.guilds = True
 intents.members = True
 shop_open = True
+
 
 # ห้องบันทึกการขาย
 SALES_LOG_CHANNEL_ID = 1402993077643120720
@@ -134,7 +139,7 @@ async def openshop(ctx):
     embed = discord.Embed(
         title="🍣 Sushi Shop 🍣",
         description=(
-            "# **กดเกมพาสเรท 7**\n\n"
+            f"# **กดเกมพาสเรท {gamepass_rate}**\n\n"
             "กดปุ่ม 'เปิดตั๋ว' เพื่อกดเกมพาสหรือสอบถามได้เลยครับ\n\n"
             "หากลูกค้ามีปัญหาได้รับของผิดสามารถติดต่อทีมงานได้เลยนะครับ"
         ),
@@ -237,8 +242,7 @@ class TicketInfoModal(Modal, title="📋 แบบฟอร์มสั่งส
     async def on_submit(self, interaction: discord.Interaction):
         try:
             robux = int(self.robux_amount.value)
-            rate = 7
-            price = robux / rate
+            price = robux / gamepass_rate
             price_str = f"{price:,.0f} บาท"
 
             customer_embed = discord.Embed(title="📨 รายละเอียดการสั่งซื้อ", color=0x00FF99)
@@ -266,7 +270,7 @@ class TicketInfoModal(Modal, title="📋 แบบฟอร์มสั่งส
 class ConfirmTicketView(discord.ui.View):
     def __init__(self, embed_data: discord.Embed):
         super().__init__(timeout=None)
-        self.embed_data = embed_data.copy()
+        self.embed_data = discord.Embed.from_dict(embed_data.to_dict())
 
     @discord.ui.button(label="✅ ยืนยันการสั่งซื้อ", style=discord.ButtonStyle.success, custom_id="confirm_ticket")
     async def confirm_button(self, interaction: discord.Interaction, button: Button):
@@ -449,7 +453,7 @@ async def opengroup(ctx):
     embed = discord.Embed(
         title="🍣 Sushi Shop 🍣",
         description=(
-            "# **🛒โรกลุ่มเรท 4.5 ซื้อมากกว่า 500 บาทเรท 5**\n\n"
+            f"# **🛒โรกลุ่มเรท {group_rate_low} ซื้อมากกว่า 500 บาทเรท {group_rate_high} **\n\n"
             "กดปุ่ม 'เปิดตั๋ว' เพื่อสั่งซื้อได้เลยครับ\n\n"
             "เข้ากลุ่มนี้: https://www.roblox.com/communities/34713179/VALKYs \n\n"
             "⚠️ กรุณาเข้ากลุ่มให้ครบ 15 วัน ⚠️\n\n"
@@ -484,9 +488,9 @@ class GroupTicketInfoModal(Modal, title="📋 แบบฟอร์ม Robux Gro
         try:
             robux = int(self.robux_amount.value)
             if robux < 1500:
-                rate = 4.5
+                rate = group_rate_low
             else:
-                rate = 5
+                rate = group_rate_high
 
             price = robux / rate
             price_str = f"{price:,.0f} บาท"
@@ -627,11 +631,10 @@ async def gp(ctx, *, expression: str):
             return
 
         robux = eval(expression)  
-        rate = 7
-        price = robux / rate
+        price = robux / gamepass_rate
         price_str = f"{price:,.0f} บาท"
 
-        await ctx.send(f"🎮 Gamepass {robux:,} Robux = **{price_str}** (เรท {rate})")
+        await ctx.send(f"🎮 Gamepass {robux:,} Robux = **{price_str}** (เรท {gamepass_rate})")
 
     except Exception as e:
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
@@ -650,9 +653,9 @@ async def g(ctx, *, expression: str):
         robux = eval(expression)
 
         if robux < 1500:
-            rate = 4.5
+            rate = group_rate_low
         else:
-            rate = 5
+            rate = group_rate_high
 
         price = robux / rate
         price_str = f"{price:,.0f} บาท"
