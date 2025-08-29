@@ -445,6 +445,16 @@ async def rg(ctx):
     group_open = not group_open
     status = "✅ Robux Group เปิด" if group_open else "❌ Robux Group ปิด"
     await ctx.send(f"📌 สถานะ Robux Group ถูกเปลี่ยนเป็น: **{status}**", delete_after=5)
+
+    # เปลี่ยนชื่อ channel ตามสถานะ
+    try:
+        if group_open:
+            await ctx.channel.edit(name=f"🟢Robux Group เรท {group_rate_low}/{group_rate_high}")
+        else:
+            await ctx.channel.edit(name=f"🔴Robux Group เรท {group_rate_low}/{group_rate_high}")
+    except Exception as e:
+        print(f"❌ ไม่สามารถเปลี่ยนชื่อ channel: {e}")
+
     if ctx.channel.id == GROUP_CHANNEL_ID:
         await opengroup(ctx)
 
@@ -704,6 +714,7 @@ server_on()
 # เริ่มการทำงานบอท
 
 bot.run(os.getenv("TOKEN"))
+
 
 
 
