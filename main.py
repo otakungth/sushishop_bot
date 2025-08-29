@@ -126,13 +126,14 @@ async def sushi(ctx):
     try:
         if shop_open:
             await ctx.channel.edit(name=f"🟢เกมพาสเรท {gamepass_rate}")
+            # เปิดร้าน → ส่ง embed เปิดร้านใหม่
+            if ctx.channel.id == GAMEPASS_CHANNEL_ID:
+                await openshop(ctx)
         else:
             await ctx.channel.edit(name=f"🔴เกมพาสเรท {gamepass_rate}")
+            # ปิดร้าน → ไม่ต้องเรียก openshop
     except Exception as e:
         print(f"❌ ไม่สามารถเปลี่ยนชื่อ channel: {e}")
-
-    if ctx.channel.id == GAMEPASS_CHANNEL_ID:
-        await openshop(ctx)
         
 @bot.command()
 @commands.has_permissions(administrator=True)
@@ -714,6 +715,7 @@ server_on()
 # เริ่มการทำงานบอท
 
 bot.run(os.getenv("TOKEN"))
+
 
 
 
