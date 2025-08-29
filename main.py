@@ -124,8 +124,6 @@ async def send_sale_log(embed_data: discord.Embed, interaction: discord.Interact
                 robux_amount = field.value
             elif field.name in ("💰 ราคาตามเรท", "💰 ราคา"):
                 price = field.value
-            elif field.name == "🪪 ชื่อในเกม":
-                user_name = field.value
 
         # ตรวจหาประเภทสินค้า
         sale_type = "ไม่ทราบ"
@@ -333,7 +331,6 @@ class TicketInfoModal(Modal, title="📋 แบบฟอร์มสั่งส
             customer_embed.set_footer(text="ทีมงานจะตอบกลับโดยเร็วที่สุดครับ")
 
             confirm_embed = discord.Embed(title="📨 รายละเอียดการสั่งซื้อ", color=0x00FF99)
-            confirm_embed.add_field(name="🪪 ชื่อในเกม", value="N/A", inline=False)
             confirm_embed.add_field(name="🗺️ แมพ", value=self.map_name.value, inline=False)
             confirm_embed.add_field(name="🎟 เกมพาส", value=self.gamepass_name.value, inline=False)
             confirm_embed.add_field(name="💸 จำนวน Robux", value=self.robux_amount.value, inline=True)
@@ -655,3 +652,4 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดในการเริ่มบอท: {e}")
         exit(1)
+
