@@ -118,21 +118,21 @@ async def sushi(ctx):
     global shop_open
     shop_open = not shop_open
 
-    status = ":white_check_mark: ร้านเปิด" if shop_open else ":x: ร้านปิด"
-    await ctx.send(
-        f":pushpin: สถานะร้านถูกเปลี่ยนเป็น: **{status}**",
-        delete_after=5
-    )
+    # ส่งข้อความสถานะ
+    status = "🟢 ร้านเปิดแล้ว" if shop_open else "🔴 ร้านปิดแล้ว"
+    await ctx.send(status)
 
-    # ✅ เปลี่ยนชื่อช่องตามสถานะร้าน
-    gamepass_channel = bot.get_channel(GAMEPASS_CHANNEL_ID)
-    if gamepass_channel:
-        try:
-            new_name = f"{'🟢' if shop_open else '🔴'}เกมพาส〔{str(gamepass_rate).replace('.', '﹒')}〕"
-            await gamepass_channel.edit(name=new_name)
-        except Exception as e:
-            print(f"❌ ไม่สามารถเปลี่ยนชื่อช่อง: {e}")
+    # เปลี่ยนชื่อช่อง (เฉพาะถ้าจำเป็น)
+    channel = bot.get_channel(GAMEPASS_CHANNEL_ID)
+    if channel:
+        new_name = f"{'🟢' if shop_open else '🔴'}เกมพาส〔{str(gamepass_rate).replace('.', '﹒')}〕"
+        if channel.name != new_name:  # ป้องกัน spam PATCH
+            try:
+                await channel.edit(name=new_name)
+            except Exception as e:
+                print(f"ไม่สามารถเปลี่ยนชื่อช่องได้: {e}")
 
+    # เรียก openshop ถ้าอยู่ในห้องเกมพาส
     if ctx.channel.id == GAMEPASS_CHANNEL_ID:
         await openshop(ctx)
         
@@ -727,6 +727,7 @@ server_on()
 # เริ่มการทำงานบอท
 
 bot.run(os.getenv("TOKEN"))
+
 
 
 
