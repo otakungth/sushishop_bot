@@ -114,52 +114,59 @@ GAMEPASS_CHANNEL_ID = 1361044752975532152
 
 @bot.command()
 @commands.has_permissions(administrator=True)
+@bot.command()
+@commands.has_permissions(administrator=True)
 async def sushi(ctx):
     global shop_open
     shop_open = not shop_open
 
-    # ส่งข้อความสถานะ
-    status = "🟢 ร้านเปิดแล้ว" if shop_open else "🔴 ร้านปิดแล้ว"
-    await ctx.send(status)
+    # แจ้งสถานะในห้องที่ใช้คำสั่ง
+    await ctx.send("🟢 ร้านเปิดแล้ว" if shop_open else "🔴 ร้านปิดแล้ว")
 
-    # เปลี่ยนชื่อช่อง (เฉพาะถ้าจำเป็น)
-    channel = bot.get_channel(GAMEPASS_CHANNEL_ID)
-    if channel:
-        new_name = f"{'🟢' if shop_open else '🔴'}เกมพาส〔{str(gamepass_rate).replace('.', '﹒')}〕"
-        if channel.name != new_name:  # ป้องกัน spam PATCH
-            try:
-                await channel.edit(name=new_name)
-            except Exception as e:
-                print(f"ไม่สามารถเปลี่ยนชื่อช่องได้: {e}")
-
-    # เรียก openshop ถ้าอยู่ในห้องเกมพาส
-    if ctx.channel.id == GAMEPASS_CHANNEL_ID:
-        await openshop(ctx)
+    # อัปเดตร้านในห้องเกมพาส
+    await openshop()
         
-@bot.command()
-@commands.has_permissions(administrator=True)
-async def openshop(ctx):
-    if ctx.channel.id != GAMEPASS_CHANNEL_ID:
-        await ctx.message.delete()
+async def openshop():
+    channel = bot.get_channel(GAMEPASS_CHANNEL_ID)
+    if not channel:
+        print("ไม่พบห้องเกมพาส")
         return
 
-    # ลบข้อความเก่าๆ ของบอทในช่องนี้
-    async for msg in ctx.channel.history(limit=20):
+    # ลบข้อความเก่าในห้อง (เฉพาะของบอท)
+    async for msg in channel.history(limit=50):
         if msg.author == bot.user:
-            await msg.delete()
+            try:
+                await msg.delete()
+            except:
+                pass
 
+    # สร้างปุ่ม
+    from discord.ui import View, Button
+
+    view = View()
+    if shop_open:
+        btn = Button(label="กดเกมพาสเรท 6.5", style=discord.ButtonStyle.green)
+    else:
+        btn = Button(label="ร้านปิดชั่วคราว", style=discord.ButtonStyle.red, disabled=True)
+    view.add_item(btn)
+
+    # สร้าง embed
     embed = discord.Embed(
         title="🍣 Sushi Shop 🍣",
-        description=(
-            f"# **กดเกมพาสเรท {gamepass_rate}**\n\n"
-            "กดปุ่ม 'เปิดตั๋ว' เพื่อกดเกมพาสหรือสอบถามได้เลยครับ\n\n"
-            "หากลูกค้ามีปัญหาได้รับของผิดสามารถติดต่อทีมงานได้เลยนะครับ"
-        ),
-        color=0xFFD700
+        description=f"กดปุ่ม 'เปิดดีล' เพื่อกดเกมพาสหรือสอบถามได้เลยครับ\nหากลูกค้ามีปัญหาได้รับของผิดสามารถติดต่อทีมงานได้เลยนะครับ",
+        color=0xF1C40F
     )
-    embed.set_thumbnail(url="https://media.discordapp.net/attachments/717757556889747657/1403684950770847754/noFilter.png?ex=689872fb&is=6897217b&hm=5e55202bef3413971c139963f7e23834ccd7cbd6528966dcdf6303ddb2c13d22&=&format=webp&quality=lossless")
-    await ctx.send(embed=embed, view=OpenTicketView())
-    await ctx.message.delete()
+
+    # ส่งข้อความใหม่
+    await channel.send(embed=embed, view=view)
+
+    # เปลี่ยนชื่อห้อง
+    new_name = f"{'🟢' if shop_open else '🔴'}เกมพาส〔{str(gamepass_rate).replace('.', '﹒')}〕"
+    if channel.name != new_name:
+        try:
+            await channel.edit(name=new_name)
+        except Exception as e:
+            print(f"เปลี่ยนชื่อห้องไม่สำเร็จ: {e}")
 
 # --------------------------------------------------------------------------------------------------
 
@@ -727,6 +734,7 @@ server_on()
 # เริ่มการทำงานบอท
 
 bot.run(os.getenv("TOKEN"))
+
 
 
 
