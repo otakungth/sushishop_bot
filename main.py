@@ -114,8 +114,6 @@ GAMEPASS_CHANNEL_ID = 1361044752975532152
 
 @bot.command()
 @commands.has_permissions(administrator=True)
-@bot.command()
-@commands.has_permissions(administrator=True)
 async def sushi(ctx):
     global shop_open
     shop_open = not shop_open
@@ -127,6 +125,7 @@ async def sushi(ctx):
     await openshop()
         
 async def openshop():
+    global shop_open
     channel = bot.get_channel(GAMEPASS_CHANNEL_ID)
     if not channel:
         print("ไม่พบห้องเกมพาส")
@@ -734,6 +733,7 @@ server_on()
 # เริ่มการทำงานบอท
 
 bot.run(os.getenv("TOKEN"))
+
 
 
 
