@@ -120,6 +120,15 @@ async def sushi(ctx):
     shop_open = not shop_open
     status = ":white_check_mark: ร้านเปิด" if shop_open else ":x: ร้านปิด"
 
+    # ✅ แก้ชื่อช่องตาม ID ที่กำหนด
+    try:
+        channel = ctx.guild.get_channel(GAMEPASS_CHANNEL_ID)
+        if channel:
+            new_name = f"🟢เกมพาส〔{gamepass_rate}〕" if shop_open else f"🔴เกมพาส〔{gamepass_rate}〕"
+            await channel.edit(name=new_name)
+    except Exception as e:
+        print(f"❌ ไม่สามารถเปลี่ยนชื่อช่อง: {e}")
+
     await ctx.send(
         f":pushpin: สถานะร้านถูกเปลี่ยนเป็น: **{status}**",
         delete_after=5
@@ -150,7 +159,6 @@ async def sushi(ctx):
 
     # ลบข้อความคำสั่งของผู้ใช้
     await ctx.message.delete()
-
 # --------------------------------------------------------------------------------------------------
 
 @bot.command()
@@ -717,6 +725,7 @@ server_on()
 # เริ่มการทำงานบอท
 
 bot.run(os.getenv("TOKEN"))
+
 
 
 
