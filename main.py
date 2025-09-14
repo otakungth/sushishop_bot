@@ -114,62 +114,52 @@ GAMEPASS_CHANNEL_ID = 1361044752975532152
 
 @bot.command()
 @commands.has_permissions(administrator=True)
+@bot.command()
+@commands.has_permissions(administrator=True)
 async def sushi(ctx):
-    """สลับสถานะร้านและเปิด/ปิดร้าน (Gamepass)"""
     global shop_open
     shop_open = not shop_open
+
     status = ":white_check_mark: ร้านเปิด" if shop_open else ":x: ร้านปิด"
-
-    try:
-        channel = ctx.guild.get_channel(GAMEPASS_CHANNEL_ID)
-        if channel:
-            # ✅ เปลี่ยนชื่อห้อง
-            new_name = f"🟢เกมพาส〔{gamepass_rate}〕" if shop_open else f"🔴เกมพาส〔{gamepass_rate}〕"
-            await channel.edit(name=new_name)
-
-            # ✅ ลบข้อความเก่า ๆ ของบอท
-            async for msg in channel.history(limit=20):
-                if msg.author == bot.user:
-                    await msg.delete()
-
-            # ✅ เตรียม embed ตามสถานะร้าน
-            if shop_open:
-                desc = (
-                    f"# **กดเกมพาสเรท {gamepass_rate}**\n\n"
-                    "กดปุ่ม 'เปิดตั๋ว' เพื่อกดเกมพาสหรือสอบถามได้เลยครับ\n\n"
-                    "หากลูกค้ามีปัญหาได้รับของผิดสามารถติดต่อทีมงานได้เลยนะครับ"
-                )
-                color = 0x00FF00  # เขียว
-            else:
-                desc = (
-                    "# ❌ ร้านปิดแล้ว\n\n"
-                    "กรุณารอจนกว่าจะเปิดรอบถัดไปครับ 🙏"
-                )
-                color = 0xFF0000  # แดง
-
-            embed = discord.Embed(
-                title="🍣 Sushi Shop 🍣",
-                description=desc,
-                color=color
-            )
-            embed.set_thumbnail(
-                url="https://media.discordapp.net/attachments/717757556889747657/1403684950770847754/noFilter.png"
-            )
-
-            # ✅ ถ้าเปิดร้าน แสดงปุ่ม OpenTicketView, ถ้าปิดไม่ต้อง
-            view = OpenTicketView() if shop_open else None
-            await channel.send(embed=embed, view=view)
-
-    except Exception as e:
-        print(f"❌ ไม่สามารถเปลี่ยนชื่อช่อง: {e}")
-
-    # ✅ ส่งข้อความแจ้งในห้องที่พิมพ์คำสั่ง
     await ctx.send(
         f":pushpin: สถานะร้านถูกเปลี่ยนเป็น: **{status}**",
         delete_after=5
     )
 
-    # ✅ ลบข้อความคำสั่งของผู้ใช้
+    if ctx.channel.id == GAMEPASS_CHANNEL_ID:
+        await openshop(ctx)
+        
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def openshop(ctx):
+    # ตรวจสอบว่ามาในช่องที่ถูกต้อง
+    if ctx.channel.id != GAMEPASS_CHANNEL_ID:
+        await ctx.message.delete()
+        return
+
+    # ลบข้อความเก่า ๆ ของบอทในช่องนี้
+    async for msg in ctx.channel.history(limit=20):
+        if msg.author == bot.user:
+            await msg.delete()
+
+    # สร้าง embed ของร้าน
+    embed = discord.Embed(
+        title=":sushi: Sushi Shop :sushi:",
+        description=(
+            f"# **กดเกมพาสเรท {gamepass_rate}**\n\n"
+            "กดปุ่ม 'เปิดตั๋ว' เพื่อกดเกมพาสหรือสอบถามได้เลยครับ\n\n"
+            "หากลูกค้ามีปัญหาได้รับของผิดสามารถติดต่อทีมงานได้เลยนะครับ"
+        ),
+        color=0xFFD700
+    )
+    embed.set_thumbnail(
+        url="https://media.discordapp.net/attachments/717757556889747657/1403684950770847754/noFilter.png"
+    )
+
+    # ส่ง embed พร้อมปุ่ม OpenTicketView
+    await ctx.send(embed=embed, view=OpenTicketView())
+
+    # ลบข้อความคำสั่งของผู้ใช้
     await ctx.message.delete()
 # --------------------------------------------------------------------------------------------------
 
@@ -737,6 +727,7 @@ server_on()
 # เริ่มการทำงานบอท
 
 bot.run(os.getenv("TOKEN"))
+
 
 
 
