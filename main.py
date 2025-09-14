@@ -118,21 +118,20 @@ async def sushi(ctx):
     global shop_open
     shop_open = not shop_open
 
-    status = "✅ ร้านเปิด" if shop_open else "❌ ร้านปิด"
+    status = ":white_check_mark: ร้านเปิด" if shop_open else ":x: ร้านปิด"
     await ctx.send(
-        f"📌 สถานะร้านถูกเปลี่ยนเป็น: **{status}**",
+        f":pushpin: สถานะร้านถูกเปลี่ยนเป็น: **{status}**",
         delete_after=5
     )
 
-    # หา category ที่มีคำว่า "Sushi Gamepass" อยู่ในชื่อ
-    category = discord.utils.find(
-        lambda c: "Sushi Gamepass" in c.name,
-        ctx.guild.categories
-    )
-
-    if category:
-        new_name = f"🟢 เกมพาส 【{gamepass_rate}】" if shop_open else f"🔴 เกมพาส 【{gamepass_rate}】"
-        await category.edit(name=new_name)
+    # ✅ เปลี่ยนชื่อช่องตามสถานะร้าน
+    gamepass_channel = bot.get_channel(GAMEPASS_CHANNEL_ID)
+    if gamepass_channel:
+        try:
+            new_name = f"{'🟢' if shop_open else '🔴'}เกมพาส〔{str(gamepass_rate).replace('.', '﹒')}〕"
+            await gamepass_channel.edit(name=new_name)
+        except Exception as e:
+            print(f"❌ ไม่สามารถเปลี่ยนชื่อช่อง: {e}")
 
     if ctx.channel.id == GAMEPASS_CHANNEL_ID:
         await openshop(ctx)
@@ -728,5 +727,6 @@ server_on()
 # เริ่มการทำงานบอท
 
 bot.run(os.getenv("TOKEN"))
+
 
 
