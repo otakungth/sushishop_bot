@@ -124,10 +124,14 @@ async def sushi(ctx):
         delete_after=5
     )
 
-    # เปลี่ยนชื่อ category
-    category = discord.utils.get(ctx.guild.categories, name="🍣Sushi Gamepass 🍣")
+    # หา category ที่มีคำว่า "Sushi Gamepass" อยู่ในชื่อ
+    category = discord.utils.find(
+        lambda c: "Sushi Gamepass" in c.name,
+        ctx.guild.categories
+    )
+
     if category:
-        new_name = f"🟢 เกมพาส 【6・5】" if shop_open else f"🔴 เกมพาส 【6・5】"
+        new_name = f"🟢 เกมพาส 【{gamepass_rate}】" if shop_open else f"🔴 เกมพาส 【{gamepass_rate}】"
         await category.edit(name=new_name)
 
     if ctx.channel.id == GAMEPASS_CHANNEL_ID:
@@ -724,4 +728,5 @@ server_on()
 # เริ่มการทำงานบอท
 
 bot.run(os.getenv("TOKEN"))
+
 
