@@ -237,35 +237,54 @@ class OpenTicketView(View):
             self.add_item(Button(label="❌ ร้านปิดชั่วคราว", style=discord.ButtonStyle.danger, disabled=True))
 
 class TicketInfoModal(Modal, title="📋 แบบฟอร์มสั่งสินค้า"):
-    map_name = TextInput(label="🗺 ชื่อแมพที่จะกด?", placeholder="พิมพ์ชื่อแมพ เช่น All Star Tower Defense X", required=True)
-    gamepass_name = TextInput(label="💸กดเกมพาสอะไร?", placeholder="พิมพ์ชื่อเกมพาส เช่น x3 Speed 3 ชิ้น", required=True)
-    robux_amount = TextInput(label="🎟 รวมทั้งหมดกี่ Robux?", placeholder="พิมพ์จำนวนRobux เช่น 995", required=True)
+    map_name = TextInput(
+        label="🗺 ชื่อแมพที่จะกด?",
+        placeholder="พิมพ์ชื่อแมพ เช่น All Star Tower Defense X",
+        required=True
+    )
+    gamepass_name = TextInput(
+        label="💸 กดเกมพาสอะไร?",
+        placeholder="พิมพ์ชื่อเกมพาส เช่น x3 Speed 3 ชิ้น",
+        required=True
+    )
+    robux_amount = TextInput(
+        label="🎟 รวมทั้งหมดกี่ Robux?",
+        placeholder="เช่น 995 หรือ 100+100+100 หรือ 100x3",
+        required=True
+    )
 
     async def on_submit(self, interaction: discord.Interaction):
         try:
-            robux = int(self.robux_amount.value)
+            # แปลง input ให้รองรับ x และ ÷
+            expr = self.robux_amount.value.lower().replace("x", "*").replace("÷", "/")
+
+            # ตรวจสอบว่า input มีแต่ตัวเลขและเครื่องหมายที่อนุญาต
+            if not re.match(r"^[\d\s\+\-\*\/\(\)]+$", expr):
+                await interaction.response.send_message("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", ephemeral=True)
+                return
+
+            # คำนวณ robux
+            robux = int(eval(expr))
             price = robux / gamepass_rate
             price_str = f"{price:,.0f} บาท"
 
+            # Embed ลูกค้า
             customer_embed = discord.Embed(title="📨 รายละเอียดการสั่งซื้อ", color=0x00FF99)
             customer_embed.add_field(name="🗺️ แมพ", value=self.map_name.value, inline=False)
             customer_embed.add_field(name="🎟 เกมพาส", value=self.gamepass_name.value, inline=False)
-            customer_embed.add_field(name="💸 จำนวน Robux", value=self.robux_amount.value, inline=True)
+            customer_embed.add_field(name="💸 จำนวน Robux", value=f"{robux:,}", inline=True)
             customer_embed.add_field(name="💰 ราคา", value=price_str, inline=True)
             customer_embed.set_footer(text="ทีมงานจะตอบกลับโดยเร็วที่สุดครับ")
 
-            confirm_embed = discord.Embed(title="📨 รายละเอียดการสั่งซื้อ", color=0x00FF99)
-            confirm_embed.add_field(name="🗺️ แมพ", value=self.map_name.value, inline=False)
-            confirm_embed.add_field(name="🎟 เกมพาส", value=self.gamepass_name.value, inline=False)
-            confirm_embed.add_field(name="💸 จำนวน Robux", value=self.robux_amount.value, inline=True)
-            confirm_embed.add_field(name="💰 ราคาตามเรท", value=price_str, inline=True)
+            # Embed ยืนยัน
+            confirm_embed = customer_embed.copy()
             confirm_embed.set_footer(text=f"🧾 ผู้ใช้: {interaction.user}")
 
             view = ConfirmTicketView(embed_data=confirm_embed)
             await interaction.response.send_message(embed=customer_embed, view=view, ephemeral=False)
 
-        except ValueError:
-            await interaction.response.send_message("❌ กรุณากรอกจำนวน Robux เป็นตัวเลข", ephemeral=True)
+        except Exception as e:
+            await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
 
 class ConfirmTicketView(discord.ui.View):
     def __init__(self, embed_data: discord.Embed):
@@ -699,17 +718,3 @@ server_on()
 # เริ่มการทำงานบอท
 
 bot.run(os.getenv("TOKEN"))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
