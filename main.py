@@ -8,8 +8,8 @@ import re
 from server import server_on
 # ตั้งค่าเรท
 gamepass_rate = 6.2
-group_rate_low = 4.5
-group_rate_high = 5
+group_rate_low = 4
+group_rate_high = 4.5
 
 # ตั้งค่าพื้นฐาน
 intents = discord.Intents.default()
@@ -725,6 +725,7 @@ server_on()
 # เริ่มการทำงานบอท
 
 bot.run(os.getenv("TOKEN"))
+
 
 
 
