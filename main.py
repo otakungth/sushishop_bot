@@ -7,7 +7,7 @@ import re
 
 from server import server_on
 # ตั้งค่าเรท
-gamepass_rate = 8
+gamepass_rate = 7
 group_rate_low = 4
 group_rate_high = 4.5
 
@@ -726,6 +726,7 @@ server_on()
 # เริ่มการทำงานบอท
 
 bot.run(os.getenv("TOKEN"))
+
 
 
 
