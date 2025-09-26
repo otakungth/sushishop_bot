@@ -698,9 +698,43 @@ async def g(ctx, *, expression: str):
 
     except Exception as e:
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
+        
+#-------------------------------------------------------------------------------------------------------------
+# คำสั่ง !gb (เงิน → Robux Group)
+@bot.command()
+async def gb(ctx, *, expression: str):
+    """คำนวณจากจำนวนเงิน เป็น Robux (Group)"""
+    try:
+        expression = expression.replace(",", "").replace(" ", "")
+        baht = eval(expression)
 
+        if baht < 500:
+            rate = group_rate_low
+        else:
+            rate = group_rate_high
+
+        robux = baht * rate
+        await ctx.send(f"👥 {baht:,.0f} บาท = **{robux:,.0f} Robux** (Group เรท {rate})")
+
+    except Exception as e:
+        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
 
 #-------------------------------------------------------------------------------------------------------------
+# คำสั่ง !gpb (เงิน → Robux Gamepass)
+@bot.command()
+async def gpb(ctx, *, expression: str):
+    """คำนวณจากจำนวนเงิน เป็น Robux (Gamepass)"""
+    try:
+        expression = expression.replace(",", "").replace(" ", "")
+        baht = eval(expression)
+
+        robux = baht * gamepass_rate
+        await ctx.send(f"🎮 {baht:,.0f} บาท = **{robux:,.0f} Robux** (Gamepass เรท {gamepass_rate})")
+
+    except Exception as e:
+        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
+
+# --------------------------------------------------------------------------------------------------
 # คำสั่ง !tax (คำนวณหัก Tax)
 @bot.command()
 async def tax(ctx, *, expression: str):
@@ -731,4 +765,5 @@ server_on()
 # เริ่มการทำงานบอท
 
 bot.run(os.getenv("TOKEN"))
+
 
