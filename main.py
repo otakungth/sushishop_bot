@@ -704,43 +704,42 @@ async def g(ctx, *, expression: str):
 # คำสั่ง !tax (คำนวณหัก Tax)
 @bot.command()
 async def tax(ctx, *, expression: str):
-    """คำนวณ Robux หลังหัก Tax 30%"""
+    """คำนวณ Robux หลังหัก Tax (30% อัตโนมัติ) หรือเปอร์เซ็นต์ที่ผู้ใช้กำหนด"""
     try:
-        expression = expression.replace(",", "")  # ลบเครื่องหมาย , ออก
-        expression = expression.lower().replace("x", "*").replace("÷", "/")
+        expr_raw = expression.replace(",", "").replace(" ", "")
+        expr = expr_raw.lower().replace("x", "*").replace("÷", "/")
 
-        if not re.match(r"^[\d\s\+\-\*\/\(\)]+$", expression):
-            await ctx.send("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / ÷ ()")
-            return
+        # ถ้ามี %
+        if "%" in expr:
+            # แปลง 20% -> *0.2
+            expr = re.sub(r"(\d+)%", lambda m: f"*{int(m.group(1))/100}", expr)
 
-        robux = eval(expression)
-        after_tax = int(robux * 0.7)
+            # กรณี 1000-20% → 1000-(1000*0.2)
+            if re.search(r"^\d+-\d+\*\d+\.\d+$", expr):
+                base, percent = expr.split("-", 1)
+                expr = f"{base}-({base}*{percent})"
 
-        await ctx.send(f"💸 {robux:,} Robux หลังหัก Tax = **{after_tax:,} Robux**")
+            if not re.match(r"^[\d\.\+\-\*\/\(\)]+$", expr):
+                await ctx.send("❌ กรุณาใส่เฉพาะตัวเลข เครื่องหมาย + - * / () และ %")
+                return
+
+            result = eval(expr)
+            await ctx.send(f"✅ ผลลัพธ์ = **{result:,.0f}**")
+
+        else:
+            # ไม่มี %, ใช้ tax 30% อัตโนมัติ
+            if not re.match(r"^[\d\.\+\-\*\/\(\)]+$", expr):
+                await ctx.send("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / ()")
+                return
+
+            robux = eval(expr)
+            after_tax = int(robux * 0.7)
+            await ctx.send(f"💸 {robux:,} Robux หลังหัก Tax 30% = **{after_tax:,} Robux**")
 
     except Exception as e:
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
-
 # --------------------------------------------------------------------------------------------------
 server_on()
 # เริ่มการทำงานบอท
 
 bot.run(os.getenv("TOKEN"))
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
