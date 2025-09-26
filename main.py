@@ -506,20 +506,39 @@ async def opengroup(ctx):
 class GroupConfirmTicketView(View):
     def __init__(self, embed_data: discord.Embed):
         super().__init__(timeout=None)
+        # คัดลอก Embed มาเก็บใน View
         self.embed_data = discord.Embed.from_dict(embed_data.to_dict())
 
-    @discord.ui.button(label="✅ ยืนยันคำสั่งซื้อ Group", style=discord.ButtonStyle.success, custom_id="confirm_group_ticket")
-    async def confirm_group(self, interaction: discord.Interaction, button: Button):
-        if any(field.name == "📋 ยืนยันโดย" for field in self.embed_data.fields):
-            await interaction.response.send_message("⚠️ คำสั่งซื้อนี้ถูกยืนยันแล้ว", ephemeral=True)
+    @discord.ui.button(label="✅ ส่งสินค้าสำเร็จ", style=discord.ButtonStyle.success, custom_id="deliver_group_ticket")
+    async def deliver_group(self, interaction: discord.Interaction, button: Button):
+        role_id = 1361016912259055896
+        role = interaction.guild.get_role(role_id)
+        if role not in interaction.user.roles:
+            await interaction.response.send_message("❌ คุณไม่มีสิทธิ์ใช้ปุ่มนี้", ephemeral=True)
             return
-        
+
+        # ตรวจสอบว่ามีการยืนยันแล้วหรือยัง
+        if any(field.name == "📋 ยืนยันโดย" for field in self.embed_data.fields):
+            await interaction.response.send_message("⚠️ คำสั่งซื้อนี้ถูกส่งแล้ว", ephemeral=True)
+            return
+
+        # เพิ่มผู้ส่งสินค้า
         self.embed_data.add_field(name="📋 ยืนยันโดย", value=interaction.user.mention, inline=False)
-        
-        # ส่งบันทึกการขาย พร้อมผู้ส่งสินค้า
+
+        # ส่งบันทึกไปห้อง SALES_LOG
         await send_sale_log(self.embed_data, interaction=interaction, delivered_by=interaction.user)
-        
-        await interaction.response.send_message("✅ ยืนยันคำสั่งซื้อเรียบร้อยแล้ว", ephemeral=True)
+
+        await interaction.response.send_message("✅ ส่งสินค้าสำเร็จแล้ว", ephemeral=True)
+        await interaction.message.edit(view=None)
+
+    @discord.ui.button(label="❌ ยกเลิกสินค้า", style=discord.ButtonStyle.danger, custom_id="cancel_group_ticket")
+    async def cancel_group(self, interaction: discord.Interaction, button: Button):
+        cancel_embed = discord.Embed(
+            title="❌ คำสั่งซื้อถูกยกเลิก",
+            description=f"คำสั่งซื้อนี้ถูกยกเลิกโดย {interaction.user.mention}",
+            color=0xFF0000
+        )
+        await interaction.response.send_message(embed=cancel_embed)
         await interaction.message.edit(view=None)
 
 class OpenGroupTicketView(View):
@@ -554,6 +573,7 @@ class GroupTicketInfoModal(Modal, title="📋 แบบฟอร์ม Robux Gro
             confirm_embed = customer_embed.copy()
             confirm_embed.set_footer(text=f"🧾 ผู้ใช้: {interaction.user}")
 
+            # ใช้ View ใหม่ที่มี 2 ปุ่ม
             view = GroupConfirmTicketView(embed_data=confirm_embed)
             await interaction.response.send_message(embed=customer_embed, view=view, ephemeral=False)
 
@@ -782,7 +802,7 @@ async def tax(ctx, *, expression: str):
 # --------------------------------------------------------------------------------------------------
 @bot.command()
 async def od(ctx, *, expression: str):
-    """คำสั่งสั่งซื้อ Robux"""
+    """คำสั่งสั่งซื้อ Robux (Gamepass)"""
     try:
         expr = expression.replace(",", "").lower().replace("x", "*").replace("÷", "/")
 
@@ -792,21 +812,25 @@ async def od(ctx, *, expression: str):
             return
 
         robux = int(eval(expr))
-        price = robux / gamepass_rate  # แปลงเป็นเงินตามเรท Gamepass
+        price = robux / gamepass_rate
         price_str = f"{price:,.0f} บาท"
 
-        # สร้าง Embed สรุปคำสั่งซื้อ
+        # สร้าง Embed เหมือนใบเสร็จ
         embed = discord.Embed(
-            title="📨 รายละเอียดคำสั่งซื้อ",
-            color=0x00FF99
+            title="🍣 ใบเสร็จคำสั่งซื้อ 🍣",
+            color=0x00FF99,
+            timestamp=discord.utils.utcnow()
         )
+        embed.add_field(name="📦 ประเภทสินค้า", value="Robux Gamepass", inline=False)
         embed.add_field(name="💸 จำนวน Robux", value=f"{robux:,}", inline=True)
-        embed.add_field(name="💰 ราคา", value=price_str, inline=True)
+        embed.add_field(name="💰 ราคาตามเรท", value=price_str, inline=True)
+        embed.add_field(name="🚚 ผู้ส่งสินค้า", value=ctx.author.mention, inline=False)
+        embed.set_footer(text="การสั่งซื้อสำเร็จ")
 
-        # ส่ง Embed กลับผู้ใช้ในช่องปัจจุบัน
+        # ส่ง Embed ให้ผู้ใช้
         await ctx.send(embed=embed)
 
-        # ส่ง Embed ไปห้องบันทึกการขาย
+        # ส่ง Embed ไปช่องบันทึกการขาย
         sales_channel = bot.get_channel(SALES_LOG_CHANNEL_ID)
         if sales_channel:
             await sales_channel.send(embed=embed)
@@ -815,13 +839,7 @@ async def od(ctx, *, expression: str):
 
     except Exception as e:
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
-
 # --------------------------------------------------------------------------------------------------
 server_on()
 # เริ่มการทำงานบอท
 bot.run(os.getenv("TOKEN"))
-
-
-
-
-
