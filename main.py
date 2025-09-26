@@ -27,42 +27,36 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 # --------------------------------------------------------------------------------------------------
 # ฟังก์ชันส่งบันทึกการขาย (เวอร์ชั่นอัปเดต)
 async def send_sale_log(embed_data: discord.Embed, interaction: discord.Interaction = None, ctx: commands.Context = None, delivered_by: discord.Member = None):
-    """ส่ง Embed ไปยังห้องบันทึกการขาย"""
+    """ส่ง Embed ไปยังห้องบันทึกการขาย พร้อมผู้ส่งสินค้า"""
     try:
         channel = bot.get_channel(SALES_LOG_CHANNEL_ID)
         if channel is None:
             print("❌ ไม่พบห้องบันทึกการขาย")
             return
 
-        # หาข้อมูลจาก Embed เดิม
-        robux_amount = "ไม่ทราบข้อมูล"
-        price = "ไม่ทราบข้อมูล"
-        user_name = "ไม่ทราบข้อมูล"
+        # ข้อมูลจาก Embed เดิม
+        robux_amount = next((f.value for f in embed_data.fields if f.name == "💸 จำนวน Robux"), "ไม่ทราบ")
+        price = next((f.value for f in embed_data.fields if f.name in ("💰 ราคาตามเรท", "💰 ราคา")), "ไม่ทราบ")
+        user_name = next((f.value for f in embed_data.fields if f.name == "😊 ผู้ซื้อ"), "ไม่ทราบ")
 
-        for field in embed_data.fields:
-            if field.name == "💸 จำนวน Robux":
-                robux_amount = field.value
-            elif field.name in ("💰 ราคาตามเรท", "💰 ราคา"):
-                price = field.value
-
-        # ตรวจหาประเภทสินค้า
+        # ประเภทสินค้า
         sale_type = "ไม่ทราบ"
-        current_channel = interaction.channel if interaction else ctx.channel
+        current_channel = interaction.channel if interaction else ctx.channel if ctx else None
         if current_channel:
             category_name = current_channel.category.name if current_channel.category else ""
-            if "gamepass" in category_name.lower() or "Sushi Gamepass" in category_name:
+            if "gamepass" in category_name.lower():
                 sale_type = "Robux Gamepass"
-            elif "group" in category_name.lower() or "Robux Group" in category_name:
+            elif "group" in category_name.lower():
                 sale_type = "Robux Group"
 
-        # หาผู้สร้างตั๋ว
+        # ผู้สร้างตั๋ว
         ticket_creator = None
-        if current_channel.name.startswith("ticket-"):
+        if current_channel and current_channel.name.startswith("ticket-"):
             try:
                 user_id = int(current_channel.name.split("-")[-1])
                 ticket_creator = await current_channel.guild.fetch_member(user_id)
             except (IndexError, ValueError, discord.NotFound):
-                print("❌ ไม่สามารถดึงข้อมูลผู้สร้างตั๋วจากชื่อช่อง")
+                pass
 
         # สร้าง Embed ใหม่
         log_embed = discord.Embed(
@@ -70,31 +64,17 @@ async def send_sale_log(embed_data: discord.Embed, interaction: discord.Interact
             color=0x00FF00,
             timestamp=discord.utils.utcnow()
         )
-
-        # ประเภทสินค้า
         log_embed.add_field(name="📦 ประเภทสินค้า", value=sale_type, inline=False)
-
-        # ผู้ซื้อ
-        if ticket_creator:
-            log_embed.add_field(name="😊 ผู้ซื้อ", value=f"{ticket_creator.mention}", inline=False)
-        else:
-            log_embed.add_field(name="😊 ผู้ซื้อ", value=user_name, inline=False)
-
-        # จำนวน Robux และราคา
+        log_embed.add_field(name="😊 ผู้ซื้อ", value=ticket_creator.mention if ticket_creator else user_name, inline=False)
         log_embed.add_field(name="💸 จำนวน Robux", value=robux_amount, inline=True)
-        log_embed.add_field(name="💰 ราคาตามเรท", value=price, inline=True)
-
-        # ผู้ส่งสินค้า
-        if delivered_by:
-            log_embed.add_field(name="🚚 ผู้ส่งสินค้า", value=delivered_by.mention, inline=False)
-
+        log_embed.add_field(name="💰 ราคา", value=price, inline=True)
+        log_embed.add_field(name="🚚 ผู้ส่งสินค้า", value=delivered_by.mention if delivered_by else "ไม่ทราบ", inline=False)
         log_embed.set_footer(text="การสั่งซื้อสำเร็จ")
 
         await channel.send(embed=log_embed)
 
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดในการส่งบันทึกการขาย: {e}")
-
 
 # --------------------------------------------------------------------------------------------------
 # คำสั่งต่างๆ
@@ -165,7 +145,6 @@ async def openshop(ctx):
 @commands.has_permissions(administrator=True)
 async def ty(ctx):
     if ctx.channel.name.startswith("ticket-"):
-        # หา Embed ที่มีข้อมูลการสั่งซื้อ
         sale_embed = None
         async for msg in ctx.channel.history():
             if msg.embeds and "รายละเอียดการสั่งซื้อ" in msg.embeds[0].title:
@@ -173,7 +152,12 @@ async def ty(ctx):
                 break
 
         if sale_embed:
-            await send_sale_log(sale_embed, ctx=ctx)
+            # เช็คว่ามีการยืนยันแล้วหรือยัง
+            confirmed = any(field.name == "📋 ยืนยันโดย" for field in sale_embed.fields)
+
+            if not confirmed:
+                # ถ้าไม่มี ให้ยืนยันให้อัตโนมัติ
+                sale_embed.add_field(name="📋 ยืนยันโดย", value=ctx.author.mention, inline=False)
 
         # ย้าย ticket ไป category "ส่งของแล้ว"
         delivered_category = discord.utils.get(ctx.guild.categories, name="ส่งของแล้ว")
@@ -293,27 +277,47 @@ class TicketInfoModal(Modal, title="📋 แบบฟอร์มสั่งส
         except Exception as e:
             await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
 
-class ConfirmTicketView(discord.ui.View):
+class ConfirmTicketView(View):
     def __init__(self, embed_data: discord.Embed):
         super().__init__(timeout=None)
         self.embed_data = discord.Embed.from_dict(embed_data.to_dict())
 
-    @discord.ui.button(label="✅ ยืนยันการสั่งซื้อ", style=discord.ButtonStyle.success, custom_id="confirm_ticket")
+    @discord.ui.button(label="✅ ส่งของเรียบร้อยแล้ว", style=discord.ButtonStyle.success, custom_id="confirm_ticket")
     async def confirm_button(self, interaction: discord.Interaction, button: Button):
-        if any(field.name == "📋 ยืนยันโดย" for field in self.embed_data.fields):
-            await interaction.response.send_message(
-                "⚠️ คำสั่งซื้อนี้ได้รับการยืนยันแล้ว", ephemeral=True
-            )
+        # ✅ ตรวจสอบสิทธิ์ ต้องมียศ 1361016912259055896
+        role_id = 1361016912259055896
+        role = interaction.guild.get_role(role_id)
+        if role not in interaction.user.roles:
+            await interaction.response.send_message("❌ คุณไม่มีสิทธิ์ยืนยันการสั่งซื้อนี้", ephemeral=True)
             return
 
+        # ถ้ามีการยืนยันไปแล้ว ห้ามยืนยันซ้ำ
+        if any(field.name == "📋 ยืนยันโดย" for field in self.embed_data.fields):
+            await interaction.response.send_message("⚠️ คำสั่งซื้อนี้ถูกยืนยันแล้ว", ephemeral=True)
+            return
+
+        # เพิ่มข้อมูลผู้ยืนยัน
         self.embed_data.add_field(name="📋 ยืนยันโดย", value=interaction.user.mention, inline=False)
-        await interaction.response.send_message(
-            "✅ ยืนยันข้อมูลเรียบร้อย!", ephemeral=True
+
+        # ส่งบันทึก พร้อมผู้ส่งสินค้า
+        await send_sale_log(self.embed_data, interaction=interaction, delivered_by=interaction.user)
+
+        await interaction.response.send_message("✅ ส่งของเรียบร้อยแล้ว", ephemeral=True)
+        await interaction.message.edit(view=None)
+
+    @discord.ui.button(label="❌ ยกเลิกสินค้า", style=discord.ButtonStyle.danger, custom_id="cancel_ticket")
+    async def cancel_button(self, interaction: discord.Interaction, button: Button):
+        # ❌ ใครก็กดได้ ไม่ต้องเช็ค role
+
+        # แจ้งว่าคำสั่งถูกยกเลิก
+        cancel_embed = discord.Embed(
+            title="❌ คำสั่งซื้อถูกยกเลิก",
+            description=f"คำสั่งซื้อนี้ถูกยกเลิกโดย {interaction.user.mention}",
+            color=0xFF0000
         )
 
-        # เปลี่ยนปุ่มเป็น "📦 ส่งสินค้าสำเร็จ" ให้กดได้เฉพาะแอดมิน
-        new_view = ProductDeliveredView(self.embed_data)
-        await interaction.message.edit(embed=self.embed_data, view=new_view)
+        await interaction.response.send_message(embed=cancel_embed)
+        await interaction.message.edit(view=None)
 
 
 class ProductDeliveredView(discord.ui.View):
@@ -499,6 +503,25 @@ async def opengroup(ctx):
 
 # --------------------------------------------------------------------------------------------------
 # View และ Modal สำหรับ Robux Group
+class GroupConfirmTicketView(View):
+    def __init__(self, embed_data: discord.Embed):
+        super().__init__(timeout=None)
+        self.embed_data = discord.Embed.from_dict(embed_data.to_dict())
+
+    @discord.ui.button(label="✅ ยืนยันคำสั่งซื้อ Group", style=discord.ButtonStyle.success, custom_id="confirm_group_ticket")
+    async def confirm_group(self, interaction: discord.Interaction, button: Button):
+        if any(field.name == "📋 ยืนยันโดย" for field in self.embed_data.fields):
+            await interaction.response.send_message("⚠️ คำสั่งซื้อนี้ถูกยืนยันแล้ว", ephemeral=True)
+            return
+        
+        self.embed_data.add_field(name="📋 ยืนยันโดย", value=interaction.user.mention, inline=False)
+        
+        # ส่งบันทึกการขาย พร้อมผู้ส่งสินค้า
+        await send_sale_log(self.embed_data, interaction=interaction, delivered_by=interaction.user)
+        
+        await interaction.response.send_message("✅ ยืนยันคำสั่งซื้อเรียบร้อยแล้ว", ephemeral=True)
+        await interaction.message.edit(view=None)
+
 class OpenGroupTicketView(View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -518,24 +541,20 @@ class GroupTicketInfoModal(Modal, title="📋 แบบฟอร์ม Robux Gro
     async def on_submit(self, interaction: discord.Interaction):
         try:
             robux = int(self.robux_amount.value)
-            if robux < 1500:
-                rate = group_rate_low
-            else:
-                rate = group_rate_high
-
+            rate = group_rate_low if robux < 1500 else group_rate_high
             price = robux / rate
             price_str = f"{price:,.0f} บาท"
 
-            customer_embed = discord.Embed(title="📨 รายละเอียดการสั่งซื้อ Robux Group", color=0x00FF99)
+            customer_embed = discord.Embed(title="📨 รายละเอียดคำสั่งซื้อ Robux Group", color=0x00FF99)
             customer_embed.add_field(name="🪪 ชื่อในเกม", value=self.user_name.value, inline=False)
-            customer_embed.add_field(name="💸 จำนวน Robux", value=self.robux_amount.value, inline=True)
-            customer_embed.add_field(name="💰 ราคาตามเรท", value=price_str, inline=True)
+            customer_embed.add_field(name="💸 จำนวน Robux", value=f"{robux:,}", inline=True)
+            customer_embed.add_field(name="💰 ราคา", value=price_str, inline=True)
             customer_embed.set_footer(text="ทีมงานจะตรวจสอบและตอบกลับโดยเร็วที่สุดครับ")
 
             confirm_embed = customer_embed.copy()
             confirm_embed.set_footer(text=f"🧾 ผู้ใช้: {interaction.user}")
 
-            view = ConfirmTicketView(embed_data=confirm_embed)
+            view = GroupConfirmTicketView(embed_data=confirm_embed)
             await interaction.response.send_message(embed=customer_embed, view=view, ephemeral=False)
 
         except ValueError:
@@ -608,7 +627,9 @@ async def handle_open_ticket(interaction, category_name, view_class, mention_use
             f"{user.mention}\n\n"
             "พนักงาน :\n\n"
             f"{admin_role.mention if admin_role else 'ไม่พบพนักงาน'}\n\n"
-            "🎟️ กรุณากรอกข้อมูลด้านล่างเพื่อเริ่มต้นการสั่งซื้อ"
+            "** 🎟️ สนใจซื้ออะไรระบุชื่อหรือรูปภาพมาได้เลยนะคะ **\n\n"
+            "หากต้องการเช็คราคาให้พิมพ์คำสั่ง\n"
+            "!gp เช่น : ‘‘!gp 799 / !gp 299+599 / !gp 59x7‘‘"
         ),
         color=0x00FF99
     )
@@ -760,7 +781,7 @@ async def tax(ctx, *, expression: str):
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
 # --------------------------------------------------------------------------------------------------
 @bot.command()
-async def order(ctx, *, expression: str):
+async def od(ctx, *, expression: str):
     """คำสั่งสั่งซื้อ Robux"""
     try:
         expr = expression.replace(",", "").lower().replace("x", "*").replace("÷", "/")
@@ -798,8 +819,8 @@ async def order(ctx, *, expression: str):
 # --------------------------------------------------------------------------------------------------
 server_on()
 # เริ่มการทำงานบอท
-
 bot.run(os.getenv("TOKEN"))
+
 
 
 
