@@ -128,7 +128,7 @@ async def update_main_channel():
 
     # ลบข้อความเก่าๆ ของบอทในช่องนี้
     async for msg in channel.history(limit=20):
-        if msg.author == bot.user:
+        if msg.author == bot.user and len(msg.embeds) > 0:
             await msg.delete()
 
     # สร้าง embed หลัก
@@ -190,7 +190,8 @@ class MainShopView(View):
             self.add_item(Button(label="เปิดตั๋ว Gamepass", style=discord.ButtonStyle.success, custom_id="open_gamepass_ticket"))
             self.add_item(Button(label="เปิดตั๋ว Group", style=discord.ButtonStyle.primary, custom_id="open_group_ticket"))
         else:
-            self.add_item(Button(label="❌ ร้านปิดชั่วคราว", style=discord.ButtonStyle.danger, disabled=True))
+            disabled_msg = "❌ ร้านปิดชั่วคราว" if not shop_open else "❌ สินค้าหมด"
+            self.add_item(Button(label=disabled_msg, style=discord.ButtonStyle.danger, disabled=True))
 
 # --------------------------------------------------------------------------------------------------
 # Modal สำหรับ Gamepass
@@ -284,7 +285,7 @@ class GroupTicketModal(Modal, title="📋 แบบฟอร์มสั่ง�
 # View สำหรับยืนยันตั๋ว
 class ConfirmTicketView(View):
     def __init__(self, embed_data: discord.Embed):
-        super().__init__(timeout=None)
+        super().__init__(timeout=300)  # 5 นาที timeout
         self.embed_data = discord.Embed.from_dict(embed_data.to_dict())
 
     @discord.ui.button(label="✅ ส่งของเรียบร้อยแล้ว", style=discord.ButtonStyle.success, custom_id="confirm_ticket")
@@ -328,7 +329,7 @@ class GoToTicketView(discord.ui.View):
             )
         )
 
-async def handle_open_ticket(interaction, category_name, view_class, modal_class, mention_user=False):
+async def handle_open_ticket(interaction, category_name, modal_class):
     global stock_amount
     
     # ตรวจสอบ stock
@@ -401,7 +402,8 @@ async def handle_open_ticket(interaction, category_name, view_class, modal_class
     welcome_embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
     welcome_embed.set_footer(text="Sushi Shop Service")
 
-    await channel.send(embed=welcome_embed, view=view_class(channel, user, modal_class))
+    view = TicketActionView(channel, user, modal_class)
+    await channel.send(embed=welcome_embed, view=view)
 
 # --------------------------------------------------------------------------------------------------
 # View สำหรับตั๋ว
@@ -425,7 +427,7 @@ class TicketActionView(View):
 
     @discord.ui.button(label="🔒 ปิดตั๋ว", style=discord.ButtonStyle.danger)
     async def close_ticket(self, interaction: discord.Interaction, button: Button):
-        if interaction.user.id != self.owner.id:
+        if interaction.user.id != self.owner.id and not interaction.user.guild_permissions.administrator:
             await interaction.response.send_message("❌ คุณไม่ใช่เจ้าของตั๋วนี้", ephemeral=True)
             return
 
@@ -445,36 +447,35 @@ class TicketActionView(View):
 async def on_ready():
     print(f"✅ บอทออนไลน์แล้ว: {bot.user}")
     await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name="ร้าน Sushi Shop"))
+    # ลงทะเบียน View เพื่อป้องกัน error
+    bot.add_view(MainShopView())
+    bot.add_view(ConfirmTicketView(discord.Embed()))
     await update_main_channel()
 
 @bot.event
 async def on_interaction(interaction: discord.Interaction):
-    if not interaction.data:
+    if interaction.type != discord.InteractionType.component:
         return
 
     custom_id = interaction.data.get("custom_id")
-
+    
     if custom_id == "open_gamepass_ticket":
         await handle_open_ticket(
             interaction,
             category_name="🍣Sushi Gamepass 🍣",
-            view_class=TicketActionView,
-            modal_class=GamepassTicketModal,
-            mention_user=True
+            modal_class=GamepassTicketModal
         )
 
     elif custom_id == "open_group_ticket":
         await handle_open_ticket(
             interaction,
             category_name="💰Robux Group💰",
-            view_class=TicketActionView,
-            modal_class=GroupTicketModal,
-            mention_user=False
+            modal_class=GroupTicketModal
         )
 
 # --------------------------------------------------------------------------------------------------
 # คำสั่งคำนวณราคา (แบบเห็นเฉพาะผู้ใช้)
-async def send_ephemeral_calculation(ctx, calculation_func, expression, product_type):
+async def send_ephemeral_calculation(ctx, calculation_func, expression):
     """ส่งผลการคำนวณแบบเห็นเฉพาะผู้ใช้"""
     try:
         expression = expression.replace(",", "").lower().replace("x", "*").replace("÷", "/")
@@ -519,22 +520,22 @@ def calculate_gb(expression):
 @bot.command()
 async def gp(ctx, *, expression: str):
     """คำนวณราคาจากจำนวน Robux (Gamepass) - เห็นเฉพาะคุณ"""
-    await send_ephemeral_calculation(ctx, calculate_gp, expression, "Gamepass")
+    await send_ephemeral_calculation(ctx, calculate_gp, expression)
 
 @bot.command()
 async def g(ctx, *, expression: str):
     """คำนวณราคาจากจำนวน Robux (Group) - เห็นเฉพาะคุณ"""
-    await send_ephemeral_calculation(ctx, calculate_g, expression, "Group")
+    await send_ephemeral_calculation(ctx, calculate_g, expression)
 
 @bot.command()
 async def gpb(ctx, *, expression: str):
     """คำนวณจากจำนวนเงิน เป็น Robux (Gamepass) - เห็นเฉพาะคุณ"""
-    await send_ephemeral_calculation(ctx, calculate_gpb, expression, "Gamepass")
+    await send_ephemeral_calculation(ctx, calculate_gpb, expression)
 
 @bot.command()
 async def gb(ctx, *, expression: str):
     """คำนวณจากจำนวนเงิน เป็น Robux (Group) - เห็นเฉพาะคุณ"""
-    await send_ephemeral_calculation(ctx, calculate_gb, expression, "Group")
+    await send_ephemeral_calculation(ctx, calculate_gb, expression)
 
 # --------------------------------------------------------------------------------------------------
 # คำสั่งอื่นๆ ที่เหลือ
@@ -558,7 +559,6 @@ async def ty(ctx):
         stock_amount += 1
         await update_main_channel()
         
-        # โค้ดเดิม...
         sale_embed = None
         async for msg in ctx.channel.history():
             if msg.embeds and "รายละเอียดการสั่งซื้อ" in msg.embeds[0].title:
@@ -586,13 +586,29 @@ async def ty(ctx):
             ),
             color=0x00FF00
         )
-        await ctx.send(embed=embed, view=CloseTicketView(ctx.channel))
+        
+        class TempCloseView(View):
+            def __init__(self, channel):
+                super().__init__(timeout=None)
+                self.channel = channel
+
+            @discord.ui.button(label="🔒 ปิดตั๋ว", style=discord.ButtonStyle.danger)
+            async def close_button(self, interaction: discord.Interaction, button: Button):
+                global stock_amount
+                stock_amount += 1
+                await update_main_channel()
+                await interaction.response.send_message("📪 กำลังปิดตั๋ว...", ephemeral=True)
+                await self.channel.delete()
+        
+        await ctx.send(embed=embed, view=TempCloseView(ctx.channel))
 
         async def auto_close():
-            await discord.utils.sleep_until(discord.utils.utcnow() + datetime.timedelta(hours=1))
+            await asyncio.sleep(3600)  # 1 ชั่วโมง
             if ctx.channel and ctx.channel.name.startswith("ticket-"):
                 try:
-                    await ctx.send("⏳ ไม่มีการตอบกลับ ตั๋วนี้จะถูกปิดอัตโนมัติ")
+                    global stock_amount
+                    stock_amount += 1
+                    await update_main_channel()
                     await ctx.channel.delete()
                 except:
                     pass
@@ -621,33 +637,13 @@ async def closeticket(ctx):
 
         await ctx.send("📪 กำลังปิดตั๋วใน 5 วินาที...")
         await ctx.message.delete()
-        await discord.utils.sleep_until(discord.utils.utcnow() + datetime.timedelta(seconds=5))
+        await asyncio.sleep(5)
         await ctx.channel.delete()
     else:
         await ctx.message.delete()
 
-class CloseTicketView(discord.ui.View):
-    def __init__(self, channel: discord.TextChannel):
-        super().__init__(timeout=None)
-        self.channel = channel
-
-        self.add_item(discord.ui.Button(
-            label="📌 ให้เครดิต",
-            style=discord.ButtonStyle.success,
-            url="https://discord.com/channels/1360990259311018077/1361049580736745502"
-        ))
-
-    @discord.ui.button(label="🔒 ปิดตั๋ว", style=discord.ButtonStyle.danger)
-    async def close_ticket_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # คืน stock เมื่อปิดตั๋ว
-        global stock_amount
-        stock_amount += 1
-        await update_main_channel()
-        
-        await interaction.response.send_message("📪 กำลังปิดตั๋วใน 5 วินาที...", ephemeral=True)
-        await discord.utils.sleep_until(discord.utils.utcnow() + datetime.timedelta(seconds=5))
-        await self.channel.delete()
-
 # --------------------------------------------------------------------------------------------------
+import asyncio
 server_on()
 bot.run(os.getenv("TOKEN"))
+
