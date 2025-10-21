@@ -20,7 +20,7 @@ intents.message_content = True
 intents.guilds = True
 intents.members = True
 shop_open = True
-group_ticket_enabled = True  # เพิ่มตัวแปรควบคุมปุ่ม Group
+group_ticket_enabled = True
 
 # ตั้งค่าห้องหลักและ stock
 MAIN_CHANNEL_ID = 1361044752975532152
@@ -29,6 +29,7 @@ stock_amount = 100
 
 # เก็บข้อมูลฟอร์ม
 user_forms = {}
+user_notes = {}  # เก็บโน้ตส่วนตัวของผู้ใช้
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
@@ -154,12 +155,15 @@ async def update_main_channel():
     # ลบข้อความเก่าๆ ของบอทในช่องนี้
     async for msg in channel.history(limit=20):
         if msg.author == bot.user and len(msg.embeds) > 0:
-            await msg.delete()
+            try:
+                await msg.delete()
+            except:
+                pass
 
     # สร้าง embed หลักแบบใหม่ตามรูปภาพ
     embed = discord.Embed(
         title="🍣 Sushi Shop 🍣",
-        color=0x2B2D31,  # สีเข้มแบบมืออาชีพ
+        color=0x2B2D31,
         timestamp=discord.utils.utcnow()
     )
     
@@ -221,68 +225,82 @@ async def update_main_channel():
     embed.set_thumbnail(url="https://media.discordapp.net/attachments/717757556889747657/1403684950770847754/noFilter.png")
 
     # ส่ง embed พร้อมปุ่ม
-    await channel.send(embed=embed, view=MainShopView())
+    try:
+        await channel.send(embed=embed, view=MainShopView())
+    except Exception as e:
+        print(f"Error updating main channel: {e}")
+
+# --------------------------------------------------------------------------------------------------
+# Modal สำหรับโน้ตส่วนตัว
+class PersonalNoteModal(Modal, title="📝 โน้ตส่วนตัวของคุณ"):
+    note = TextInput(
+        label="เขียนโน้ตส่วนตัวของคุณ",
+        placeholder="เช่น: ชื่อในเกม, รายละเอียดเพิ่มเติม, ฯลฯ",
+        style=discord.TextStyle.paragraph,
+        required=True,
+        max_length=1000
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        user_id = str(interaction.user.id)
+        user_notes[user_id] = {
+            "note": self.note.value,
+            "created_at": datetime.datetime.now().isoformat()
+        }
+        
+        embed = discord.Embed(
+            title="✅ บันทึกโน้ตเรียบร้อย",
+            description="โน้ตส่วนตัวของคุณถูกบันทึกเรียบร้อยแล้ว",
+            color=0x00FF00
+        )
+        embed.add_field(name="📝 โน้ตของคุณ", value=self.note.value, inline=False)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 # --------------------------------------------------------------------------------------------------
 # Views และ Modals หลัก
 class MainShopView(View):
     def __init__(self):
         super().__init__(timeout=None)
-        self.update_buttons()
 
-    def update_buttons(self):
-        self.clear_items()
-        
-        # ปุ่ม Gamepass - สีเขียว
-        if shop_open and stock_amount > 0:
-            self.add_item(Button(
-                label="🎮 เปิดตั๋ว Gamepass", 
-                style=discord.ButtonStyle.success, 
-                custom_id="open_gamepass_ticket",
-                emoji="🎮"
-            ))
-            
-            # ปุ่ม Group - สีเขียวเมื่อเปิด, เทาเมื่อปิด
-            if group_ticket_enabled:
-                self.add_item(Button(
-                    label="👥 เปิดตั๋ว Group", 
-                    style=discord.ButtonStyle.success, 
-                    custom_id="open_group_ticket",
-                    emoji="👥"
-                ))
-            else:
-                self.add_item(Button(
-                    label="👥 บริการปิดชั่วคราว", 
-                    style=discord.ButtonStyle.gray, 
-                    custom_id="disabled_group",
-                    disabled=True,
-                    emoji="👥"
-                ))
-                
-            # ปุ่มจัดการฟอร์ม
-            self.add_item(Button(
-                label="📝 จัดการฟอร์มของฉัน",
-                style=discord.ButtonStyle.secondary,
-                custom_id="manage_my_form",
-                emoji="📝"
-            ))
-        else:
-            disabled_msg = "🚫 ร้านปิดชั่วคราว" if not shop_open else "🚫 สินค้าหมด"
-            self.add_item(Button(
-                label=disabled_msg, 
-                style=discord.ButtonStyle.danger, 
-                disabled=True,
-                emoji="🚫"
-            ))
+    @discord.ui.button(label="🎮 เปิดตั๋ว Gamepass", style=discord.ButtonStyle.success, custom_id="open_gamepass_ticket", emoji="🎮")
+    async def gamepass_ticket(self, interaction: discord.Interaction, button: Button):
+        if not shop_open or stock_amount <= 0:
+            await interaction.response.send_message("❌ ร้านปิดชั่วคราวหรือสินค้าหมด", ephemeral=True)
+            return
+        await handle_open_ticket(interaction, "🍣Sushi Gamepass 🍣", GamepassTicketModal)
+
+    @discord.ui.button(label="👥 เปิดตั๋ว Group", style=discord.ButtonStyle.success, custom_id="open_group_ticket", emoji="👥")
+    async def group_ticket(self, interaction: discord.Interaction, button: Button):
+        if not shop_open or stock_amount <= 0:
+            await interaction.response.send_message("❌ ร้านปิดชั่วคราวหรือสินค้าหมด", ephemeral=True)
+            return
+        if not group_ticket_enabled:
+            await interaction.response.send_message("❌ บริการ Group ปิดชั่วคราว", ephemeral=True)
+            return
+        await handle_open_ticket(interaction, "💰Robux Group💰", GroupTicketModal)
+
+    @discord.ui.button(label="📝 จัดการฟอร์มของฉัน", style=discord.ButtonStyle.secondary, custom_id="manage_my_form", emoji="📝")
+    async def manage_form(self, interaction: discord.Interaction, button: Button):
+        view = FormManagementView(user_id=interaction.user.id)
+        embed = discord.Embed(
+            title="📝 จัดการฟอร์มของฉัน",
+            description="**จัดการข้อมูลฟอร์มที่คุณบันทึกไว้:**\n\n"
+                      "• 👀 **ดูข้อมูล** - ดูข้อมูลฟอร์มที่บันทึกไว้\n"
+                      "• ✏️ **แก้ไข** - แก้ไขข้อมูลฟอร์ม\n"
+                      "• 🗑️ **ลบ** - ลบข้อมูลฟอร์มออกจากระบบ\n"
+                      "• 📝 **โน้ตส่วนตัว** - บันทึกโน้ตส่วนตัว\n\n"
+                      "ข้อมูลจะถูกแสดงเฉพาะคุณเท่านั้น",
+            color=0x5865F2
+        )
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 # --------------------------------------------------------------------------------------------------
 # Modal สำหรับ Gamepass
 class GamepassTicketModal(Modal, title="📋 แบบฟอร์มสั่งซื้อ Gamepass"):
     def __init__(self, user_id=None, existing_data=None):
-        super().__init__()
+        super().__init__(timeout=300)  # เพิ่ม timeout
         self.user_id = user_id
         
-        # สร้างฟิลด์ด้วยข้อมูลเดิมถ้ามี
         self.map_name = TextInput(
             label="🗺 ชื่อแมพที่จะกด?",
             placeholder="พิมพ์ชื่อแมพ เช่น All Star Tower Defense X",
@@ -348,11 +366,7 @@ class GamepassTicketModal(Modal, title="📋 แบบฟอร์มสั่�
             customer_embed.add_field(name="📝 สถานะฟอร์ม", value="✅ บันทึกเรียบร้อยแล้ว", inline=False)
             customer_embed.set_footer(text="ทีมงานจะตอบกลับโดยเร็วที่สุดครับ")
 
-            # Embed ยืนยัน
-            confirm_embed = customer_embed.copy()
-            confirm_embed.set_footer(text=f"🧾 ผู้ใช้: {interaction.user}")
-
-            view = ConfirmTicketView(embed_data=confirm_embed)
+            view = ConfirmTicketView(embed_data=customer_embed)
             await interaction.response.send_message(
                 content="✅ **บันทึกข้อมูลฟอร์มเรียบร้อยแล้ว!**\nคุณสามารถดูหรือแก้ไขข้อมูลได้โดยกดปุ่ม 'จัดการฟอร์มของฉัน'",
                 embed=customer_embed, 
@@ -367,7 +381,7 @@ class GamepassTicketModal(Modal, title="📋 แบบฟอร์มสั่�
 # Modal สำหรับ Group
 class GroupTicketModal(Modal, title="📋 แบบฟอร์มสั่งซื้อ Robux Group"):
     def __init__(self, user_id=None, existing_data=None):
-        super().__init__()
+        super().__init__(timeout=300)  # เพิ่ม timeout
         self.user_id = user_id
         
         self.user_name = TextInput(
@@ -416,10 +430,7 @@ class GroupTicketModal(Modal, title="📋 แบบฟอร์มสั่ง�
             customer_embed.add_field(name="📝 สถานะฟอร์ม", value="✅ บันทึกเรียบร้อยแล้ว", inline=False)
             customer_embed.set_footer(text="ทีมงานจะตรวจสอบและตอบกลับโดยเร็วที่สุดครับ")
 
-            confirm_embed = customer_embed.copy()
-            confirm_embed.set_footer(text=f"🧾 ผู้ใช้: {interaction.user}")
-
-            view = ConfirmTicketView(embed_data=confirm_embed)
+            view = ConfirmTicketView(embed_data=customer_embed)
             await interaction.response.send_message(
                 content="✅ **บันทึกข้อมูลฟอร์มเรียบร้อยแล้ว!**\nคุณสามารถดูหรือแก้ไขข้อมูลได้โดยกดปุ่ม 'จัดการฟอร์มของฉัน'",
                 embed=customer_embed, 
@@ -440,32 +451,36 @@ class FormManagementView(View):
     @discord.ui.button(label="👀 ดูข้อมูลฟอร์ม", style=discord.ButtonStyle.primary, emoji="👀")
     async def view_form(self, interaction: discord.Interaction, button: Button):
         user_data = user_forms.get(str(interaction.user.id))
+        user_note = user_notes.get(str(interaction.user.id))
         
-        if not user_data:
-            embed = discord.Embed(
-                title="📝 ข้อมูลฟอร์มของฉัน",
-                description="❌ **คุณยังไม่มีข้อมูลฟอร์มที่บันทึกไว้**\n\nกรุณากรอกฟอร์มสั่งซื้อก่อนเพื่อบันทึกข้อมูล",
-                color=0xFF0000
-            )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+        if not user_data and not user_note:
+            # ถ้าไม่มีข้อมูลทั้งฟอร์มและโน้ต ให้แสดง modal สำหรับกรอกโน้ต
+            modal = PersonalNoteModal()
+            await interaction.response.send_modal(modal)
             return
         
         embed = discord.Embed(
             title="📝 ข้อมูลฟอร์มของฉัน",
-            description="**ข้อมูลฟอร์มที่คุณบันทึกไว้:**",
-            color=0x00FF99,
-            timestamp=datetime.datetime.fromisoformat(user_data["last_updated"])
+            description="**ข้อมูลที่คุณบันทึกไว้:**",
+            color=0x00FF99
         )
         
-        if user_data["type"] == "gamepass":
-            embed.add_field(name="🗺️ แมพ", value=user_data["map_name"], inline=False)
-            embed.add_field(name="🎟 เกมพาส", value=user_data["gamepass_name"], inline=False)
-            embed.add_field(name="💸 จำนวน Robux", value=user_data["robux_amount"], inline=True)
-        else:
-            embed.add_field(name="🪪 ชื่อในเกม", value=user_data["user_name"], inline=False)
-            embed.add_field(name="💸 จำนวน Robux", value=user_data["robux_amount"], inline=True)
-            
-        embed.add_field(name="📦 ประเภท", value="Gamepass" if user_data["type"] == "gamepass" else "Group", inline=True)
+        if user_data:
+            embed.timestamp = datetime.datetime.fromisoformat(user_data["last_updated"])
+            if user_data["type"] == "gamepass":
+                embed.add_field(name="🗺️ แมพ", value=user_data["map_name"], inline=False)
+                embed.add_field(name="🎟 เกมพาส", value=user_data["gamepass_name"], inline=False)
+                embed.add_field(name="💸 จำนวน Robux", value=user_data["robux_amount"], inline=True)
+            else:
+                embed.add_field(name="🪪 ชื่อในเกม", value=user_data["user_name"], inline=False)
+                embed.add_field(name="💸 จำนวน Robux", value=user_data["robux_amount"], inline=True)
+                
+            embed.add_field(name="📦 ประเภท", value="Gamepass" if user_data["type"] == "gamepass" else "Group", inline=True)
+        
+        if user_note:
+            embed.add_field(name="📝 โน้ตส่วนตัว", value=user_note["note"], inline=False)
+            embed.timestamp = datetime.datetime.fromisoformat(user_note["created_at"])
+        
         embed.set_footer(text="อัปเดตล่าสุด")
         
         await interaction.response.send_message(embed=embed, ephemeral=True)
@@ -499,40 +514,56 @@ class FormManagementView(View):
         else:
             await interaction.response.send_message("❌ คุณไม่มีข้อมูลฟอร์มที่บันทึกไว้", ephemeral=True)
 
+    @discord.ui.button(label="📝 โน้ตส่วนตัว", style=discord.ButtonStyle.primary, emoji="📝")
+    async def personal_note(self, interaction: discord.Interaction, button: Button):
+        user_note = user_notes.get(str(interaction.user.id))
+        modal = PersonalNoteModal()
+        
+        if user_note:
+            modal.note.default = user_note["note"]
+            
+        await interaction.response.send_modal(modal)
+
 # --------------------------------------------------------------------------------------------------
 # View สำหรับยืนยันตั๋ว
 class ConfirmTicketView(View):
     def __init__(self, embed_data: discord.Embed):
         super().__init__(timeout=300)
-        self.embed_data = discord.Embed.from_dict(embed_data.to_dict())
+        self.embed_data = embed_data
 
     @discord.ui.button(label="✅ ส่งของเรียบร้อยแล้ว", style=discord.ButtonStyle.success, custom_id="confirm_ticket")
     async def confirm_button(self, interaction: discord.Interaction, button: Button):
-        role_id = 1361016912259055896
-        role = interaction.guild.get_role(role_id)
-        if role not in interaction.user.roles:
-            await interaction.response.send_message("❌ คุณไม่มีสิทธิ์ยืนยันการสั่งซื้อนี้", ephemeral=True)
-            return
+        try:
+            role_id = 1361016912259055896
+            role = interaction.guild.get_role(role_id)
+            if role not in interaction.user.roles:
+                await interaction.response.send_message("❌ คุณไม่มีสิทธิ์ยืนยันการสั่งซื้อนี้", ephemeral=True)
+                return
 
-        if any(field.name == "📋 ยืนยันโดย" for field in self.embed_data.fields):
-            await interaction.response.send_message("⚠️ คำสั่งซื้อนี้ถูกยืนยันแล้ว", ephemeral=True)
-            return
+            if any(field.name == "📋 ยืนยันโดย" for field in self.embed_data.fields):
+                await interaction.response.send_message("⚠️ คำสั่งซื้อนี้ถูกยืนยันแล้ว", ephemeral=True)
+                return
 
-        self.embed_data.add_field(name="📋 ยืนยันโดย", value=interaction.user.mention, inline=False)
-        await send_sale_log(self.embed_data, interaction=interaction, delivered_by=interaction.user)
+            self.embed_data.add_field(name="📋 ยืนยันโดย", value=interaction.user.mention, inline=False)
+            await send_sale_log(self.embed_data, interaction=interaction, delivered_by=interaction.user)
 
-        await interaction.response.send_message("✅ ส่งของเรียบร้อยแล้ว", ephemeral=True)
-        await interaction.message.edit(view=None)
+            await interaction.response.send_message("✅ ส่งของเรียบร้อยแล้ว", ephemeral=True)
+            await interaction.message.edit(view=None)
+        except Exception as e:
+            await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการยืนยัน", ephemeral=True)
 
     @discord.ui.button(label="❌ ยกเลิกสินค้า", style=discord.ButtonStyle.danger, custom_id="cancel_ticket")
     async def cancel_button(self, interaction: discord.Interaction, button: Button):
-        cancel_embed = discord.Embed(
-            title="❌ คำสั่งซื้อถูกยกเลิก",
-            description=f"คำสั่งซื้อนี้ถูกยกเลิกโดย {interaction.user.mention}",
-            color=0xFF0000
-        )
-        await interaction.response.send_message(embed=cancel_embed)
-        await interaction.message.edit(view=None)
+        try:
+            cancel_embed = discord.Embed(
+                title="❌ คำสั่งซื้อถูกยกเลิก",
+                description=f"คำสั่งซื้อนี้ถูกยกเลิกโดย {interaction.user.mention}",
+                color=0xFF0000
+            )
+            await interaction.response.send_message(embed=cancel_embed)
+            await interaction.message.edit(view=None)
+        except Exception as e:
+            await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการยกเลิก", ephemeral=True)
 
 # --------------------------------------------------------------------------------------------------
 # ฟังก์ชันจัดการการเปิดตั๋ว
@@ -583,44 +614,48 @@ async def handle_open_ticket(interaction, category_name, modal_class):
         await interaction.response.send_message(f"❌ ไม่พบหมวดหมู่ {category_name}", ephemeral=True)
         return
 
-    channel = await guild.create_text_channel(
-        name=channel_name,
-        overwrites=overwrites,
-        reason="New ticket",
-        category=category
-    )
-    
-    stock_amount -= 1
-    await update_main_channel()
-    
-    await interaction.response.send_message(
-        content="📩 เปิดตั๋วเรียบร้อย!",
-        view=GoToTicketView(channel),
-        ephemeral=True
-    )
+    try:
+        channel = await guild.create_text_channel(
+            name=channel_name,
+            overwrites=overwrites,
+            reason="New ticket",
+            category=category
+        )
+        
+        stock_amount -= 1
+        await update_main_channel()
+        
+        await interaction.response.send_message(
+            content="📩 เปิดตั๋วเรียบร้อย!",
+            view=GoToTicketView(channel),
+            ephemeral=True
+        )
 
-    if admin_role:
-        await channel.send(content=admin_role.mention)
+        if admin_role:
+            await channel.send(content=admin_role.mention)
 
-    welcome_embed = discord.Embed(
-        title="🍣 Sushi Shop 🍣",
-        description=(
-            "**ยินดีต้อนรับสู่บริการของเรา!**\n\n"
-            f"👤 **ลูกค้า:** {user.mention}\n"
-            f"🛠️ **พนักงาน:** {admin_role.mention if admin_role else 'รอพนักงานติดต่อ'}\n\n"
-            "**คำแนะนำ:**\n"
-            "• กรุณาระบุรายละเอียดการสั่งซื้อให้ครบถ้วน\n"
-            "• สามารถใช้คำสั่ง !gp, !g เพื่อคำนวณราคาได้\n"
-            "• ทีมงานจะตอบกลับคุณโดยเร็วที่สุด\n\n"
-            "**ขอบคุณที่ใช้บริการ!** 🎉"
-        ),
-        color=0x00FF99
-    )
-    welcome_embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
-    welcome_embed.set_footer(text="Sushi Shop Professional Service")
+        welcome_embed = discord.Embed(
+            title="🍣 Sushi Shop 🍣",
+            description=(
+                "**ยินดีต้อนรับสู่บริการของเรา!**\n\n"
+                f"👤 **ลูกค้า:** {user.mention}\n"
+                f"🛠️ **พนักงาน:** {admin_role.mention if admin_role else 'รอพนักงานติดต่อ'}\n\n"
+                "**คำแนะนำ:**\n"
+                "• กรุณาระบุรายละเอียดการสั่งซื้อให้ครบถ้วน\n"
+                "• สามารถใช้คำสั่ง !gp, !g เพื่อคำนวณราคาได้\n"
+                "• ทีมงานจะตอบกลับคุณโดยเร็วที่สุด\n\n"
+                "**ขอบคุณที่ใช้บริการ!** 🎉"
+            ),
+            color=0x00FF99
+        )
+        welcome_embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
+        welcome_embed.set_footer(text="Sushi Shop Professional Service")
 
-    view = TicketActionView(channel, user, modal_class)
-    await channel.send(embed=welcome_embed, view=view)
+        view = TicketActionView(channel, user, modal_class)
+        await channel.send(embed=welcome_embed, view=view)
+
+    except Exception as e:
+        await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการเปิดตั๋ว", ephemeral=True)
 
 # --------------------------------------------------------------------------------------------------
 # View สำหรับตั๋ว
@@ -634,20 +669,26 @@ class TicketActionView(View):
     @discord.ui.button(label="📝 กรอกแบบฟอร์ม", style=discord.ButtonStyle.primary, emoji="📝")
     async def open_form(self, interaction: discord.Interaction, button: Button):
         user_data = user_forms.get(str(interaction.user.id))
-        await interaction.response.send_modal(self.modal_class(
-            user_id=interaction.user.id, 
-            existing_data=user_data
-        ))
+        try:
+            await interaction.response.send_modal(self.modal_class(
+                user_id=interaction.user.id, 
+                existing_data=user_data
+            ))
+        except Exception as e:
+            await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการเปิดฟอร์ม", ephemeral=True)
 
     @discord.ui.button(label="📤 ช่องทางการโอนเงิน", style=discord.ButtonStyle.success, emoji="📤")
     async def payment_info(self, interaction: discord.Interaction, button: Button):
-        embed = discord.Embed(
-            title="📤 ช่องทางการโอนเงิน",
-            description="กรุณาโอนเงินตามจำนวนที่แจ้งไว้ด้านล่าง",
-            color=0x00CCFF
-        )
-        embed.set_image(url="https://media.discordapp.net/attachments/722832040860319835/1402994996600111114/186-8-06559-8.png")
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        try:
+            embed = discord.Embed(
+                title="📤 ช่องทางการโอนเงิน",
+                description="กรุณาโอนเงินตามจำนวนที่แจ้งไว้ด้านล่าง",
+                color=0x00CCFF
+            )
+            embed.set_image(url="https://media.discordapp.net/attachments/722832040860319835/1402994996600111114/186-8-06559-8.png")
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+        except Exception as e:
+            await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการแสดงข้อมูล", ephemeral=True)
 
     @discord.ui.button(label="🔒 ปิดตั๋ว", style=discord.ButtonStyle.danger, emoji="🔒")
     async def close_ticket(self, interaction: discord.Interaction, button: Button):
@@ -662,7 +703,10 @@ class TicketActionView(View):
         stock_amount += 1
         await update_main_channel()
         
-        await self.channel.delete()
+        try:
+            await self.channel.delete()
+        except:
+            pass
 
 # --------------------------------------------------------------------------------------------------
 # Events
@@ -671,7 +715,6 @@ async def on_ready():
     print(f"✅ บอทออนไลน์แล้ว: {bot.user}")
     await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name="ร้าน Sushi Shop"))
     bot.add_view(MainShopView())
-    bot.add_view(ConfirmTicketView(discord.Embed()))
     await update_main_channel()
 
 @bot.event
@@ -681,39 +724,121 @@ async def on_interaction(interaction: discord.Interaction):
 
     custom_id = interaction.data.get("custom_id")
     
-    if custom_id == "open_gamepass_ticket":
-        await handle_open_ticket(
-            interaction,
-            category_name="🍣Sushi Gamepass 🍣",
-            modal_class=GamepassTicketModal
-        )
+    try:
+        if custom_id == "open_gamepass_ticket":
+            if not shop_open or stock_amount <= 0:
+                await interaction.response.send_message("❌ ร้านปิดชั่วคราวหรือสินค้าหมด", ephemeral=True)
+                return
+            await handle_open_ticket(interaction, "🍣Sushi Gamepass 🍣", GamepassTicketModal)
 
-    elif custom_id == "open_group_ticket":
-        if not group_ticket_enabled:
-            await interaction.response.send_message("❌ บริการ Group ปิดชั่วคราวในขณะนี้", ephemeral=True)
-            return
+        elif custom_id == "open_group_ticket":
+            if not shop_open or stock_amount <= 0:
+                await interaction.response.send_message("❌ ร้านปิดชั่วคราวหรือสินค้าหมด", ephemeral=True)
+                return
+            if not group_ticket_enabled:
+                await interaction.response.send_message("❌ บริการ Group ปิดชั่วคราว", ephemeral=True)
+                return
+            await handle_open_ticket(interaction, "💰Robux Group💰", GroupTicketModal)
             
-        await handle_open_ticket(
-            interaction,
-            category_name="💰Robux Group💰",
-            modal_class=GroupTicketModal
-        )
-        
-    elif custom_id == "manage_my_form":
-        view = FormManagementView(user_id=interaction.user.id)
-        embed = discord.Embed(
-            title="📝 จัดการฟอร์มของฉัน",
-            description="**จัดการข้อมูลฟอร์มที่คุณบันทึกไว้:**\n\n"
-                      "• 👀 **ดูข้อมูล** - ดูข้อมูลฟอร์มที่บันทึกไว้\n"
-                      "• ✏️ **แก้ไข** - แก้ไขข้อมูลฟอร์ม\n"
-                      "• 🗑️ **ลบ** - ลบข้อมูลฟอร์มออกจากระบบ\n\n"
-                      "ข้อมูลจะถูกแสดงเฉพาะคุณเท่านั้น",
-            color=0x5865F2
-        )
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        elif custom_id == "manage_my_form":
+            view = FormManagementView(user_id=interaction.user.id)
+            embed = discord.Embed(
+                title="📝 จัดการฟอร์มของฉัน",
+                description="**จัดการข้อมูลฟอร์มที่คุณบันทึกไว้:**\n\n"
+                          "• 👀 **ดูข้อมูล** - ดูข้อมูลฟอร์มที่บันทึกไว้\n"
+                          "• ✏️ **แก้ไข** - แก้ไขข้อมูลฟอร์ม\n"
+                          "• 🗑️ **ลบ** - ลบข้อมูลฟอร์มออกจากระบบ\n"
+                          "• 📝 **โน้ตส่วนตัว** - บันทึกโน้ตส่วนตัว\n\n"
+                          "ข้อมูลจะถูกแสดงเฉพาะคุณเท่านั้น",
+                color=0x5865F2
+            )
+            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+    except Exception as e:
+        print(f"Interaction error: {e}")
+        try:
+            await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการประมวลผล", ephemeral=True)
+        except:
+            pass
 
-    elif custom_id == "disabled_group":
-        await interaction.response.send_message("❌ บริการ Group ปิดชั่วคราวในขณะนี้", ephemeral=True)
+# --------------------------------------------------------------------------------------------------
+# คำสั่ง !od (Gamepass)
+@bot.command()
+async def od(ctx, *, expression: str):
+    """คำสั่งสั่งซื้อ Robux Gamepass"""
+    try:
+        expr = expression.replace(",", "").lower().replace("x", "*").replace("÷", "/")
+
+        if not re.match(r"^[\d\s\+\-\*\/\(\)]+$", expr):
+            await ctx.send("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", ephemeral=True)
+            await ctx.message.delete()
+            return
+
+        robux = int(eval(expr))
+        price = robux / gamepass_rate
+        price_str = f"{price:,.0f} บาท"
+
+        embed = discord.Embed(
+            title="🍣 ใบเสร็จคำสั่งซื้อ Gamepass 🍣",
+            color=0x00FF99,
+            timestamp=discord.utils.utcnow()
+        )
+        embed.add_field(name="📦 ประเภทสินค้า", value="Robux Gamepass", inline=False)
+        embed.add_field(name="💸 จำนวน Robux", value=f"{robux:,}", inline=True)
+        embed.add_field(name="💰 ราคาตามเรท", value=price_str, inline=True)
+        embed.add_field(name="🚚 ผู้ส่งสินค้า", value=ctx.author.mention, inline=False)
+        embed.set_footer(text="การสั่งซื้อสำเร็จ")
+
+        await ctx.send(embed=embed)
+        await ctx.message.delete()
+
+        sales_channel = bot.get_channel(SALES_LOG_CHANNEL_ID)
+        if sales_channel:
+            await sales_channel.send(embed=embed)
+
+    except Exception as e:
+        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
+        await ctx.message.delete()
+
+# --------------------------------------------------------------------------------------------------
+# คำสั่ง !odg (Group)
+@bot.command()
+async def odg(ctx, *, expression: str):
+    """คำสั่งสั่งซื้อ Robux Group"""
+    try:
+        expr = expression.replace(",", "").lower().replace("x", "*").replace("÷", "/")
+
+        if not re.match(r"^[\d\s\+\-\*\/\(\)]+$", expr):
+            await ctx.send("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", ephemeral=True)
+            await ctx.message.delete()
+            return
+
+        robux = int(eval(expr))
+        rate = group_rate_low if robux < 1500 else group_rate_high
+        price = robux / rate
+        price_str = f"{price:,.0f} บาท"
+
+        embed = discord.Embed(
+            title="🍣 ใบเสร็จคำสั่งซื้อ Robux Group 🍣",
+            color=0x00AAFF,
+            timestamp=discord.utils.utcnow()
+        )
+        embed.add_field(name="📦 ประเภทสินค้า", value="Robux Group", inline=False)
+        embed.add_field(name="💸 จำนวน Robux", value=f"{robux:,}", inline=True)
+        embed.add_field(name="💰 ราคาตามเรท", value=price_str, inline=True)
+        embed.add_field(name="📊 เรทที่ใช้", value=f"{rate}", inline=True)
+        embed.add_field(name="🚚 ผู้ส่งสินค้า", value=ctx.author.mention, inline=False)
+        embed.set_footer(text="การสั่งซื้อสำเร็จ • Robux Group")
+
+        await ctx.send(embed=embed)
+        await ctx.message.delete()
+
+        sales_channel = bot.get_channel(SALES_LOG_CHANNEL_ID)
+        if sales_channel:
+            await sales_channel.send(embed=embed)
+
+    except Exception as e:
+        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
+        await ctx.message.delete()
 
 # --------------------------------------------------------------------------------------------------
 # คำสั่งคำนวณราคา (แบบเห็นเฉพาะผู้ใช้)
