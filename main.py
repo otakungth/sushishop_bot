@@ -18,7 +18,7 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.guilds = True
 intents.members = True
-intents.messages = True  # เพิ่มนี้เพื่อให้อ่านข้อความได้
+intents.messages = True
 shop_open = True
 group_ticket_enabled = True
 
@@ -31,11 +31,11 @@ group_stock = 67
 # เก็บข้อมูลโน้ตส่วนตัว
 user_notes = {}
 
-# สร้างบอทด้วย command prefix ที่ถูกต้อง
+# สร้างบอท
 bot = commands.Bot(
     command_prefix="!", 
     intents=intents,
-    help_command=None  # ปิด help command พื้นฐาน
+    help_command=None
 )
 
 print("🔄 กำลังเริ่มต้นบอท...")
@@ -528,7 +528,7 @@ async def update_main_channel():
             if msg.author == bot.user:
                 try:
                     await msg.delete()
-                    await asyncio.sleep(1)  # รอเล็กน้อยระหว่างการลบ
+                    await asyncio.sleep(1)
                 except:
                     pass
 
@@ -616,7 +616,7 @@ async def on_ready():
 async def on_command_error(ctx, error):
     """จัดการข้อผิดพลาดของคำสั่ง"""
     if isinstance(error, commands.CommandNotFound):
-        return  # ไม่ต้องทำอะไรกับคำสั่งที่ไม่มี
+        return
     elif isinstance(error, commands.MissingPermissions):
         await ctx.send("❌ คุณไม่มีสิทธิ์ใช้คำสั่งนี้", delete_after=5)
     elif isinstance(error, commands.BotMissingPermissions):
@@ -638,10 +638,15 @@ async def help_command(ctx):
                    "`!gpb <จำนวน>` - คำนวณ Robux จากเงิน (Gamepass)\n"
                    "`!gb <จำนวน>` - คำนวณ Robux จากเงิน (Group)\n"
                    "`!tax <จำนวน>` - คำนวณ Robux หลังหักภาษี\n\n"
+                   "**คำสั่งสั่งซื้อ:**\n"
+                   "`!od <จำนวน>` - สั่งซื้อ Gamepass\n"
+                   "`!odg <จำนวน>` - สั่งซื้อ Group\n\n"
                    "**คำสั่งผู้ดูแล:**\n"
                    "`!stock` - ตรวจสอบ stock\n"
                    "`!sushi` - เปิด/ปิดร้าน\n"
                    "`!group <on/off>` - เปิด/ปิด Group ticket\n"
+                   "`!ty` - ส่งของเรียบร้อย (ใช้ในตั๋ว)\n"
+                   "`!qr` - แสดง QR Code\n"
                    "`!setup` - ตั้งค่าระบบใหม่\n"
                    "`!restart` - รีสตาร์ทระบบปุ่ม",
         color=0x00FF99
@@ -656,7 +661,6 @@ async def stock(ctx, stock_type: str = None, amount: int = None):
     """ตั้งค่าจำนวน stock (เฉพาะผู้ดูแล)"""
     global gamepass_stock, group_stock
     
-    # ลบข้อความของผู้ใช้
     try:
         await ctx.message.delete()
     except:
@@ -881,6 +885,193 @@ async def tax(ctx, *, expression: str):
 
     except Exception as e:
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
+
+# --------------------------------------------------------------------------------------------------
+# คำสั่งสั่งซื้อและบันทึกการขาย (!od, !odg)
+@bot.command()
+async def od(ctx, *, expression: str):
+    """คำสั่งสั่งซื้อ Robux Gamepass"""
+    try:
+        expr = expression.replace(",", "").lower().replace("x", "*").replace("÷", "/")
+
+        if not re.match(r"^[\d\s\+\-\*\/\(\)]+$", expr):
+            await ctx.send("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", delete_after=10)
+            return
+
+        robux = int(eval(expr))
+        price = robux / gamepass_rate
+        price_str = f"{price:,.0f} บาท"
+
+        embed = discord.Embed(
+            title="🍣 ใบเสร็จคำสั่งซื้อ Gamepass 🍣",
+            color=0x00FF99,
+            timestamp=discord.utils.utcnow()
+        )
+        embed.add_field(name="📦 ประเภทสินค้า", value="Robux Gamepass", inline=False)
+        embed.add_field(name="💸 จำนวนโรบัค", value=f"{robux:,}", inline=True)
+        embed.add_field(name="💰 ราคาตามเรท", value=price_str, inline=True)
+        embed.add_field(name="😊 ผู้ซื้อ", value=ctx.author.mention, inline=False)
+        embed.add_field(name="🚚 ผู้ส่งสินค้า", value=ctx.author.mention, inline=False)
+        embed.set_footer(text="การสั่งซื้อสำเร็จ")
+
+        await ctx.send(embed=embed)
+
+        # ส่งไปยังห้องบันทึกการขาย
+        sales_channel = bot.get_channel(SALES_LOG_CHANNEL_ID)
+        if sales_channel:
+            await sales_channel.send(embed=embed)
+
+    except Exception as e:
+        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
+
+@bot.command()
+async def odg(ctx, *, expression: str):
+    """คำสั่งสั่งซื้อ Robux Group"""
+    try:
+        expr = expression.replace(",", "").lower().replace("x", "*").replace("÷", "/")
+
+        if not re.match(r"^[\d\s\+\-\*\/\(\)]+$", expr):
+            await ctx.send("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", delete_after=10)
+            return
+
+        robux = int(eval(expr))
+        rate = group_rate_low if robux < 1500 else group_rate_high
+        price = robux / rate
+        price_str = f"{price:,.0f} บาท"
+
+        embed = discord.Embed(
+            title="🍣 ใบเสร็จคำสั่งซื้อโรบัคกลุ่ม 🍣",
+            color=0x00AAFF,
+            timestamp=discord.utils.utcnow()
+        )
+        embed.add_field(name="📦 ประเภทสินค้า", value="Robux Group", inline=False)
+        embed.add_field(name="💸 จำนวน Robux", value=f"{robux:,}", inline=True)
+        embed.add_field(name="💰 ราคาตามเรท", value=price_str, inline=True)
+        embed.add_field(name="📊 เรท", value=f"{rate}", inline=True)
+        embed.add_field(name="😊 ผู้ซื้อ", value=ctx.author.mention, inline=False)
+        embed.add_field(name="🚚 ผู้ส่งสินค้า", value=ctx.author.mention, inline=False)
+        embed.set_footer(text="การสั่งซื้อสำเร็จ • Robux Group")
+
+        await ctx.send(embed=embed)
+
+        # ส่งไปยังห้องบันทึกการขาย
+        sales_channel = bot.get_channel(SALES_LOG_CHANNEL_ID)
+        if sales_channel:
+            await sales_channel.send(embed=embed)
+
+    except Exception as e:
+        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
+
+# --------------------------------------------------------------------------------------------------
+# คำสั่ง !qr - แสดง QR Code
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def qr(ctx):
+    """แสดง QR Code ชำระเงิน"""
+    try:
+        await ctx.message.delete()
+    except:
+        pass
+    
+    embed = discord.Embed(
+        title="📱 สแกน QR เพื่อชำระเงิน",
+        description="กรุณาโอนเงินตามจำนวนที่แจ้งไว้ด้านล่าง",
+        color=0x00CCFF
+    )
+    embed.set_image(url="https://media.discordapp.net/attachments/722832040860319835/1402994996600111114/186-8-06559-8.png")
+    await ctx.send(embed=embed)
+
+# --------------------------------------------------------------------------------------------------
+# คำสั่ง !ty - ส่งของเรียบร้อยแล้ว
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def ty(ctx):
+    """ส่งของเรียบร้อยแล้ว"""
+    try:
+        await ctx.message.delete()
+    except:
+        pass
+    
+    if ctx.channel.name.startswith("ticket-"):
+        # คืน stock เมื่อส่งของสำเร็จ
+        global gamepass_stock, group_stock
+        
+        # ตรวจสอบหมวดหมู่เพื่อกำหนดประเภท
+        if ctx.channel.category and "gamepass" in ctx.channel.category.name.lower():
+            gamepass_stock += 1
+        elif ctx.channel.category and "group" in ctx.channel.category.name.lower():
+            group_stock += 1
+            
+        # หา embed การสั่งซื้อ
+        sale_embed = None
+        async for msg in ctx.channel.history():
+            if msg.embeds and "รายละเอียดการสั่งซื้อ" in msg.embeds[0].title:
+                sale_embed = msg.embeds[0]
+                break
+
+        if sale_embed:
+            confirmed = any(field.name == "📋 ยืนยันโดย" for field in sale_embed.fields)
+            if not confirmed:
+                sale_embed.add_field(name="📋 ยืนยันโดย", value=ctx.author.mention, inline=False)
+
+        # ย้ายไปหมวดหมู่ "ส่งของแล้ว"
+        delivered_category = discord.utils.get(ctx.guild.categories, name="ส่งของแล้ว")
+        if delivered_category:
+            try:
+                await ctx.channel.edit(category=delivered_category)
+            except Exception as e:
+                print(f"❌ ไม่สามารถย้ายหมวดหมู่: {e}")
+
+        # ส่งข้อความขอบคุณ
+        embed = discord.Embed(
+            title="✅ สินค้าถูกส่งเรียบร้อยแล้ว",
+            description=(
+                "ขอบคุณที่ใช้บริการกับเรา หากไม่มีปัญหาเพิ่มเติม "
+                "สามารถกดปุ่มด้านล่างเพื่อปิดตั๋วได้เลย\n\n"
+                "⏳ **หากไม่ได้กดปิดตั๋ว ตั๋วจะถูกปิดอัตโนมัติใน 1 ชั่วโมง**"
+            ),
+            color=0x00FF00
+        )
+        
+        class TempCloseView(View):
+            def __init__(self, channel):
+                super().__init__(timeout=None)
+                self.channel = channel
+
+            @discord.ui.button(label="🔒 ปิดตั๋ว", style=discord.ButtonStyle.danger)
+            async def close_button(self, interaction: discord.Interaction, button: Button):
+                global gamepass_stock, group_stock
+                if self.channel.category and "gamepass" in self.channel.category.name.lower():
+                    gamepass_stock += 1
+                elif self.channel.category and "group" in self.channel.category.name.lower():
+                    group_stock += 1
+                    
+                await interaction.response.send_message("📪 กำลังปิดตั๋ว...", ephemeral=True)
+                try:
+                    await self.channel.delete()
+                except:
+                    pass
+        
+        await ctx.send(embed=embed, view=TempCloseView(ctx.channel))
+
+        # ตั้งเวลาปิดอัตโนมัติ 1 ชั่วโมง
+        async def auto_close():
+            await asyncio.sleep(3600)
+            if ctx.channel and ctx.channel.name.startswith("ticket-"):
+                try:
+                    global gamepass_stock, group_stock
+                    if ctx.channel.category and "gamepass" in ctx.channel.category.name.lower():
+                        gamepass_stock += 1
+                    elif ctx.channel.category and "group" in ctx.channel.category.name.lower():
+                        group_stock += 1
+                        
+                    await ctx.channel.delete()
+                except:
+                    pass
+
+        bot.loop.create_task(auto_close())
+    else:
+        await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
 
 # --------------------------------------------------------------------------------------------------
 # คำสั่งอื่นๆ
