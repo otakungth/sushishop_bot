@@ -605,17 +605,19 @@ class TicketActionView(View):
 # View สำหรับยืนยันตั๋ว
 class ConfirmTicketView(View):
     def __init__(self, embed_data: discord.Embed):
-        super().__init__(timeout=300)
+        super().__init__(timeout=None)  # เปลี่ยน timeout เป็น None เพื่อไม่ให้หายไป
         self.embed_data = embed_data
 
     @discord.ui.button(label="✅ ส่งของเรียบร้อยแล้ว", style=discord.ButtonStyle.success, custom_id="confirm_ticket")
     async def confirm_button(self, interaction: discord.Interaction, button: Button):
         try:
-            role_id = 1361016912259055896
-            role = interaction.guild.get_role(role_id)
-            if role not in interaction.user.roles:
-                await interaction.response.send_message("❌ คุณไม่มีสิทธิ์ยืนยันการสั่งซื้อนี้", ephemeral=True)
-                return
+            # ตรวจสอบสิทธิ์ - อนุญาตให้แอดมินหรือผู้มีบทบาทที่กำหนดใช้ได้
+            if not interaction.user.guild_permissions.administrator:
+                role_id = 1361016912259055896
+                role = interaction.guild.get_role(role_id)
+                if role not in interaction.user.roles:
+                    await interaction.response.send_message("❌ คุณไม่มีสิทธิ์ยืนยันการสั่งซื้อนี้", ephemeral=True)
+                    return
 
             if any(field.name == "📋 ยืนยันโดย" for field in self.embed_data.fields):
                 await interaction.response.send_message("⚠️ คำสั่งซื้อนี้ถูกยืนยันแล้ว", ephemeral=True)
@@ -625,8 +627,12 @@ class ConfirmTicketView(View):
             await send_sale_log(self.embed_data, interaction=interaction, delivered_by=interaction.user)
 
             await interaction.response.send_message("✅ ส่งของเรียบร้อยแล้ว", ephemeral=True)
-            await interaction.message.edit(view=None)
+            
+            # แก้ไข embed เดิมโดยไม่ลบ view
+            await interaction.message.edit(embed=self.embed_data, view=None)
+            
         except Exception as e:
+            print(f"❌ เกิดข้อผิดพลาดในการยืนยัน: {e}")
             await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการยืนยัน", ephemeral=True)
 
     @discord.ui.button(label="❌ ยกเลิกสินค้า", style=discord.ButtonStyle.danger, custom_id="cancel_ticket")
@@ -772,34 +778,44 @@ async def gb(ctx, *, expression: str):
 # คำสั่ง !tax (คำนวณหัก Tax)
 @bot.command()
 async def tax(ctx, *, expression: str):
-    """คำนวณ Robux หลังหัก 30%"""
+    """คำนวณ Robux หลังหัก % (ภาษีหรือส่วนลด)"""
     try:
         # ลบช่องว่างทั้งหมด
         expression = expression.replace(" ", "")
         
-        # ตรวจสอบรูปแบบ [number]-30%
-        if not re.match(r"^\d+-\d+%$", expression):
-            await ctx.send("❌ รูปแบบไม่ถูกต้อง ใช้รูปแบบ: `!tax 100-30%`")
+        # กรณี 1: !tax 100 (หัก 30% โดยอัตโนมัติ)
+        if re.match(r"^\d+$", expression):
+            number = int(expression)
+            result = number * 0.7  # หัก 30%
+            await ctx.send(f"💰 {number:,} Robux หลังหัก 30% = **{result:,.0f} Robux**")
             return
         
-        # แยกตัวเลขและเปอร์เซ็นต์
-        parts = expression.split('-')
-        if len(parts) != 2:
-            await ctx.send("❌ รูปแบบไม่ถูกต้อง ใช้รูปแบบ: `!tax 100-30%`")
+        # กรณี 2: !tax 100-30% (หักตามเปอร์เซ็นต์ที่กำหนด)
+        elif re.match(r"^\d+-\d+%$", expression):
+            parts = expression.split('-')
+            number = int(parts[0])
+            percent_str = parts[1]
+            
+            # ดึงตัวเลขเปอร์เซ็นต์
+            percent = int(percent_str.replace('%', ''))
+            
+            if percent < 0 or percent > 100:
+                await ctx.send("❌ เปอร์เซ็นต์ต้องอยู่ระหว่าง 0-100%")
+                return
+            
+            # คำนวณหักเปอร์เซ็นต์
+            result = number * (1 - percent/100)
+            await ctx.send(f"💰 {number:,} Robux หลังหัก {percent}% = **{result:,.0f} Robux**")
             return
         
-        number = int(parts[0])
-        percent_str = parts[1]
-        
-        # ตรวจสอบว่าเป็น 30% หรือไม่
-        if percent_str != "30%":
-            await ctx.send("❌ ใช้ได้เฉพาะ 30% เท่านั้น ใช้รูปแบบ: `!tax 100-30%`")
-            return
-        
-        # คำนวณหัก 30%
-        result = number * 0.7  # 100% - 30% = 70%
-        
-        await ctx.send(f"💰 {number:,} Robux หลังหัก 30% = **{result:,.0f} Robux**")
+        else:
+            await ctx.send(
+                "❌ รูปแบบไม่ถูกต้อง\n\n"
+                "**การใช้งาน:**\n"
+                "`!tax 100` - หัก 30% อัตโนมัติ\n"
+                "`!tax 100-30%` - หัก 30%\n"
+                "`!tax 100-50%` - หัก 50%"
+            )
 
     except Exception as e:
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
@@ -820,7 +836,8 @@ async def ty(ctx):
         elif "group" in ctx.channel.category.name.lower():
             group_stock += 1
             
-        await update_main_channel()
+        # ไม่ต้องอัปเดต main channel เพื่อป้องกันการส่ง embed ซ้ำ
+        # await update_main_channel()
         
         # หา embed การสั่งซื้อ
         sale_embed = None
@@ -867,7 +884,7 @@ async def ty(ctx):
                 elif "group" in self.channel.category.name.lower():
                     group_stock += 1
                     
-                await update_main_channel()
+                # ไม่ต้องอัปเดต main channel
                 await interaction.response.send_message("📪 กำลังปิดตั๋ว...", ephemeral=True)
                 try:
                     await self.channel.delete()
@@ -888,7 +905,7 @@ async def ty(ctx):
                     elif "group" in ctx.channel.category.name.lower():
                         group_stock += 1
                         
-                    await update_main_channel()
+                    # ไม่ต้องอัปเดต main channel
                     await ctx.channel.delete()
                 except:
                     pass
@@ -985,4 +1002,3 @@ async def setup(ctx):
 # --------------------------------------------------------------------------------------------------
 server_on()
 bot.run(os.getenv("TOKEN"))
-
