@@ -25,8 +25,8 @@ group_ticket_enabled = True
 # ตั้งค่าห้องหลักและ stock
 MAIN_CHANNEL_ID = 1361044752975532152
 SALES_LOG_CHANNEL_ID = 1402993077643120720
-gamepass_stock = 100  # Stock สำหรับ Gamepass
-group_stock = 100     # Stock สำหรับ Group
+gamepass_stock = 0  # Stock สำหรับ Gamepass
+group_stock = 12345     # Stock สำหรับ Group
 
 # เก็บข้อมูลโน้ตส่วนตัว
 user_notes = {}
@@ -1151,6 +1151,7 @@ async def setup(ctx):
 # --------------------------------------------------------------------------------------------------
 server_on()
 bot.run(os.getenv("TOKEN"))
+
 
 
 
