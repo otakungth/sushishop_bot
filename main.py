@@ -204,9 +204,13 @@ async def tax(interaction: discord.Interaction, จำนวน: str):
 # --------------------------------------------------------------------------------------------------
 # คำสั่งจัดการสำหรับแอดมิน
 @bot.tree.command(name="sushi", description="เปิด/ปิดร้าน (Admin only)")
-@commands.has_permissions(administrator=True)
 async def sushi(interaction: discord.Interaction):
     """เปิด/ปิดร้าน"""
+    # ตรวจสอบสิทธิ์แอดมิน
+    if not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message("❌ คุณไม่มีสิทธิ์ใช้คำสั่งนี้", ephemeral=True)
+        return
+        
     global shop_open, group_open
     shop_open = not shop_open
     group_open = shop_open  # เปิด/ปิดพร้อมกันทั้งสองแบบ
@@ -219,9 +223,13 @@ async def sushi(interaction: discord.Interaction):
         await update_main_embed(interaction.channel)
 
 @bot.tree.command(name="stock", description="ตั้งค่าจำนวน stock (Admin only)")
-@commands.has_permissions(administrator=True)
 async def stock(interaction: discord.Interaction, gamepass: int = None, group: int = None):
     """ตั้งค่าจำนวน stock"""
+    # ตรวจสอบสิทธิ์แอดมิน
+    if not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message("❌ คุณไม่มีสิทธิ์ใช้คำสั่งนี้", ephemeral=True)
+        return
+        
     global gamepass_stock, group_stock
     
     if gamepass is not None:
@@ -239,9 +247,13 @@ async def stock(interaction: discord.Interaction, gamepass: int = None, group: i
         await update_main_embed(interaction.channel)
 
 @bot.tree.command(name="openshop", description="แสดงหน้าหลักของร้าน (Admin only)")
-@commands.has_permissions(administrator=True)
 async def openshop(interaction: discord.Interaction):
     """แสดงหน้าหลักของร้าน"""
+    # ตรวจสอบสิทธิ์แอดมิน
+    if not interaction.user.guild_permissions.administrator:
+        await interaction.response.send_message("❌ คุณไม่มีสิทธิ์ใช้คำสั่งนี้", ephemeral=True)
+        return
+        
     if interaction.channel.id != MAIN_CHANNEL_ID:
         await interaction.response.send_message("❌ คำสั่งนี้ใช้ได้เฉพาะในช่องหลัก", ephemeral=True)
         return
@@ -534,6 +546,8 @@ class TicketFullActionView(View):
 async def on_ready():
     print(f"✅ บอทออนไลน์แล้ว: {bot.user}")
     await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name="ร้าน Sushi Shop"))
+    
+    # Sync commands กับ Discord
     try:
         synced = await bot.tree.sync()
         print(f"✅ Synced {len(synced)} command(s)")
@@ -542,24 +556,22 @@ async def on_ready():
 
 @bot.event
 async def on_interaction(interaction: discord.Interaction):
-    if not interaction.data:
-        return
+    if interaction.type == discord.InteractionType.component:
+        custom_id = interaction.data.get("custom_id")
 
-    custom_id = interaction.data.get("custom_id")
+        if custom_id == "open_gamepass_ticket":
+            await handle_open_ticket(
+                interaction,
+                category_name="🍣Sushi Gamepass 🍣",
+                ticket_type="gamepass"
+            )
 
-    if custom_id == "open_gamepass_ticket":
-        await handle_open_ticket(
-            interaction,
-            category_name="🍣Sushi Gamepass 🍣",
-            ticket_type="gamepass"
-        )
-
-    elif custom_id == "open_group_ticket":
-        await handle_open_ticket(
-            interaction,
-            category_name="💰Robux Group💰", 
-            ticket_type="group"
-        )
+        elif custom_id == "open_group_ticket":
+            await handle_open_ticket(
+                interaction,
+                category_name="💰Robux Group💰", 
+                ticket_type="group"
+            )
 
 async def handle_open_ticket(interaction, category_name: str, ticket_type: str):
     guild = interaction.guild
@@ -628,8 +640,17 @@ async def handle_open_ticket(interaction, category_name: str, ticket_type: str):
     await channel.send(embed=welcome_embed, view=TicketFullActionView(channel, user, ticket_type))
 
 # --------------------------------------------------------------------------------------------------
+# คำสั่งเก่าแบบ prefix (สำหรับทดสอบ)
+@bot.command()
+async def test_sync(ctx):
+    """ทดสอบ sync commands"""
+    try:
+        synced = await bot.tree.sync()
+        await ctx.send(f"✅ Synced {len(synced)} command(s)")
+    except Exception as e:
+        await ctx.send(f"❌ Error: {e}")
+
+# --------------------------------------------------------------------------------------------------
 # รันบอท
 server_on()
 bot.run(os.getenv("TOKEN"))
-
-
