@@ -91,9 +91,9 @@ async def stock(ctx, stock_type: str = None, amount: int = None):
     
     if stock_type is None:
         await ctx.send(
-            f"📊 **Stock ปัจจุบัน:**\n"
-            f"🎮 Gamepass Stock: **{gamepass_stock}**\n"
-            f"👥 Group Stock: **{group_stock}**"
+            f"📊 **โรบัคเหลือ:**\n"
+            f"🎮 สต๊อกเกมพาส: **{gamepass_stock}**\n"
+            f"👥 สต๊อกโรบัคกลุ่ม: **{group_stock}**"
         )
     elif stock_type.lower() in ["gp", "gamepass", "เกมพาส"]:
         if amount is None:
@@ -104,19 +104,19 @@ async def stock(ctx, stock_type: str = None, amount: int = None):
                 return
             
             gamepass_stock = amount
-            await ctx.send(f"✅ ตั้งค่า Gamepass stock เป็น **{gamepass_stock}** เรียบร้อยแล้ว")
+            await ctx.send(f"✅ ตั้งค่า สต๊อกเกมพาส เป็น **{gamepass_stock}** เรียบร้อยแล้ว")
             await update_main_channel()
     
     elif stock_type.lower() in ["g", "group", "กรุ๊ป"]:
         if amount is None:
-            await ctx.send(f"👥 Group Stock ปัจจุบัน: **{group_stock}**")
+            await ctx.send(f"👥 สต๊อกโรบัคกลุ่ม ปัจจุบัน: **{group_stock}**")
         else:
             if amount < 0:
                 await ctx.send("❌ จำนวน stock ต้องมากกว่าหรือเท่ากับ 0")
                 return
             
             group_stock = amount
-            await ctx.send(f"✅ ตั้งค่า Group stock เป็น **{group_stock}** เรียบร้อยแล้ว")
+            await ctx.send(f"✅ ตั้งค่า สต๊อกโรบัคกลุ่ม เป็น **{group_stock}** เรียบร้อยแล้ว")
             await update_main_channel()
     
     else:
@@ -138,7 +138,7 @@ async def sushi(ctx):
 
     status = "✅ ร้านเปิด" if shop_open else "❌ ร้านปิด"
     await ctx.send(
-        f"📌 สถานะร้านถูกเปลี่ยนเป็น: **{status}**"
+        f"📌 สถานะร้าน: **{status}**"
     )
     await update_main_channel()
 
@@ -191,15 +191,13 @@ async def update_main_channel():
     # ส่วน Gamepass
     gamepass_stock_status = "🟢 พร้อมให้บริการ" if gamepass_stock > 0 else "🔴 สินค้าหมด"
     embed.add_field(
-        name="🎮 **Gamepass Service**",
+        name="🎮 **บริการกดเกมพาส**",
         value=(
             "```\n"
             f"เรท: {gamepass_rate}\n"
-            "บริการกดเกมพาสทุกเกม\n"
-            "รองรับการสั่งซื้อจำนวนมาก\n"
+            "รับกดเกมพาสทุกเกมที่กิ๊ฟได้\n"
             "```\n"
             f"📊 Stock: **{gamepass_stock}** ({gamepass_stock_status})\n"
-            "**กดปุ่มด้านล่างเพื่อเปิดตั๋วสั่งซื้อ**"
         ),
         inline=False
     )
@@ -211,18 +209,16 @@ async def update_main_channel():
             "```\n"
             f"เรท: {group_rate_low}-{group_rate_high}\n"
             "ซื้อมากกว่า 500 บาทเรท 4.5\n"
-            "รองรับการสั่งซื้อจำนวนมาก\n"
             "```\n"
             f"📊 Stock: **{group_stock}** ({group_stock_status})\n"
             f"📌 เข้ากลุ่ม: [VALKYs](https://www.roblox.com/communities/34713179/VALKYs)\n"
             "⚠️ กรุณาเข้ากลุ่มให้ครบ 15 วัน\n"
-            "**กดปุ่มด้านล่างเพื่อเปิดตั๋วสั่งซื้อ**"
         )
     else:
         group_value = "```\n🚫 บริการปิดชั่วคราว\n```"
     
     embed.add_field(
-        name="👥 **Robux Group Service**", 
+        name="👥 **ระบบโรบัคกลุ่ม**", 
         value=group_value,
         inline=False
     )
@@ -237,7 +233,7 @@ async def update_main_channel():
     
     # Footer
     embed.set_footer(
-        text="Sushi Shop • Professional Robux Service",
+        text="Sushi Shop • รับกดเกมพาสและอื่น ๆ",
         icon_url="https://media.discordapp.net/attachments/717757556889747657/1403684950770847754/noFilter.png"
     )
     
@@ -256,7 +252,7 @@ class MainShopView(View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(label="🎮 เปิดตั๋ว Gamepass", style=discord.ButtonStyle.success, custom_id="open_gamepass_ticket", emoji="🎮")
+    @discord.ui.button(label="🎮 เปิดตั๋วกดเกมพาส", style=discord.ButtonStyle.success, custom_id="open_gamepass_ticket", emoji="🎮")
     async def gamepass_ticket(self, interaction: discord.Interaction, button: Button):
         if not shop_open:
             await interaction.response.send_message("❌ ร้านปิดชั่วคราว", ephemeral=True)
@@ -284,7 +280,7 @@ class MainShopView(View):
             
         await handle_open_ticket(interaction, "💰Robux Group💰", GroupTicketModal, "group")
 
-    @discord.ui.button(label="📝 โน้ตส่วนตัว", style=discord.ButtonStyle.secondary, custom_id="personal_notes", emoji="📝")
+    @discord.ui.button(label="📝 จดวันที่เข้ากลุ่ม", style=discord.ButtonStyle.secondary, custom_id="personal_notes", emoji="📝")
     async def personal_notes(self, interaction: discord.Interaction, button: Button):
         user_note = user_notes.get(str(interaction.user.id))
         modal = PersonalNoteModal()
@@ -296,10 +292,10 @@ class MainShopView(View):
 
 # --------------------------------------------------------------------------------------------------
 # Modal สำหรับโน้ตส่วนตัว
-class PersonalNoteModal(Modal, title="📝 โน้ตส่วนตัวของคุณ"):
+class PersonalNoteModal(Modal, title="📝 จดวันที่เข้ากลุ่ม"):
     note = TextInput(
-        label="เขียนโน้ตส่วนตัวของคุณ",
-        placeholder="เช่น: ชื่อในเกม, รายละเอียดเพิ่มเติม, ข้อมูลการติดต่อ, ฯลฯ",
+        label="จดวันที่เข้ากลุ่มในนี้ ดูจากวันที่ปัจจุบัน",
+        placeholder="เช่น: 20/10 , 20 ตค",
         style=discord.TextStyle.paragraph,
         required=False,
         max_length=1000
@@ -316,10 +312,10 @@ class PersonalNoteModal(Modal, title="📝 โน้ตส่วนตัวข�
             
             embed = discord.Embed(
                 title="✅ บันทึกโน้ตเรียบร้อย",
-                description="โน้ตส่วนตัวของคุณถูกบันทึกเรียบร้อยแล้ว",
+                description="โน้ตของคุณถูกบันทึกแล้ว",
                 color=0x00FF00
             )
-            embed.add_field(name="📝 โน้ตของคุณ", value=self.note.value, inline=False)
+            embed.add_field(name="📝 จดวันที่เข้ากลุ่ม", value=self.note.value, inline=False)
             await interaction.response.send_message(embed=embed, ephemeral=True)
         else:
             # ถ้าโน้ตว่างเปล่า ให้ลบโน้ต
@@ -331,7 +327,7 @@ class PersonalNoteModal(Modal, title="📝 โน้ตส่วนตัวข�
 
 # --------------------------------------------------------------------------------------------------
 # Modal สำหรับ Gamepass
-class GamepassTicketModal(Modal, title="📋 แบบฟอร์มสั่งซื้อ Gamepass"):
+class GamepassTicketModal(Modal, title="📋 แบบฟอร์มกดเกมพาส"):
     def __init__(self):
         super().__init__(timeout=300)
         
@@ -350,7 +346,7 @@ class GamepassTicketModal(Modal, title="📋 แบบฟอร์มสั่�
         )
         
         self.robux_amount = TextInput(
-            label="🎟 รวมทั้งหมดกี่ Robux?",
+            label="🎟 ราคาของเกมพาสเท่าไหร่บ้าง?",
             placeholder="เช่น 995 หรือ 100+100+100 หรือ 100x3",
             required=True,
             max_length=50
@@ -376,15 +372,15 @@ class GamepassTicketModal(Modal, title="📋 แบบฟอร์มสั่�
 
             # Embed ลูกค้า
             customer_embed = discord.Embed(
-                title="📨 รายละเอียดการสั่งซื้อ Gamepass", 
+                title="📨 รายละเอียดการสั่งซื้อ", 
                 color=0x00FF99,
                 timestamp=discord.utils.utcnow()
             )
             customer_embed.add_field(name="🗺️ แมพ", value=self.map_name.value, inline=False)
             customer_embed.add_field(name="🎟 เกมพาส", value=self.gamepass_name.value, inline=False)
-            customer_embed.add_field(name="💸 จำนวน Robux", value=f"{robux:,}", inline=True)
+            customer_embed.add_field(name="💸 จำนวนโรบัค", value=f"{robux:,}", inline=True)
             customer_embed.add_field(name="💰 ราคา", value=price_str, inline=True)
-            customer_embed.set_footer(text="ทีมงานจะตอบกลับโดยเร็วที่สุดครับ")
+            customer_embed.set_footer(text="ทีมงานจะตอบกลับโดยเร็วที่สุด")
 
             view = ConfirmTicketView(embed_data=customer_embed)
             await interaction.response.send_message(
@@ -410,8 +406,8 @@ class GroupTicketModal(Modal, title="📋 แบบฟอร์มสั่ง�
         )
         
         self.robux_amount = TextInput(
-            label="💸 ต้องการกดทั้งหมดกี่ Robux?", 
-            placeholder="กรอกจำนวน Robux ที่ต้องการ",
+            label="💸 ต้องการซื้อกี่โรบัค?", 
+            placeholder="กรอกจำนวนโรบัคที่ต้องการ",
             required=True,
             max_length=50
         )
@@ -427,14 +423,14 @@ class GroupTicketModal(Modal, title="📋 แบบฟอร์มสั่ง�
             price_str = f"{price:,.0f} บาท"
 
             customer_embed = discord.Embed(
-                title="📨 รายละเอียดคำสั่งซื้อ Robux Group", 
+                title="📨 รายละเอียดคำสั่งซื้อโรบัคกลุ่ม", 
                 color=0x00FF99,
                 timestamp=discord.utils.utcnow()
             )
             customer_embed.add_field(name="🪪 ชื่อในเกม", value=self.user_name.value, inline=False)
-            customer_embed.add_field(name="💸 จำนวน Robux", value=f"{robux:,}", inline=True)
+            customer_embed.add_field(name="💸 จำนวนโรบัค", value=f"{robux:,}", inline=True)
             customer_embed.add_field(name="💰 ราคา", value=price_str, inline=True)
-            customer_embed.set_footer(text="ทีมงานจะตรวจสอบและตอบกลับโดยเร็วที่สุดครับ")
+            customer_embed.set_footer(text="ทีมงานจะตรวจสอบและตอบกลับโดยเร็วที่สุด")
 
             view = ConfirmTicketView(embed_data=customer_embed)
             await interaction.response.send_message(
@@ -444,7 +440,7 @@ class GroupTicketModal(Modal, title="📋 แบบฟอร์มสั่ง�
             )
 
         except ValueError:
-            await interaction.response.send_message("❌ กรุณากรอกจำนวน Robux เป็นตัวเลข", ephemeral=True)
+            await interaction.response.send_message("❌ กรุณากรอกจำนวนโรบัคเป็นตัวเลข", ephemeral=True)
 
 # --------------------------------------------------------------------------------------------------
 # ฟังก์ชันจัดการการเปิดตั๋ว
@@ -528,12 +524,11 @@ async def handle_open_ticket(interaction, category_name, modal_class, stock_type
             title="🍣 Sushi Shop 🍣",
             description=(
                 "**ยินดีต้อนรับสู่บริการของเรา!**\n\n"
-                f"👤 **ลูกค้า:** {user.mention}\n"
-                f"🛠️ **พนักงาน:** {admin_role.mention if admin_role else 'รอพนักงานติดต่อ'}\n\n"
+                f"👤 **ผู้ซื้อ:** {user.mention}\n"
+                f"🛠️ **ทีมงาน:** {admin_role.mention if admin_role else 'รอพนักงานติดต่อ'}\n\n"
                 "**คำแนะนำ:**\n"
-                "• กรุณาระบุรายละเอียดการสั่งซื้อให้ครบถ้วน\n"
+                "• กรุณาระบุสิ่งที่ต้องการซื้อ\n"
                 "• สามารถใช้คำสั่ง !gp, !g เพื่อคำนวณราคาได้\n"
-                "• ทีมงานจะตอบกลับคุณโดยเร็วที่สุด\n\n"
                 "**ขอบคุณที่ใช้บริการ!** 🎉"
             ),
             color=0x00FF99
@@ -932,7 +927,7 @@ async def od(ctx, *, expression: str):
             timestamp=discord.utils.utcnow()
         )
         embed.add_field(name="📦 ประเภทสินค้า", value="Robux Gamepass", inline=False)
-        embed.add_field(name="💸 จำนวน Robux", value=f"{robux:,}", inline=True)
+        embed.add_field(name="💸 จำนวนโรบัค", value=f"{robux:,}", inline=True)
         embed.add_field(name="💰 ราคาตามเรท", value=price_str, inline=True)
         embed.add_field(name="🚚 ผู้ส่งสินค้า", value=ctx.author.mention, inline=False)
         embed.set_footer(text="การสั่งซื้อสำเร็จ")
@@ -962,14 +957,14 @@ async def odg(ctx, *, expression: str):
         price_str = f"{price:,.0f} บาท"
 
         embed = discord.Embed(
-            title="🍣 ใบเสร็จคำสั่งซื้อ Robux Group 🍣",
+            title="🍣 ใบเสร็จคำสั่งซื้อโรบัคกลุ่ม 🍣",
             color=0x00AAFF,
             timestamp=discord.utils.utcnow()
         )
         embed.add_field(name="📦 ประเภทสินค้า", value="Robux Group", inline=False)
         embed.add_field(name="💸 จำนวน Robux", value=f"{robux:,}", inline=True)
         embed.add_field(name="💰 ราคาตามเรท", value=price_str, inline=True)
-        embed.add_field(name="📊 เรทที่ใช้", value=f"{rate}", inline=True)
+        embed.add_field(name="📊 เรท", value=f"{rate}", inline=True)
         embed.add_field(name="🚚 ผู้ส่งสินค้า", value=ctx.author.mention, inline=False)
         embed.set_footer(text="การสั่งซื้อสำเร็จ • Robux Group")
 
@@ -1002,3 +997,4 @@ async def setup(ctx):
 # --------------------------------------------------------------------------------------------------
 server_on()
 bot.run(os.getenv("TOKEN"))
+
