@@ -41,6 +41,28 @@ bot = commands.Bot(
 print("🔄 กำลังเริ่มต้นบอท...")
 
 # --------------------------------------------------------------------------------------------------
+# ฟังก์ชันลบข้อความอัตโนมัติ
+async def auto_delete_messages(ctx, bot_message, delay=60):
+    """ลบข้อความผู้ใช้และบอทหลังจากเวลาที่กำหนด"""
+    try:
+        await asyncio.sleep(delay)
+        
+        # ลบข้อความบอท
+        try:
+            await bot_message.delete()
+        except:
+            pass
+            
+        # ลบข้อความผู้ใช้
+        try:
+            await ctx.message.delete()
+        except:
+            pass
+            
+    except Exception as e:
+        print(f"❌ เกิดข้อผิดพลาดในการลบข้อความ: {e}")
+
+# --------------------------------------------------------------------------------------------------
 # ฟังก์ชันส่งบันทึกการขาย
 async def send_sale_log(embed_data: discord.Embed, interaction: discord.Interaction = None, ctx: commands.Context = None, delivered_by: discord.Member = None):
     """ส่ง Embed ไปยังห้องบันทึกการขาย"""
@@ -632,12 +654,17 @@ async def help_command(ctx):
     """แสดงคำสั่งทั้งหมด"""
     help_embed = discord.Embed(
         title="🍣 Sushi Shop - คำสั่งทั้งหมด",
-        description="**คำสั่งคำนวณราคา:**\n"
+        description="**คำสั่งคำนวณราคา (ลบอัตโนมัติใน 1 นาที):**\n"
                    "`!gp <จำนวน>` - คำนวณราคา Gamepass\n"
                    "`!g <จำนวน>` - คำนวณราคา Group\n"
                    "`!gpb <จำนวน>` - คำนวณ Robux จากเงิน (Gamepass)\n"
                    "`!gb <จำนวน>` - คำนวณ Robux จากเงิน (Group)\n"
                    "`!tax <จำนวน>` - คำนวณ Robux หลังหักภาษี\n\n"
+                   "**คำสั่งคำนวณราคา (แสดงผลถาวร):**\n"
+                   "`!gp p <จำนวน>` - คำนวณราคา Gamepass ถาวร\n"
+                   "`!g p <จำนวน>` - คำนวณราคา Group ถาวร\n"
+                   "`!gpb p <จำนวน>` - คำนวณ Robux จากเงิน ถาวร\n"
+                   "`!gb p <จำนวน>` - คำนวณ Robux จากเงิน ถาวร\n\n"
                    "**คำสั่งสั่งซื้อ:**\n"
                    "`!od <จำนวน>` - สั่งซื้อ Gamepass\n"
                    "`!odg <จำนวน>` - สั่งซื้อ Group\n\n"
@@ -770,37 +797,60 @@ async def group(ctx, status: str = None):
     await update_main_channel()
 
 # --------------------------------------------------------------------------------------------------
-# คำสั่งคำนวณราคา
+# คำสั่งคำนวณราคา (ลบอัตโนมัติใน 1 นาที)
 @bot.command()
 async def gp(ctx, *, expression: str):
-    """คำนวณราคาจากจำนวน Robux (Gamepass)"""
+    """คำนวณราคาจากจำนวน Robux (Gamepass) - ลบอัตโนมัติใน 1 นาที"""
     try:
-        expression = expression.replace(",", "").lower().replace("x", "*").replace("÷", "/")
+        # ตรวจสอบว่าเป็นโหมดถาวรหรือไม่
+        if expression.lower().startswith('p '):
+            # โหมดถาวร - ไม่ลบ
+            actual_expression = expression[2:].strip()
+            permanent = True
+        else:
+            actual_expression = expression
+            permanent = False
 
-        if not re.match(r"^[\d\s\+\-\*\/\(\)]+$", expression):
+        actual_expression = actual_expression.replace(",", "").lower().replace("x", "*").replace("÷", "/")
+
+        if not re.match(r"^[\d\s\+\-\*\/\(\)]+$", actual_expression):
             await ctx.send("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", delete_after=10)
             return
 
-        robux = eval(expression)
+        robux = eval(actual_expression)
         price = robux / gamepass_rate
         price_str = f"{price:,.0f} บาท"
 
-        await ctx.send(f"🎮 Gamepass {robux:,} Robux = **{price_str}** (เรท {gamepass_rate})", delete_after=30)
+        message = await ctx.send(f"🎮 Gamepass {robux:,} Robux = **{price_str}** (เรท {gamepass_rate})")
+
+        # ถ้าไม่ใช่โหมดถาวร ให้ลบอัตโนมัติใน 1 นาที
+        if not permanent:
+            await auto_delete_messages(ctx, message, 60)
 
     except Exception as e:
-        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
+        error_msg = await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
+        if not permanent:
+            await auto_delete_messages(ctx, error_msg, 60)
 
 @bot.command()
 async def g(ctx, *, expression: str):
-    """คำนวณราคาจากจำนวน Robux (Group)"""
+    """คำนวณราคาจากจำนวน Robux (Group) - ลบอัตโนมัติใน 1 นาที"""
     try:
-        expression = expression.replace(",", "").lower().replace("x", "*").replace("÷", "/")
+        # ตรวจสอบว่าเป็นโหมดถาวรหรือไม่
+        if expression.lower().startswith('p '):
+            actual_expression = expression[2:].strip()
+            permanent = True
+        else:
+            actual_expression = expression
+            permanent = False
 
-        if not re.match(r"^[\d\s\+\-\*\/\(\)]+$", expression):
+        actual_expression = actual_expression.replace(",", "").lower().replace("x", "*").replace("÷", "/")
+
+        if not re.match(r"^[\d\s\+\-\*\/\(\)]+$", actual_expression):
             await ctx.send("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", delete_after=10)
             return
 
-        robux = eval(expression)
+        robux = eval(actual_expression)
 
         if robux < 1500:
             rate = group_rate_low
@@ -810,30 +860,58 @@ async def g(ctx, *, expression: str):
         price = robux / rate
         price_str = f"{price:,.0f} บาท"
 
-        await ctx.send(f"👥 Group {robux:,} Robux = **{price_str}** (เรท {rate})", delete_after=30)
+        message = await ctx.send(f"👥 Group {robux:,} Robux = **{price_str}** (เรท {rate})")
+
+        # ถ้าไม่ใช่โหมดถาวร ให้ลบอัตโนมัติใน 1 นาที
+        if not permanent:
+            await auto_delete_messages(ctx, message, 60)
 
     except Exception as e:
-        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
+        error_msg = await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
+        if not permanent:
+            await auto_delete_messages(ctx, error_msg, 60)
 
 @bot.command()
 async def gpb(ctx, *, expression: str):
-    """คำนวณจากจำนวนเงิน เป็น Robux (Gamepass)"""
+    """คำนวณจากจำนวนเงิน เป็น Robux (Gamepass) - ลบอัตโนมัติใน 1 นาที"""
     try:
-        expression = expression.replace(",", "").replace(" ", "")
-        baht = eval(expression)
+        # ตรวจสอบว่าเป็นโหมดถาวรหรือไม่
+        if expression.lower().startswith('p '):
+            actual_expression = expression[2:].strip()
+            permanent = True
+        else:
+            actual_expression = expression
+            permanent = False
+
+        actual_expression = actual_expression.replace(",", "").replace(" ", "")
+        baht = eval(actual_expression)
 
         robux = baht * gamepass_rate
-        await ctx.send(f"🎮 {baht:,.0f} บาท = **{robux:,.0f} Robux** (Gamepass เรท {gamepass_rate})", delete_after=30)
+        message = await ctx.send(f"🎮 {baht:,.0f} บาท = **{robux:,.0f} Robux** (Gamepass เรท {gamepass_rate})")
+
+        # ถ้าไม่ใช่โหมดถาวร ให้ลบอัตโนมัติใน 1 นาที
+        if not permanent:
+            await auto_delete_messages(ctx, message, 60)
 
     except Exception as e:
-        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
+        error_msg = await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
+        if not permanent:
+            await auto_delete_messages(ctx, error_msg, 60)
 
 @bot.command()
 async def gb(ctx, *, expression: str):
-    """คำนวณจากจำนวนเงิน เป็น Robux (Group)"""
+    """คำนวณจากจำนวนเงิน เป็น Robux (Group) - ลบอัตโนมัติใน 1 นาที"""
     try:
-        expression = expression.replace(",", "").replace(" ", "")
-        baht = eval(expression)
+        # ตรวจสอบว่าเป็นโหมดถาวรหรือไม่
+        if expression.lower().startswith('p '):
+            actual_expression = expression[2:].strip()
+            permanent = True
+        else:
+            actual_expression = expression
+            permanent = False
+
+        actual_expression = actual_expression.replace(",", "").replace(" ", "")
+        baht = eval(actual_expression)
 
         if baht < 500:
             rate = group_rate_low
@@ -841,40 +919,54 @@ async def gb(ctx, *, expression: str):
             rate = group_rate_high
 
         robux = baht * rate
-        await ctx.send(f"👥 {baht:,.0f} บาท = **{robux:,.0f} Robux** (Group เรท {rate})", delete_after=30)
+        message = await ctx.send(f"👥 {baht:,.0f} บาท = **{robux:,.0f} Robux** (Group เรท {rate})")
+
+        # ถ้าไม่ใช่โหมดถาวร ให้ลบอัตโนมัติใน 1 นาที
+        if not permanent:
+            await auto_delete_messages(ctx, message, 60)
 
     except Exception as e:
-        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
+        error_msg = await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
+        if not permanent:
+            await auto_delete_messages(ctx, error_msg, 60)
 
 # --------------------------------------------------------------------------------------------------
-# คำสั่ง !tax (คำนวณหัก Tax)
+# คำสั่ง !tax (คำนวณหัก Tax) - ลบอัตโนมัติใน 1 นาที
 @bot.command()
 async def tax(ctx, *, expression: str):
-    """คำนวณ Robux หลังหัก % (ภาษีหรือส่วนลด)"""
+    """คำนวณ Robux หลังหัก % (ภาษีหรือส่วนลด) - ลบอัตโนมัติใน 1 นาที"""
     try:
-        expression = expression.replace(" ", "")
+        # ตรวจสอบว่าเป็นโหมดถาวรหรือไม่
+        if expression.lower().startswith('p '):
+            actual_expression = expression[2:].strip()
+            permanent = True
+        else:
+            actual_expression = expression
+            permanent = False
+
+        actual_expression = actual_expression.replace(" ", "")
         
-        if re.match(r"^\d+$", expression):
-            number = int(expression)
+        if re.match(r"^\d+$", actual_expression):
+            number = int(actual_expression)
             result = number * 0.7
-            await ctx.send(f"💰 {number:,} Robux หลังหัก 30% = **{result:,.0f} Robux**", delete_after=30)
-            return
-        
-        elif re.match(r"^\d+-\d+%$", expression):
-            parts = expression.split('-')
+            message = await ctx.send(f"💰 {number:,} Robux หลังหัก 30% = **{result:,.0f} Robux**")
+            
+        elif re.match(r"^\d+-\d+%$", actual_expression):
+            parts = actual_expression.split('-')
             number = int(parts[0])
             percent = int(parts[1].replace('%', ''))
             
             if percent < 0 or percent > 100:
-                await ctx.send("❌ เปอร์เซ็นต์ต้องอยู่ระหว่าง 0-100%", delete_after=10)
+                message = await ctx.send("❌ เปอร์เซ็นต์ต้องอยู่ระหว่าง 0-100%", delete_after=10)
+                if not permanent:
+                    await auto_delete_messages(ctx, message, 60)
                 return
             
             result = number * (1 - percent/100)
-            await ctx.send(f"💰 {number:,} Robux หลังหัก {percent}% = **{result:,.0f} Robux**", delete_after=30)
-            return
-        
+            message = await ctx.send(f"💰 {number:,} Robux หลังหัก {percent}% = **{result:,.0f} Robux**")
+            
         else:
-            await ctx.send(
+            message = await ctx.send(
                 "❌ รูปแบบไม่ถูกต้อง\n\n"
                 "**การใช้งาน:**\n"
                 "`!tax 100` - หัก 30% อัตโนมัติ\n"
@@ -883,8 +975,14 @@ async def tax(ctx, *, expression: str):
                 delete_after=15
             )
 
+        # ถ้าไม่ใช่โหมดถาวร ให้ลบอัตโนมัติใน 1 นาที
+        if not permanent:
+            await auto_delete_messages(ctx, message, 60)
+
     except Exception as e:
-        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
+        error_msg = await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
+        if not permanent:
+            await auto_delete_messages(ctx, error_msg, 60)
 
 # --------------------------------------------------------------------------------------------------
 # คำสั่งสั่งซื้อและบันทึกการขาย (!od, !odg)
@@ -1113,3 +1211,4 @@ try:
     bot.run(os.getenv("TOKEN"))
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
+
