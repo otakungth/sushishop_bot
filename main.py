@@ -506,7 +506,8 @@ async def handle_open_ticket(interaction, category_name, modal_class, stock_type
         else:
             group_stock -= 1
             
-        await update_main_channel()
+        # ลบการเรียก update_main_channel() เพื่อป้องกันการส่ง embed ใหม่
+        # await update_main_channel()
         
         # ส่งข้อความยืนยันไปยังผู้ใช้
         await interaction.response.send_message(
@@ -589,7 +590,8 @@ class TicketActionView(View):
         elif "group" in self.channel.category.name.lower():
             group_stock += 1
             
-        await update_main_channel()
+        # ลบการเรียก update_main_channel() เพื่อป้องกันการส่ง embed ใหม่
+        # await update_main_channel()
         
         try:
             await self.channel.delete()
@@ -997,4 +999,5 @@ async def setup(ctx):
 # --------------------------------------------------------------------------------------------------
 server_on()
 bot.run(os.getenv("TOKEN"))
+
 
