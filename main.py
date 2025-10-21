@@ -30,10 +30,6 @@ group_stock = 100     # Stock สำหรับ Group
 
 # เก็บข้อมูลโน้ตส่วนตัว
 user_notes = {}
-# เก็บ message ID ของ embed หลัก
-main_message_id = None
-# เก็บสถานะการเปิดตั๋วเพื่อป้องกันการเปิดซ้ำ
-opening_tickets = set()
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
@@ -97,31 +93,30 @@ async def stock(ctx, stock_type: str = None, amount: int = None):
         await ctx.send(
             f"📊 **Stock ปัจจุบัน:**\n"
             f"🎮 Gamepass Stock: **{gamepass_stock}**\n"
-            f"👥 Group Stock: **{group_stock}**",
-            delete_after=10
+            f"👥 Group Stock: **{group_stock}**"
         )
     elif stock_type.lower() in ["gp", "gamepass", "เกมพาส"]:
         if amount is None:
-            await ctx.send(f"🎮 Gamepass Stock ปัจจุบัน: **{gamepass_stock}**", delete_after=10)
+            await ctx.send(f"🎮 Gamepass Stock ปัจจุบัน: **{gamepass_stock}**")
         else:
             if amount < 0:
-                await ctx.send("❌ จำนวน stock ต้องมากกว่าหรือเท่ากับ 0", delete_after=5)
+                await ctx.send("❌ จำนวน stock ต้องมากกว่าหรือเท่ากับ 0")
                 return
             
             gamepass_stock = amount
-            await ctx.send(f"✅ ตั้งค่า Gamepass stock เป็น **{gamepass_stock}** เรียบร้อยแล้ว", delete_after=5)
+            await ctx.send(f"✅ ตั้งค่า Gamepass stock เป็น **{gamepass_stock}** เรียบร้อยแล้ว")
             await update_main_channel()
     
     elif stock_type.lower() in ["g", "group", "กรุ๊ป"]:
         if amount is None:
-            await ctx.send(f"👥 Group Stock ปัจจุบัน: **{group_stock}**", delete_after=10)
+            await ctx.send(f"👥 Group Stock ปัจจุบัน: **{group_stock}**")
         else:
             if amount < 0:
-                await ctx.send("❌ จำนวน stock ต้องมากกว่าหรือเท่ากับ 0", delete_after=5)
+                await ctx.send("❌ จำนวน stock ต้องมากกว่าหรือเท่ากับ 0")
                 return
             
             group_stock = amount
-            await ctx.send(f"✅ ตั้งค่า Group stock เป็น **{group_stock}** เรียบร้อยแล้ว", delete_after=5)
+            await ctx.send(f"✅ ตั้งค่า Group stock เป็น **{group_stock}** เรียบร้อยแล้ว")
             await update_main_channel()
     
     else:
@@ -129,11 +124,8 @@ async def stock(ctx, stock_type: str = None, amount: int = None):
             "❌ การใช้งาน:\n"
             "`!stock` - เช็ค stock ทั้งหมด\n"
             "`!stock gp <จำนวน>` - ตั้งค่า Gamepass stock\n" 
-            "`!stock group <จำนวน>` - ตั้งค่า Group stock",
-            delete_after=10
+            "`!stock group <จำนวน>` - ตั้งค่า Group stock"
         )
-    
-    await ctx.message.delete()
 
 # --------------------------------------------------------------------------------------------------
 # คำสั่งเปิดปิดร้าน
@@ -146,10 +138,8 @@ async def sushi(ctx):
 
     status = "✅ ร้านเปิด" if shop_open else "❌ ร้านปิด"
     await ctx.send(
-        f"📌 สถานะร้านถูกเปลี่ยนเป็น: **{status}**",
-        delete_after=5
+        f"📌 สถานะร้านถูกเปลี่ยนเป็น: **{status}**"
     )
-    await ctx.message.delete()
     await update_main_channel()
 
 # --------------------------------------------------------------------------------------------------
@@ -162,28 +152,34 @@ async def group(ctx, status: str = None):
     
     if status is None:
         current_status = "✅ เปิด" if group_ticket_enabled else "❌ ปิด"
-        await ctx.send(f"📌 สถานะ Group Ticket: **{current_status}**", delete_after=5)
+        await ctx.send(f"📌 สถานะ Group Ticket: **{current_status}**")
     elif status.lower() in ["on", "enable", "เปิด"]:
         group_ticket_enabled = True
-        await ctx.send("✅ เปิดปุ่ม Group Ticket เรียบร้อยแล้ว", delete_after=5)
+        await ctx.send("✅ เปิดปุ่ม Group Ticket เรียบร้อยแล้ว")
     elif status.lower() in ["off", "disable", "ปิด"]:
         group_ticket_enabled = False
-        await ctx.send("❌ ปิดปุ่ม Group Ticket เรียบร้อยแล้ว", delete_after=5)
+        await ctx.send("❌ ปิดปุ่ม Group Ticket เรียบร้อยแล้ว")
     else:
-        await ctx.send("❌ การใช้งาน: !group [on/off] หรือ !group [enable/disable] หรือ !group [เปิด/ปิด]", delete_after=5)
+        await ctx.send("❌ การใช้งาน: !group [on/off] หรือ !group [enable/disable] หรือ !group [เปิด/ปิด]")
     
-    await ctx.message.delete()
     await update_main_channel()
 
 # --------------------------------------------------------------------------------------------------
 # อัปเดตช่องหลัก
 async def update_main_channel():
     """อัปเดตข้อความในช่องหลัก"""
-    global main_message_id
-    
     channel = bot.get_channel(MAIN_CHANNEL_ID)
     if not channel:
         return
+
+    # ลบข้อความเก่าๆ ของบอทในช่องนี้
+    async for msg in channel.history(limit=20):
+        if msg.author == bot.user and len(msg.embeds) > 0:
+            try:
+                await msg.delete()
+            except:
+                pass
+            break  # ลบแค่ข้อความแรกที่เจอ
 
     # สร้าง embed หลักแบบใหม่
     embed = discord.Embed(
@@ -247,36 +243,10 @@ async def update_main_channel():
     
     embed.set_thumbnail(url="https://media.discordapp.net/attachments/717757556889747657/1403684950770847754/noFilter.png")
 
-    # อัปเดตข้อความแทนการลบและสร้างใหม่
+    # ส่ง embed ใหม่
     try:
-        if main_message_id:
-            try:
-                main_message = await channel.fetch_message(main_message_id)
-                await main_message.edit(embed=embed, view=MainShopView())
-                print("✅ อัปเดต embed หลักเรียบร้อยแล้ว")
-                return
-            except discord.NotFound:
-                print("❌ ไม่พบ embed หลักเดิม, สร้างใหม่")
-                main_message_id = None
-            except Exception as e:
-                print(f"❌ เกิดข้อผิดพลาดในการอัปเดต embed: {e}")
-                main_message_id = None
-        
-        # ลบข้อความเก่าของบอทก่อนสร้างใหม่ (เฉพาะกรณีแรก)
-        async for message in channel.history(limit=10):
-            if message.author == bot.user and message.embeds:
-                try:
-                    await message.delete()
-                    await asyncio.sleep(0.5)  # รอเล็กน้อยก่อนสร้างใหม่
-                except:
-                    pass
-                break
-                
-        # สร้างข้อความใหม่และบันทึก ID
-        main_message = await channel.send(embed=embed, view=MainShopView())
-        main_message_id = main_message.id
-        print(f"✅ สร้าง embed หลักใหม่เรียบร้อยแล้ว ID: {main_message_id}")
-        
+        await channel.send(embed=embed, view=MainShopView())
+        print("✅ สร้าง embed หลักใหม่เรียบร้อยแล้ว")
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดในการอัปเดตช่องหลัก: {e}")
 
@@ -285,71 +255,6 @@ async def update_main_channel():
 class MainShopView(View):
     def __init__(self):
         super().__init__(timeout=None)
-        self.update_buttons()
-
-    def update_buttons(self):
-        self.clear_items()
-        
-        if shop_open:
-            # ปุ่ม Gamepass - เปิด/ปิดตาม stock
-            if gamepass_stock > 0:
-                self.add_item(Button(
-                    label="🎮 เปิดตั๋ว Gamepass", 
-                    style=discord.ButtonStyle.success, 
-                    custom_id="open_gamepass_ticket", 
-                    emoji="🎮"
-                ))
-            else:
-                self.add_item(Button(
-                    label="🎮 สินค้าหมด", 
-                    style=discord.ButtonStyle.danger, 
-                    custom_id="disabled_gamepass", 
-                    disabled=True,
-                    emoji="🎮"
-                ))
-            
-            # ปุ่ม Group - เปิด/ปิดตาม stock และสถานะ
-            if group_ticket_enabled and group_stock > 0:
-                self.add_item(Button(
-                    label="👥 เปิดตั๋ว Group", 
-                    style=discord.ButtonStyle.success, 
-                    custom_id="open_group_ticket", 
-                    emoji="👥"
-                ))
-            else:
-                if not group_ticket_enabled:
-                    self.add_item(Button(
-                        label="👥 บริการปิดชั่วคราว", 
-                        style=discord.ButtonStyle.gray, 
-                        custom_id="disabled_group", 
-                        disabled=True,
-                        emoji="👥"
-                    ))
-                else:
-                    self.add_item(Button(
-                        label="👥 สินค้าหมด", 
-                        style=discord.ButtonStyle.danger, 
-                        custom_id="disabled_group", 
-                        disabled=True,
-                        emoji="👥"
-                    ))
-            
-            # ปุ่มโน้ตส่วนตัว
-            self.add_item(Button(
-                label="📝 โน้ตส่วนตัว", 
-                style=discord.ButtonStyle.secondary, 
-                custom_id="personal_notes", 
-                emoji="📝"
-            ))
-        else:
-            # ร้านปิด - แสดงปุ่ม disabled
-            self.add_item(Button(
-                label="🚫 ร้านปิดชั่วคราว", 
-                style=discord.ButtonStyle.danger, 
-                custom_id="shop_closed", 
-                disabled=True,
-                emoji="🚫"
-            ))
 
     @discord.ui.button(label="🎮 เปิดตั๋ว Gamepass", style=discord.ButtonStyle.success, custom_id="open_gamepass_ticket", emoji="🎮")
     async def gamepass_ticket(self, interaction: discord.Interaction, button: Button):
@@ -361,17 +266,7 @@ class MainShopView(View):
             await interaction.response.send_message("❌ สินค้าหมดชั่วคราว", ephemeral=True)
             return
         
-        # ตรวจสอบว่ากำลังเปิดตั๋วอยู่แล้วหรือไม่
-        user_key = f"gamepass_{interaction.user.id}"
-        if user_key in opening_tickets:
-            await interaction.response.send_message("⏳ กำลังเปิดตั๋วอยู่ กรุณารอสักครู่...", ephemeral=True)
-            return
-            
-        opening_tickets.add(user_key)
-        try:
-            await handle_open_ticket(interaction, "🍣Sushi Gamepass 🍣", GamepassTicketModal, "gamepass")
-        finally:
-            opening_tickets.discard(user_key)
+        await handle_open_ticket(interaction, "🍣Sushi Gamepass 🍣", GamepassTicketModal, "gamepass")
 
     @discord.ui.button(label="👥 เปิดตั๋ว Group", style=discord.ButtonStyle.success, custom_id="open_group_ticket", emoji="👥")
     async def group_ticket(self, interaction: discord.Interaction, button: Button):
@@ -387,17 +282,7 @@ class MainShopView(View):
             await interaction.response.send_message("❌ สินค้าหมดชั่วคราว", ephemeral=True)
             return
             
-        # ตรวจสอบว่ากำลังเปิดตั๋วอยู่แล้วหรือไม่
-        user_key = f"group_{interaction.user.id}"
-        if user_key in opening_tickets:
-            await interaction.response.send_message("⏳ กำลังเปิดตั๋วอยู่ กรุณารอสักครู่...", ephemeral=True)
-            return
-            
-        opening_tickets.add(user_key)
-        try:
-            await handle_open_ticket(interaction, "💰Robux Group💰", GroupTicketModal, "group")
-        finally:
-            opening_tickets.discard(user_key)
+        await handle_open_ticket(interaction, "💰Robux Group💰", GroupTicketModal, "group")
 
     @discord.ui.button(label="📝 โน้ตส่วนตัว", style=discord.ButtonStyle.secondary, custom_id="personal_notes", emoji="📝")
     async def personal_notes(self, interaction: discord.Interaction, button: Button):
@@ -445,7 +330,7 @@ class PersonalNoteModal(Modal, title="📝 โน้ตส่วนตัวข�
                 await interaction.response.send_message("❌ คุณยังไม่มีโน้ตที่บันทึกไว้", ephemeral=True)
 
 # --------------------------------------------------------------------------------------------------
-# Modal สำหรับ Gamepass (เหมือนเดิม)
+# Modal สำหรับ Gamepass
 class GamepassTicketModal(Modal, title="📋 แบบฟอร์มสั่งซื้อ Gamepass"):
     def __init__(self):
         super().__init__(timeout=300)
@@ -512,7 +397,7 @@ class GamepassTicketModal(Modal, title="📋 แบบฟอร์มสั่�
             await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
 
 # --------------------------------------------------------------------------------------------------
-# Modal สำหรับ Group (เหมือนเดิม)
+# Modal สำหรับ Group
 class GroupTicketModal(Modal, title="📋 แบบฟอร์มสั่งซื้อ Robux Group"):
     def __init__(self):
         super().__init__(timeout=300)
@@ -664,7 +549,7 @@ async def handle_open_ticket(interaction, category_name, modal_class, stock_type
         await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการเปิดตั๋ว", ephemeral=True)
 
 # --------------------------------------------------------------------------------------------------
-# View สำหรับตั๋ว (เหมือนเดิม)
+# View สำหรับตั๋ว
 class TicketActionView(View):
     def __init__(self, channel: discord.TextChannel, owner: discord.Member, modal_class):
         super().__init__(timeout=None)
@@ -702,10 +587,13 @@ class TicketActionView(View):
         await asyncio.sleep(5)
         
         global gamepass_stock, group_stock
-        # คืน stock ตามประเภทของตั๋ว (ต้องปรับปรุงให้ตรวจสอบประเภทตั๋วจริง)
-        # สำหรับตอนนี้ให้คืนทั้งสอง stock
-        gamepass_stock += 1
-        group_stock += 1
+        # คืน stock ตามประเภทของตั๋ว
+        # ตรวจสอบหมวดหมู่เพื่อกำหนดประเภท
+        if "gamepass" in self.channel.category.name.lower():
+            gamepass_stock += 1
+        elif "group" in self.channel.category.name.lower():
+            group_stock += 1
+            
         await update_main_channel()
         
         try:
@@ -714,7 +602,7 @@ class TicketActionView(View):
             pass
 
 # --------------------------------------------------------------------------------------------------
-# View สำหรับยืนยันตั๋ว (เหมือนเดิม)
+# View สำหรับยืนยันตั๋ว
 class ConfirmTicketView(View):
     def __init__(self, embed_data: discord.Embed):
         super().__init__(timeout=300)
@@ -768,7 +656,7 @@ class GoToTicketView(discord.ui.View):
         )
 
 # --------------------------------------------------------------------------------------------------
-# Events (เหมือนเดิม)
+# Events
 @bot.event
 async def on_ready():
     print(f"✅ บอทออนไลน์แล้ว: {bot.user}")
@@ -796,9 +684,6 @@ async def on_interaction(interaction: discord.Interaction):
                 modal.note.default = user_note["note"]
                 
             await interaction.response.send_modal(modal)
-            
-        elif custom_id in ["disabled_gamepass", "disabled_group", "shop_closed"]:
-            await interaction.response.send_message("❌ บริการนี้ไม่พร้อมใช้งานในขณะนี้", ephemeral=True)
     except Exception as e:
         print(f"Interaction error: {e}")
         try:
@@ -823,7 +708,6 @@ async def gp(ctx, *, expression: str):
         price_str = f"{price:,.0f} บาท"
 
         await ctx.send(f"🎮 Gamepass {robux:,} Robux = **{price_str}** (เรท {gamepass_rate})")
-        await ctx.message.delete()
 
     except Exception as e:
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
@@ -849,7 +733,6 @@ async def g(ctx, *, expression: str):
         price_str = f"{price:,.0f} บาท"
 
         await ctx.send(f"👥 Group {robux:,} Robux = **{price_str}** (เรท {rate})")
-        await ctx.message.delete()
 
     except Exception as e:
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
@@ -863,7 +746,6 @@ async def gpb(ctx, *, expression: str):
 
         robux = baht * gamepass_rate
         await ctx.send(f"🎮 {baht:,.0f} บาท = **{robux:,.0f} Robux** (Gamepass เรท {gamepass_rate})")
-        await ctx.message.delete()
 
     except Exception as e:
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
@@ -882,7 +764,6 @@ async def gb(ctx, *, expression: str):
 
         robux = baht * rate
         await ctx.send(f"👥 {baht:,.0f} บาท = **{robux:,.0f} Robux** (Group เรท {rate})")
-        await ctx.message.delete()
 
     except Exception as e:
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
@@ -891,31 +772,40 @@ async def gb(ctx, *, expression: str):
 # คำสั่ง !tax (คำนวณหัก Tax)
 @bot.command()
 async def tax(ctx, *, expression: str):
-    """คำนวณ Robux หลังหัก % (ภาษีหรือส่วนลด)"""
+    """คำนวณ Robux หลังหัก 30%"""
     try:
-        expr = expression.replace(" ", "")
-
-        # รองรับรูปแบบ เช่น 1000-30% หรือ 500+15%
-        expr = re.sub(
-            r"(\d+)([+\-])(\d+)%", 
-            lambda m: f"{m.group(1)}{m.group(2)}({m.group(1)}*{int(m.group(3))/100})", 
-            expr
-        )
-
-        # แปลงเลขที่ลงท้ายด้วย % ให้กลายเป็น *0.XX เช่น 30% → *0.3
-        expr = re.sub(r"(\d+)%", lambda m: f"*{int(m.group(1))/100}", expr)
-
-        # คำนวณค่า
-        robux = eval(expr)
-
-        await ctx.send(f"💰 หลังหักภาษี/ส่วนลด = **{robux:,.0f} Robux**")
-        await ctx.message.delete()
+        # ลบช่องว่างทั้งหมด
+        expression = expression.replace(" ", "")
+        
+        # ตรวจสอบรูปแบบ [number]-30%
+        if not re.match(r"^\d+-\d+%$", expression):
+            await ctx.send("❌ รูปแบบไม่ถูกต้อง ใช้รูปแบบ: `!tax 100-30%`")
+            return
+        
+        # แยกตัวเลขและเปอร์เซ็นต์
+        parts = expression.split('-')
+        if len(parts) != 2:
+            await ctx.send("❌ รูปแบบไม่ถูกต้อง ใช้รูปแบบ: `!tax 100-30%`")
+            return
+        
+        number = int(parts[0])
+        percent_str = parts[1]
+        
+        # ตรวจสอบว่าเป็น 30% หรือไม่
+        if percent_str != "30%":
+            await ctx.send("❌ ใช้ได้เฉพาะ 30% เท่านั้น ใช้รูปแบบ: `!tax 100-30%`")
+            return
+        
+        # คำนวณหัก 30%
+        result = number * 0.7  # 100% - 30% = 70%
+        
+        await ctx.send(f"💰 {number:,} Robux หลังหัก 30% = **{result:,.0f} Robux**")
 
     except Exception as e:
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
 
 # --------------------------------------------------------------------------------------------------
-# คำสั่งอื่นๆ (เหลือไว้เหมือนเดิม)
+# คำสั่งอื่นๆ
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def ty(ctx):
@@ -923,8 +813,13 @@ async def ty(ctx):
     if ctx.channel.name.startswith("ticket-"):
         # คืน stock เมื่อส่งของสำเร็จ
         global gamepass_stock, group_stock
-        gamepass_stock += 1
-        group_stock += 1
+        
+        # ตรวจสอบหมวดหมู่เพื่อกำหนดประเภท
+        if "gamepass" in ctx.channel.category.name.lower():
+            gamepass_stock += 1
+        elif "group" in ctx.channel.category.name.lower():
+            group_stock += 1
+            
         await update_main_channel()
         
         # หา embed การสั่งซื้อ
@@ -966,8 +861,12 @@ async def ty(ctx):
             @discord.ui.button(label="🔒 ปิดตั๋ว", style=discord.ButtonStyle.danger)
             async def close_button(self, interaction: discord.Interaction, button: Button):
                 global gamepass_stock, group_stock
-                gamepass_stock += 1
-                group_stock += 1
+                # ตรวจสอบหมวดหมู่เพื่อกำหนดประเภท
+                if "gamepass" in self.channel.category.name.lower():
+                    gamepass_stock += 1
+                elif "group" in self.channel.category.name.lower():
+                    group_stock += 1
+                    
                 await update_main_channel()
                 await interaction.response.send_message("📪 กำลังปิดตั๋ว...", ephemeral=True)
                 try:
@@ -983,16 +882,18 @@ async def ty(ctx):
             if ctx.channel and ctx.channel.name.startswith("ticket-"):
                 try:
                     global gamepass_stock, group_stock
-                    gamepass_stock += 1
-                    group_stock += 1
+                    # ตรวจสอบหมวดหมู่เพื่อกำหนดประเภท
+                    if "gamepass" in ctx.channel.category.name.lower():
+                        gamepass_stock += 1
+                    elif "group" in ctx.channel.category.name.lower():
+                        group_stock += 1
+                        
                     await update_main_channel()
                     await ctx.channel.delete()
                 except:
                     pass
 
         bot.loop.create_task(auto_close())
-
-    await ctx.message.delete()
 
 @bot.command()
 async def od(ctx, *, expression: str):
@@ -1020,7 +921,6 @@ async def od(ctx, *, expression: str):
         embed.set_footer(text="การสั่งซื้อสำเร็จ")
 
         await ctx.send(embed=embed)
-        await ctx.message.delete()
 
         sales_channel = bot.get_channel(SALES_LOG_CHANNEL_ID)
         if sales_channel:
@@ -1057,7 +957,6 @@ async def odg(ctx, *, expression: str):
         embed.set_footer(text="การสั่งซื้อสำเร็จ • Robux Group")
 
         await ctx.send(embed=embed)
-        await ctx.message.delete()
 
         sales_channel = bot.get_channel(SALES_LOG_CHANNEL_ID)
         if sales_channel:
@@ -1075,17 +974,13 @@ async def qr(ctx):
         color=0x00CCFF)
     embed.set_image(url="https://media.discordapp.net/attachments/722832040860319835/1402994996600111114/186-8-06559-8.png")
     await ctx.send(embed=embed)
-    await ctx.message.delete()
 
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def setup(ctx):
     """ตั้งค่าระบบใหม่"""
-    global main_message_id
-    main_message_id = None
     await update_main_channel()
-    await ctx.send("✅ ตั้งค่าระบบเรียบร้อยแล้ว", delete_after=5)
-    await ctx.message.delete()
+    await ctx.send("✅ ตั้งค่าระบบเรียบร้อยแล้ว")
 
 # --------------------------------------------------------------------------------------------------
 server_on()
