@@ -1149,6 +1149,41 @@ async def ty(ctx):
                     await self.channel.delete()
                 except:
                     pass
+
+            @discord.ui.button(label="ให้เครดิต ✅", style=discord.ButtonStyle.success, emoji="⭐")
+            async def give_credit(self, interaction: discord.Interaction, button: Button):
+                """ปุ่มให้เครดิต - ไปที่หน้าห้องรีวิว"""
+                credit_channel_url = "https://discordapp.com/channels/1360990259311018077/1363250076549382246"
+                
+                # สร้าง Embed สำหรับให้เครดิต
+                credit_embed = discord.Embed(
+                    title="⭐ ให้เครดิตกับผู้ส่งสินค้า",
+                    description=(
+                        f"ขอบคุณที่ให้เครดิต! 🎉\n\n"
+                        f"**ไปที่ห้องรีวิวได้ที่นี่:**\n"
+                        f"[📝 เขียนรีวิวที่นี่]({credit_channel_url})\n\n"
+                        f"หรือกดปุ่มด้านล่างเพื่อไปที่ห้องรีวิว"
+                    ),
+                    color=0xFFD700  # สีทอง
+                )
+                credit_embed.set_footer(text="ขอบคุณที่ใช้บริการ Sushi Shop!")
+                
+                # สร้าง View ด้วยปุ่มลิงก์
+                credit_view = discord.ui.View()
+                credit_view.add_item(
+                    discord.ui.Button(
+                        label="ไปให้รีวิว ⭐", 
+                        url=credit_channel_url, 
+                        style=discord.ButtonStyle.link,
+                        emoji="📝"
+                    )
+                )
+                
+                await interaction.response.send_message(
+                    embed=credit_embed, 
+                    view=credit_view, 
+                    ephemeral=True
+                )
         
         await ctx.send(embed=embed, view=TempCloseView(ctx.channel))
 
