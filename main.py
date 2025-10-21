@@ -237,7 +237,7 @@ async def update_main_channel():
 
     # สร้าง embed หลักแบบใหม่
     embed = discord.Embed(
-        title="🍣 Sushi Shop 🍣",
+        title="🍣 Sushi Shop 🍣 เปิดบริการ  <t:1761008400:t> - <t:1760979600:t>",
         color=0x2B2D31,
         timestamp=discord.utils.utcnow()
     )
@@ -264,9 +264,10 @@ async def update_main_channel():
             f"เรท: {group_rate_low}-{group_rate_high}\n"
             "ซื้อมากกว่า 500 บาทเรท 4.5\n"
             "```\n"
+            f"## 📌 เข้ากลุ่ม: [VALKYs](https://www.roblox.com/communities/34713179/VALKYs)\n"
+            "⚠️ # กดปุ่ม -📝จดวันที่เข้ากลุ่ม- เพื่อบันทึกวันเข้ากลุ่มของคุณ\n"
+            "กรุณาเข้ากลุ่มให้ครบ 15 วันก่อนสั่งซื้อโรบัคกลุ่ม\n"
             f"📊 Stock: **{group_stock}** ({group_stock_status})\n"
-            f"📌 เข้ากลุ่ม: [VALKYs](https://www.roblox.com/communities/34713179/VALKYs)\n"
-            "⚠️ กรุณาเข้ากลุ่มให้ครบ 15 วัน\n"
         )
     else:
         group_value = "```\n🚫 บริการปิดชั่วคราว\n```"
@@ -314,14 +315,14 @@ class MainShopView(View):
             # ปุ่ม Gamepass - เปิด/ปิดตาม stock
             if gamepass_stock > 0:
                 self.add_item(Button(
-                    label="🎮 เปิดตั๋วกดเกมพาส", 
+                    label="เปิดตั๋วกดเกมพาส", 
                     style=discord.ButtonStyle.success, 
                     custom_id="open_gamepass_ticket", 
                     emoji="🎮"
                 ))
             else:
                 self.add_item(Button(
-                    label="🎮 สินค้าหมด", 
+                    label="สินค้าหมด", 
                     style=discord.ButtonStyle.danger, 
                     custom_id="disabled_gamepass", 
                     disabled=True,
@@ -331,7 +332,7 @@ class MainShopView(View):
             # ปุ่ม Group - เปิด/ปิดตาม stock และสถานะ
             if group_ticket_enabled and group_stock > 0:
                 self.add_item(Button(
-                    label="👥 เปิดตั๋ว Group", 
+                    label="เปิดตั๋ว Group", 
                     style=discord.ButtonStyle.success, 
                     custom_id="open_group_ticket", 
                     emoji="👥"
@@ -339,7 +340,7 @@ class MainShopView(View):
             else:
                 if not group_ticket_enabled:
                     self.add_item(Button(
-                        label="👥 บริการปิดชั่วคราว", 
+                        label="บริการปิดชั่วคราว", 
                         style=discord.ButtonStyle.gray, 
                         custom_id="disabled_group", 
                         disabled=True,
@@ -347,7 +348,7 @@ class MainShopView(View):
                     ))
                 else:
                     self.add_item(Button(
-                        label="👥 สินค้าหมด", 
+                        label="สินค้าหมด", 
                         style=discord.ButtonStyle.danger, 
                         custom_id="disabled_group", 
                         disabled=True,
@@ -356,7 +357,7 @@ class MainShopView(View):
             
             # ปุ่มโน้ตส่วนตัว
             self.add_item(Button(
-                label="📝 จดวันที่เข้ากลุ่ม", 
+                label="จดวันที่เข้ากลุ่ม", 
                 style=discord.ButtonStyle.secondary, 
                 custom_id="personal_notes", 
                 emoji="📝"
@@ -364,21 +365,21 @@ class MainShopView(View):
         else:
             # ร้านปิด - แสดงปุ่ม disabled ทั้งหมด
             self.add_item(Button(
-                label="🎮 ร้านปิดชั่วคราว", 
+                label="ร้านปิดชั่วคราว", 
                 style=discord.ButtonStyle.danger, 
                 custom_id="disabled_gamepass", 
                 disabled=True,
                 emoji="🎮"
             ))
             self.add_item(Button(
-                label="👥 ร้านปิดชั่วคราว", 
+                label="ร้านปิดชั่วคราว", 
                 style=discord.ButtonStyle.danger, 
                 custom_id="disabled_group", 
                 disabled=True,
                 emoji="👥"
             ))
             self.add_item(Button(
-                label="📝 จดวันที่เข้ากลุ่ม", 
+                label="จดวันที่เข้ากลุ่ม", 
                 style=discord.ButtonStyle.secondary, 
                 custom_id="personal_notes", 
                 emoji="📝"
@@ -1150,6 +1151,7 @@ async def setup(ctx):
 # --------------------------------------------------------------------------------------------------
 server_on()
 bot.run(os.getenv("TOKEN"))
+
 
 
 
