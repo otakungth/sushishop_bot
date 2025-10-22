@@ -476,7 +476,7 @@ class GiveCreditView(discord.ui.View):
         self.add_item(
             discord.ui.Button(
                 label="⭐ ให้เครดิตที่นี่", 
-                url="https://discord.com/channels/895882579369164831/1363250076549382246", 
+                url="https://discord.com/channels/1360990259311018077/1363250076549382246", 
                 style=discord.ButtonStyle.link,
                 emoji="⭐"
             )
