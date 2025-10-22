@@ -512,13 +512,25 @@ class MainShopView(View):
         gamepass_button.callback = self.gamepass_ticket
         self.add_item(gamepass_button)
         
-        group_enabled = shop_open and group_ticket_enabled and group_stock > 0
+        # ปุ่ม Group - แสดงสถานะบริการแต่ข้อมูลยังแสดงปกติใน embed
+        group_button_label = "เปิดตั๋ว Group"
+        if not group_ticket_enabled:
+            group_button_label = "บริการปิดชั่วคราว"
+        elif group_stock <= 0:
+            group_button_label = "สินค้าหมด"
+            
+        group_button_style = discord.ButtonStyle.success
+        if not group_ticket_enabled:
+            group_button_style = discord.ButtonStyle.secondary
+        elif group_stock <= 0:
+            group_button_style = discord.ButtonStyle.danger
+            
         group_button = Button(
-            label="เปิดตั๋ว Group" if group_enabled else "บริการปิดชั่วคราว",
-            style=discord.ButtonStyle.success if group_enabled else discord.ButtonStyle.gray,
+            label=group_button_label,
+            style=group_button_style,
             custom_id="open_group_ticket", 
             emoji="👥",
-            disabled=not group_enabled
+            disabled=not group_ticket_enabled or group_stock <= 0
         )
         group_button.callback = self.group_ticket
         self.add_item(group_button)
@@ -556,7 +568,7 @@ class MainShopView(View):
                 return
             
             if not group_ticket_enabled:
-                await interaction.response.send_message("❌ บริการ Group ปิดชั่วคราว", ephemeral=True)
+                await interaction.response.send_message("❌ บริการ Group ปิดชั่วคราวชั่วคราว", ephemeral=True)
                 return
                 
             if group_stock <= 0:
@@ -732,20 +744,20 @@ async def update_main_channel():
             inline=False
         )
         
-        # ส่วน Group
+        # ส่วน Group - แสดงข้อมูลเหมือนเดิมเสมอ ไม่ว่าบริการจะเปิดหรือปิด
         group_stock_status = "🟢 พร้อมให้บริการ" if group_stock > 0 else "🔴 สินค้าหมด"
-        if group_ticket_enabled:
-            group_value = (
-                "```\n"
-                f"เรท: {group_rate_low}-{group_rate_high}\n"
-                "มากกว่า 500 บาทเรท 4.5 ⚠️เข้ากลุ่มให้ครบ 15 วันก่อนซื้อ⚠️\n"
-                "```\n"
-                f"📌 กดเข้ากลุ่มนี้ :point_right: [VALKYs](https://www.roblox.com/communities/34713179/VALKYs) :point_left: \n"
-                "📝จดวันที่เข้ากลุ่ม เพื่อบันทึกวันเข้ากลุ่ม\n"
-                f"📊 Stock: **{group_stock}** ({group_stock_status})\n"
-            )
-        else:
-            group_value = "```\nปิดชั่วคราว ⚠️เข้ากลุ่ม [VALKYs](https://www.roblox.com/communities/34713179/VALKYs) ให้ครบ 15 วันก่อนซื้อ⚠️\n```"
+        group_service_status = "✅ เปิดให้บริการ" if group_ticket_enabled else "⏸️ บริการปิดชั่วคราว"
+        
+        group_value = (
+            "```\n"
+            f"เรท: {group_rate_low}-{group_rate_high}\n"
+            "มากกว่า 500 บาทเรท 4.5 ⚠️เข้ากลุ่มให้ครบ 15 วันก่อนซื้อ⚠️\n"
+            "```\n"
+            f"📌 กดเข้ากลุ่มนี้ :point_right: [VALKYs](https://www.roblox.com/communities/34713179/VALKYs) :point_left: \n"
+            "📝จดวันที่เข้ากลุ่ม เพื่อบันทึกวันเข้ากลุ่ม\n"
+            f"📊 Stock: **{group_stock}** ({group_stock_status})\n"
+            f"🔄 สถานะบริการ: **{group_service_status}**\n"
+        )
         
         embed.add_field(
             name="👥 **ระบบโรบัคกลุ่ม**", 
@@ -774,7 +786,7 @@ async def update_main_channel():
         
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดในการอัปเดตช่องหลัก: {e}")
-
+        
 # --------------------------------------------------------------------------------------------------
 # Events
 @bot.event
@@ -1385,6 +1397,7 @@ try:
     bot.run(os.getenv("TOKEN"))
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
+
 
 
 
