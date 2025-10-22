@@ -32,6 +32,9 @@ group_stock = 67
 # เก็บข้อมูลโน้ตส่วนตัว
 user_notes = {}
 
+# เก็บเวลาล่าสุดของกิจกรรมในตั๋ว
+ticket_activity = {}
+
 # สร้างบอท
 bot = commands.Bot(
     command_prefix="!", 
@@ -62,6 +65,61 @@ async def auto_delete_messages(ctx, bot_message, delay=60):
             
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดในการลบข้อความ: {e}")
+
+# --------------------------------------------------------------------------------------------------
+# ฟังก์ชันบันทึกกิจกรรมในตั๋ว
+async def record_ticket_activity(channel_id):
+    """บันทึกเวลาล่าสุดที่มีกิจกรรมในตั๋ว"""
+    ticket_activity[channel_id] = datetime.datetime.now()
+
+# --------------------------------------------------------------------------------------------------
+# ฟังก์ชันตรวจสอบและลบตั๋วที่ไม่มีกิจกรรม
+async def check_inactive_tickets():
+    """ตรวจสอบและลบตั๋วที่ไม่มีกิจกรรมเกิน 1 ชั่วโมง"""
+    while True:
+        try:
+            current_time = datetime.datetime.now()
+            channels_to_delete = []
+            
+            for channel_id, last_activity in ticket_activity.items():
+                # คำนวณเวลาที่ผ่านไปตั้งแต่กิจกรรมล่าสุด
+                time_since_activity = current_time - last_activity
+                
+                # ถ้าไม่มีกิจกรรมเกิน 1 ชั่วโมง ให้เตรียมลบ
+                if time_since_activity.total_seconds() > 3600:  # 1 ชั่วโมง = 3600 วินาที
+                    channels_to_delete.append(channel_id)
+            
+            # ลบตั๋วที่ไม่มีกิจกรรม
+            for channel_id in channels_to_delete:
+                try:
+                    channel = bot.get_channel(channel_id)
+                    if channel and channel.name.startswith("ticket-"):
+                        print(f"🕒 ลบตั๋ว {channel.name} เนื่องจากไม่มีกิจกรรมเกิน 1 ชั่วโมง")
+                        
+                        # คืน stock
+                        global gamepass_stock, group_stock
+                        if channel.category and "gamepass" in channel.category.name.lower():
+                            gamepass_stock += 1
+                        elif channel.category and "group" in channel.category.name.lower():
+                            group_stock += 1
+                        
+                        await channel.delete()
+                        
+                        # ลบออกจากรายการติดตาม
+                        if channel_id in ticket_activity:
+                            del ticket_activity[channel_id]
+                            
+                except Exception as e:
+                    print(f"❌ ไม่สามารถลบตั๋ว {channel_id}: {e}")
+            
+            # อัพเดท stock ในช่องหลัก
+            await update_main_channel()
+            
+        except Exception as e:
+            print(f"❌ ข้อผิดพลาดในการตรวจสอบตั๋ว: {e}")
+        
+        # ตรวจสอบทุก 5 นาที
+        await asyncio.sleep(300)
 
 # --------------------------------------------------------------------------------------------------
 # ฟังก์ชันส่งบันทึกการขาย
@@ -347,6 +405,9 @@ async def handle_open_ticket(interaction, category_name, modal_class, stock_type
         else:
             group_stock -= 1
             
+        # บันทึกกิจกรรมเริ่มต้น
+        await record_ticket_activity(channel.id)
+            
         # อัพเดทข้อความตอบกลับ
         await interaction.edit_original_response(
             content="📩 เปิดตั๋วเรียบร้อย!",
@@ -407,6 +468,8 @@ class TicketActionView(View):
     @discord.ui.button(label="📝 กรอกแบบฟอร์ม", style=discord.ButtonStyle.primary, emoji="📝")
     async def open_form(self, interaction: discord.Interaction, button: Button):
         try:
+            # บันทึกกิจกรรม
+            await record_ticket_activity(interaction.channel.id)
             await interaction.response.send_modal(self.modal_class())
         except Exception as e:
             await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการเปิดฟอร์ม", ephemeral=True)
@@ -414,6 +477,9 @@ class TicketActionView(View):
     @discord.ui.button(label="📤 ช่องทางการโอนเงิน", style=discord.ButtonStyle.success, emoji="📤")
     async def payment_info(self, interaction: discord.Interaction, button: Button):
         try:
+            # บันทึกกิจกรรม
+            await record_ticket_activity(interaction.channel.id)
+            
             # สร้างข้อความเลขบัญชีที่สามารถกดค้างคัดลอกได้ (แยกช่อง)
             bank_accounts = (
                 "**🏦 ช่องทางการโอนเงิน**\n\n"
@@ -448,6 +514,10 @@ class TicketActionView(View):
             gamepass_stock += 1
         elif self.channel.category and "group" in self.channel.category.name.lower():
             group_stock += 1
+            
+        # ลบออกจากรายการติดตามกิจกรรม
+        if self.channel.id in ticket_activity:
+            del ticket_activity[self.channel.id]
             
         try:
             await self.channel.delete()
@@ -666,7 +736,25 @@ async def on_ready():
     bot.add_view(MainShopView())
     print("✅ ลงทะเบียน MainShopView เรียบร้อย")
     
+    # เริ่มต้นระบบตรวจสอบตั๋ว
+    bot.loop.create_task(check_inactive_tickets())
+    print("✅ เริ่มต้นระบบตรวจสอบตั๋วอัตโนมัติเรียบร้อย")
+    
     await update_main_channel()
+
+@bot.event
+async def on_message(message):
+    """บันทึกกิจกรรมเมื่อมีข้อความใหม่ในตั๋ว"""
+    # ข้ามถ้าเป็นข้อความจากบอทตัวเอง
+    if message.author == bot.user:
+        return
+    
+    # บันทึกกิจกรรมถ้าเป็นตั๋ว
+    if message.channel.name.startswith("ticket-"):
+        await record_ticket_activity(message.channel.id)
+    
+    # ต้องมีคำสั่งนี้เพื่อให้คำสั่งอื่นๆ ทำงานต่อ
+    await bot.process_commands(message)
 
 @bot.event
 async def on_command_error(ctx, error):
@@ -1165,6 +1253,9 @@ async def ty(ctx):
             except Exception as e:
                 print(f"❌ ไม่สามารถย้ายหมวดหมู่: {e}")
 
+        # บันทึกกิจกรรมล่าสุด
+        await record_ticket_activity(ctx.channel.id)
+
         # สร้าง View สำหรับปุ่ม
         class TempCloseView(View):
             def __init__(self, channel):
@@ -1178,6 +1269,10 @@ async def ty(ctx):
                     gamepass_stock += 1
                 elif self.channel.category and "group" in self.channel.category.name.lower():
                     group_stock += 1
+                    
+                # ลบออกจากรายการติดตามกิจกรรม
+                if self.channel.id in ticket_activity:
+                    del ticket_activity[self.channel.id]
                     
                 await interaction.response.send_message("📪 กำลังปิดตั๋ว...", ephemeral=True)
                 try:
@@ -1194,7 +1289,7 @@ async def ty(ctx):
             description=(
                 "ขอบคุณที่ใช้บริการกับเรา หากไม่มีปัญหาเพิ่มเติม "
                 "สามารถกดปุ่มด้านล่างเพื่อปิดตั๋วได้เลย\n\n"
-                "⏳ **หากไม่ได้กดปิดตั๋ว ตั๋วจะถูกปิดอัตโนมัติใน 1 ชั่วโมง**"
+                "⏳ **ตั๋วจะถูกปิดอัตโนมัติใน 1 ชั่วโมง ถ้าไม่มีกิจกรรมเพิ่มเติม**"
             ),
             color=0x00FF00
         )
@@ -1204,22 +1299,6 @@ async def ty(ctx):
         # ส่งปุ่มให้เครดิตแยกต่างหาก
         await ctx.send("กดปุ่มด้านล่างเพื่อให้เครดิตกับผู้ส่งสินค้า:", view=credit_view)
 
-        # ตั้งเวลาปิดอัตโนมัติ 1 ชั่วโมง
-        async def auto_close():
-            await asyncio.sleep(3600)
-            if ctx.channel and ctx.channel.name.startswith("ticket-"):
-                try:
-                    global gamepass_stock, group_stock
-                    if ctx.channel.category and "gamepass" in ctx.channel.category.name.lower():
-                        gamepass_stock += 1
-                    elif ctx.channel.category and "group" in ctx.channel.category.name.lower():
-                        group_stock += 1
-                        
-                    await ctx.channel.delete()
-                except:
-                    pass
-
-        bot.loop.create_task(auto_close())
     else:
         await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
 
