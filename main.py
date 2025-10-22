@@ -1196,9 +1196,8 @@ async def ty(ctx):
                     pass
 
             @discord.ui.button(label="⭐ ให้เครดิตที่นี่", style=discord.ButtonStyle.link, emoji="⭐", url="https://discord.com/channels/895882579369164831/1363250076549382246")
-            async def give_credit(self, interaction: discord.Interaction, button: Button):
-                """ปุ่มให้เครดิตแบบใหม่ - พาไปที่ห้องเครดิตโดยตรง"""
-                # ไม่ต้องทำอะไรเพิ่ม เพราะปุ่มเป็นลิงก์โดยตรง
+            async def give_credit_link(self, interaction: discord.Interaction, button: Button):
+                """ปุ่มลิงก์ให้เครดิต - ไม่ต้องทำอะไรเพิ่ม"""
                 pass
         
         await ctx.send(embed=embed, view=TempCloseView(ctx.channel))
