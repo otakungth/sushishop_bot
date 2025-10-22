@@ -26,8 +26,8 @@ group_ticket_enabled = True
 MAIN_CHANNEL_ID = 1361044752975532152
 SALES_LOG_CHANNEL_ID = 1402993077643120720
 CREDIT_CHANNEL_ID = 1363250076549382246  # ID ห้องให้เครดิต
-gamepass_stock = 67
-group_stock = 67
+gamepass_stock = 50000
+group_stock = 1000
 
 # เก็บข้อมูลโน้ตส่วนตัว
 user_notes = {}
@@ -745,7 +745,7 @@ async def update_main_channel():
                 f"📊 Stock: **{group_stock}** ({group_stock_status})\n"
             )
         else:
-            group_value = "```\n🚫ปิดชั่วคราว⚠️เข้ากลุ่มให้ครบ 15 วันก่อนซื้อ⚠️\n```"
+            group_value = "```\nปิดชั่วคราว ⚠️เข้ากลุ่ม [VALKYs](https://www.roblox.com/communities/34713179/VALKYs) ให้ครบ 15 วันก่อนซื้อ⚠️\n```"
         
         embed.add_field(
             name="👥 **ระบบโรบัคกลุ่ม**", 
@@ -1385,5 +1385,6 @@ try:
     bot.run(os.getenv("TOKEN"))
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
+
 
 
