@@ -1165,17 +1165,7 @@ async def ty(ctx):
             except Exception as e:
                 print(f"❌ ไม่สามารถย้ายหมวดหมู่: {e}")
 
-        # ส่งข้อความขอบคุณ
-        embed = discord.Embed(
-            title="✅ สินค้าถูกส่งเรียบร้อยแล้ว",
-            description=(
-                "ขอบคุณที่ใช้บริการกับเรา หากไม่มีปัญหาเพิ่มเติม "
-                "สามารถกดปุ่มด้านล่างเพื่อปิดตั๋วได้เลย\n\n"
-                "⏳ **หากไม่ได้กดปิดตั๋ว ตั๋วจะถูกปิดอัตโนมัติใน 1 ชั่วโมง**"
-            ),
-            color=0x00FF00
-        )
-        
+        # สร้าง View สำหรับปุ่ม
         class TempCloseView(View):
             def __init__(self, channel):
                 super().__init__(timeout=None)
@@ -1195,12 +1185,24 @@ async def ty(ctx):
                 except:
                     pass
 
-            @discord.ui.button(label="⭐ ให้เครดิตที่นี่", style=discord.ButtonStyle.link, emoji="⭐", url="https://discord.com/channels/895882579369164831/1363250076549382246")
-            async def give_credit_link(self, interaction: discord.Interaction, button: Button):
-                """ปุ่มลิงก์ให้เครดิต - ไม่ต้องทำอะไรเพิ่ม"""
-                pass
+        # สร้าง View แยกสำหรับปุ่มลิงก์ให้เครดิต
+        credit_view = GiveCreditView()
+        
+        # ส่งข้อความขอบคุณ
+        embed = discord.Embed(
+            title="✅ สินค้าถูกส่งเรียบร้อยแล้ว",
+            description=(
+                "ขอบคุณที่ใช้บริการกับเรา หากไม่มีปัญหาเพิ่มเติม "
+                "สามารถกดปุ่มด้านล่างเพื่อปิดตั๋วได้เลย\n\n"
+                "⏳ **หากไม่ได้กดปิดตั๋ว ตั๋วจะถูกปิดอัตโนมัติใน 1 ชั่วโมง**"
+            ),
+            color=0x00FF00
+        )
         
         await ctx.send(embed=embed, view=TempCloseView(ctx.channel))
+        
+        # ส่งปุ่มให้เครดิตแยกต่างหาก
+        await ctx.send("กดปุ่มด้านล่างเพื่อให้เครดิตกับผู้ส่งสินค้า:", view=credit_view)
 
         # ตั้งเวลาปิดอัตโนมัติ 1 ชั่วโมง
         async def auto_close():
