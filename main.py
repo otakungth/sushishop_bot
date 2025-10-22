@@ -476,8 +476,8 @@ class GiveCreditView(discord.ui.View):
         self.add_item(
             discord.ui.Button(
                 label="⭐ ให้เครดิตที่นี่", 
-                url=f"https://discord.com/channels/{bot.guilds[0].id if bot.guilds else 1360990259311018077}/{CREDIT_CHANNEL_ID}", 
-                style=discord.ButtonStyle.primary,
+                url="https://discord.com/channels/895882579369164831/1363250076549382246", 
+                style=discord.ButtonStyle.link,
                 emoji="⭐"
             )
         )
@@ -1195,16 +1195,11 @@ async def ty(ctx):
                 except:
                     pass
 
-            @discord.ui.button(label="⭐ ให้เครดิตที่นี่", style=discord.ButtonStyle.primary, emoji="⭐")
+            @discord.ui.button(label="⭐ ให้เครดิตที่นี่", style=discord.ButtonStyle.link, emoji="⭐", url="https://discord.com/channels/895882579369164831/1363250076549382246")
             async def give_credit(self, interaction: discord.Interaction, button: Button):
                 """ปุ่มให้เครดิตแบบใหม่ - พาไปที่ห้องเครดิตโดยตรง"""
-                # ส่งปุ่มลิงก์ไปที่ห้องเครดิตโดยตรงเลย
-                credit_view = GiveCreditView()
-                await interaction.response.send_message(
-                    content="กดปุ่มด้านล่างเพื่อไปที่ห้องรีวิวและให้เครดิตกับผู้ส่งสินค้า:",
-                    view=credit_view, 
-                    ephemeral=True
-                )
+                # ไม่ต้องทำอะไรเพิ่ม เพราะปุ่มเป็นลิงก์โดยตรง
+                pass
         
         await ctx.send(embed=embed, view=TempCloseView(ctx.channel))
 
