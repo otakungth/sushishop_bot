@@ -383,34 +383,45 @@ async def handle_open_ticket(interaction, category_name, modal_class, stock_type
             view=GoToTicketView(channel)
         )
 
-        # กำหนดข้อความตามประเภทตั๋ว (ลบส่วน stock ออก)
+        # กำหนดข้อความตามประเภทตั๋ว (ลบส่วน stock และเรทออก)
         if stock_type == "gamepass":
-            service_info = f"**บริการกดเกมพาสเรท: {gamepass_rate}**"
+            service_info = "**บริการกดเกมพาส**"
+            stock_info = f"Stock: **{gamepass_stock}**"
         else:
-            service_info = f"**ระบบโรบัคกลุ่มเรท: {group_rate_low}-{group_rate_high}**"
+            service_info = "**ระบบโรบัคกลุ่ม**"
+            stock_info = f"Stock: **{group_stock}**"
 
-        # แท็กพนักงานในตั๋วพร้อมข้อมูลบริการ (ลบ stock ออก)
+        # แท็กพนักงานในตั๋ว (ลบเรทและ stock ออก)
         if admin_role:
-            await channel.send(content=f"{admin_role.mention} มีตั๋วใหม่!\n\n{service_info}")
+            await channel.send(content=f"{admin_role.mention} มีตั๋วใหม่!")
 
-        # ส่งข้อความต้อนรับในตั๋ว
+        # ส่งข้อความต้อนรับในตั๋วแบบใหม่
         welcome_embed = discord.Embed(
             title="🍣 Sushi Shop 🍣",
-            description=(
-                "**ยินดีต้อนรับสู่บริการของเรา!**\n\n"
-                f"👤 **ผู้ซื้อ:** {user.mention}\n"
-                f"🛠️ **ทีมงาน:** {admin_role.mention if admin_role else 'รอพนักงานติดต่อ'}\n\n"
-                f"**ข้อมูลบริการ:**\n"
-                f"{service_info}\n\n"
-                "**คำแนะนำ:**\n"
-                "• กรุณาระบุสิ่งที่ต้องการซื้อ\n"
-                "• ใช้คำสั่ง !gp ตามด้วยจำนวนเพื่อเช็คราคา\n"
-                "**ขอบคุณที่ใช้บริการ!** 🎉"
-            ),
             color=0x00FF99
         )
+        welcome_embed.add_field(
+            name="👤 ผู้ซื้อ", 
+            value=user.mention, 
+            inline=False
+        )
+        welcome_embed.add_field(
+            name="🛠️ ทีมงาน", 
+            value=admin_role.mention if admin_role else "รอพนักงานติดต่อ", 
+            inline=False
+        )
+        welcome_embed.add_field(
+            name="บริการกดเกมพาสเรท: 6",
+            value=stock_info,
+            inline=False
+        )
+        welcome_embed.add_field(
+            name="คำแนะนำ:",
+            value="• กรุณาระบุสิ่งที่ต้องการซื้อ\n• ใช้คำสั่ง !gp ตามด้วยจำนวนเพื่อเช็คราคา\nขอบคุณที่ใช้บริการ! 🎉",
+            inline=False
+        )
+        welcome_embed.set_footer(text="Sushi Shop บริการรับกดเกมพาส")
         welcome_embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
-        welcome_embed.set_footer(text="Sushi Shop Professional Service")
 
         view = TicketActionView(channel, user, modal_class)
         await channel.send(embed=welcome_embed, view=view)
@@ -972,7 +983,7 @@ async def help_command(ctx):
                    "`!restart` - รีสตาร์ทระบบปุ่ม\n"
                    "`!od <จำนวน>` - สั่งซื้อ Gamepass\n"
                    "`!odg <จำนวน>` - สั่งซื้อ Group\n"
-                   "`!loveyou` - แสดงความรักจากเซิร์ฟ",
+                   "`!love` - แสดงความรักจากเซิร์ฟ",
         color=0x00FF99
     )
     await ctx.send(embed=help_embed, delete_after=30)
@@ -1138,10 +1149,10 @@ async def group(ctx, status: str = None):
     await update_main_channel()
 
 # --------------------------------------------------------------------------------------------------
-# คำสั่งคำนวณราคา (สำหรับทุกคน) - แบบถาวร
+# คำสั่งคำนวณราคา (สำหรับทุกคน) - กลับไปใช้ข้อความปกติ
 @bot.command()
 async def gp(ctx, *, expression: str):
-    """คำนวณราคาจากจำนวน Robux (Gamepass) - แบบถาวร"""
+    """คำนวณราคาจากจำนวน Robux (Gamepass) - ข้อความปกติ"""
     try:
         expr = expression.replace(",", "").lower().replace("x", "*").replace("÷", "/")
 
@@ -1153,20 +1164,14 @@ async def gp(ctx, *, expression: str):
         price = robux / gamepass_rate
         price_str = f"{price:,.0f} บาท"
 
-        embed = discord.Embed(
-            title="🎮 คำนวณราคา Gamepass",
-            description=f"**{robux:,} Robux = {price_str}**",
-            color=0x00FF99
-        )
-        embed.add_field(name="เรท", value=f"{gamepass_rate}", inline=True)
-        await ctx.send(embed=embed)
+        await ctx.send(f"🎮 Gamepass {robux:,} Robux = **{price_str}** (เรท {gamepass_rate})")
 
     except Exception as e:
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
 
 @bot.command()
 async def g(ctx, *, expression: str):
-    """คำนวณราคาจากจำนวน Robux (Group) - แบบถาวร"""
+    """คำนวณราคาจากจำนวน Robux (Group) - ข้อความปกติ"""
     try:
         expr = expression.replace(",", "").lower().replace("x", "*").replace("÷", "/")
 
@@ -1184,40 +1189,27 @@ async def g(ctx, *, expression: str):
         price = robux / rate
         price_str = f"{price:,.0f} บาท"
 
-        embed = discord.Embed(
-            title="👥 คำนวณราคา Group",
-            description=f"**{robux:,} Robux = {price_str}**",
-            color=0x00FF99
-        )
-        embed.add_field(name="เรท", value=f"{rate}", inline=True)
-        await ctx.send(embed=embed)
+        await ctx.send(f"👥 Group {robux:,} Robux = **{price_str}** (เรท {rate})")
 
     except Exception as e:
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
 
 @bot.command()
 async def gpb(ctx, *, expression: str):
-    """คำนวณจากจำนวนเงิน เป็น Robux (Gamepass) - แบบถาวร"""
+    """คำนวณจากจำนวนเงิน เป็น Robux (Gamepass) - ข้อความปกติ"""
     try:
         expr = expression.replace(",", "").replace(" ", "")
         baht = eval(expr)
 
         robux = baht * gamepass_rate
-        
-        embed = discord.Embed(
-            title="🎮 คำนวณ Robux จากเงิน (Gamepass)",
-            description=f"**{baht:,.0f} บาท = {robux:,.0f} Robux**",
-            color=0x00FF99
-        )
-        embed.add_field(name="เรท", value=f"{gamepass_rate}", inline=True)
-        await ctx.send(embed=embed)
+        await ctx.send(f"🎮 {baht:,.0f} บาท = **{robux:,.0f} Robux** (Gamepass เรท {gamepass_rate})")
 
     except Exception as e:
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
 
 @bot.command()
 async def gb(ctx, *, expression: str):
-    """คำนวณจากจำนวนเงิน เป็น Robux (Group) - แบบถาวร"""
+    """คำนวณจากจำนวนเงิน เป็น Robux (Group) - ข้อความปกติ"""
     try:
         expr = expression.replace(",", "").replace(" ", "")
         baht = eval(expr)
@@ -1228,35 +1220,23 @@ async def gb(ctx, *, expression: str):
             rate = group_rate_high
 
         robux = baht * rate
-        
-        embed = discord.Embed(
-            title="👥 คำนวณ Robux จากเงิน (Group)",
-            description=f"**{baht:,.0f} บาท = {robux:,.0f} Robux**",
-            color=0x00FF99
-        )
-        embed.add_field(name="เรท", value=f"{rate}", inline=True)
-        await ctx.send(embed=embed)
+        await ctx.send(f"👥 {baht:,.0f} บาท = **{robux:,.0f} Robux** (Group เรท {rate})")
 
     except Exception as e:
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
 
 # --------------------------------------------------------------------------------------------------
-# คำสั่ง !tax (คำนวณหัก Tax) - แบบถาวร
+# คำสั่ง !tax (คำนวณหัก Tax) - ข้อความปกติ
 @bot.command()
 async def tax(ctx, *, expression: str):
-    """คำนวณ Robux หลังหัก % (ภาษีหรือส่วนลด) - แบบถาวร"""
+    """คำนวณ Robux หลังหัก % (ภาษีหรือส่วนลด) - ข้อความปกติ"""
     try:
         expr = expression.replace(" ", "")
         
         if re.match(r"^\d+$", expr):
             number = int(expr)
             result = number * 0.7
-            embed = discord.Embed(
-                title="💰 คำนวณ Robux หลังหักภาษี",
-                description=f"**{number:,} Robux หลังหัก 30% = {result:,.0f} Robux**",
-                color=0x00FF99
-            )
-            await ctx.send(embed=embed)
+            await ctx.send(f"💰 {number:,} Robux หลังหัก 30% = **{result:,.0f} Robux**")
             
         elif re.match(r"^\d+-\d+%$", expr):
             parts = expr.split('-')
@@ -1268,25 +1248,17 @@ async def tax(ctx, *, expression: str):
                 return
             
             result = number * (1 - percent/100)
-            embed = discord.Embed(
-                title="💰 คำนวณ Robux หลังหักภาษี",
-                description=f"**{number:,} Robux หลังหัก {percent}% = {result:,.0f} Robux**",
-                color=0x00FF99
-            )
-            await ctx.send(embed=embed)
+            await ctx.send(f"💰 {number:,} Robux หลังหัก {percent}% = **{result:,.0f} Robux**")
             
         else:
-            embed = discord.Embed(
-                title="❌ รูปแบบไม่ถูกต้อง",
-                description=(
-                    "**การใช้งาน:**\n"
-                    "`!tax 100` - หัก 30% อัตโนมัติ\n"
-                    "`!tax 100-30%` - หัก 30%\n"
-                    "`!tax 100-50%` - หัก 50%"
-                ),
-                color=0xFF0000
+            await ctx.send(
+                "❌ รูปแบบไม่ถูกต้อง\n\n"
+                "**การใช้งาน:**\n"
+                "`!tax 100` - หัก 30% อัตโนมัติ\n"
+                "`!tax 100-30%` - หัก 30%\n"
+                "`!tax 100-50%` - หัก 50%",
+                delete_after=15
             )
-            await ctx.send(embed=embed)
 
     except Exception as e:
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
@@ -1323,7 +1295,6 @@ async def od(ctx, *, expression: str):
         embed.add_field(name="📦 ประเภทสินค้า", value="Robux Gamepass", inline=False)
         embed.add_field(name="💸 จำนวนโรบัค", value=f"{robux:,}", inline=True)
         embed.add_field(name="💰 ราคาตามเรท", value=price_str, inline=True)
-        embed.add_field(name="📊 Stock เหลือ", value=f"{gamepass_stock}", inline=True)
         embed.add_field(name="🚚 ผู้ส่งสินค้า", value=ctx.author.mention, inline=False)
         embed.set_footer(text="การสั่งซื้อสำเร็จ")
 
@@ -1372,7 +1343,6 @@ async def odg(ctx, *, expression: str):
         embed.add_field(name="💸 จำนวนโรบัค", value=f"{robux:,}", inline=True)
         embed.add_field(name="💰 ราคาตามเรท", value=price_str, inline=True)
         embed.add_field(name="📊 เรท", value=f"{rate}", inline=True)
-        embed.add_field(name="📊 Stock เหลือ", value=f"{group_stock}", inline=True)
         embed.add_field(name="🚚 ผู้ส่งสินค้า", value=ctx.author.mention, inline=False)
         embed.set_footer(text="การสั่งซื้อสำเร็จ • Robux Group")
 
@@ -1512,9 +1482,9 @@ async def ty(ctx):
         await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
 
 # --------------------------------------------------------------------------------------------------
-# คำสั่ง !loveyou - แสดงความรักจากเซิร์ฟ
+# คำสั่ง !love - แสดงความรักจากเซิร์ฟ
 @bot.command()
-async def loveyou(ctx):
+async def love(ctx):
     """แสดงความรักจากเซิร์ฟ"""
     await ctx.send("# LOVE YOU <:sushiheart:1410484970291466300>")
 
