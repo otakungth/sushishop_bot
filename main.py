@@ -533,13 +533,13 @@ class QRView(View):
     def __init__(self):
         super().__init__(timeout=None)
         
-    @discord.ui.button(label="คัดลอกเลขบัญชีกสิกร", style=discord.ButtonStyle.primary, emoji="📋")
+    @discord.ui.button(label="คัดลอกเลขบัญชีกสิกร", style=discord.ButtonStyle.success, emoji="📋")
     async def copy_kbank(self, interaction: discord.Interaction, button: Button):
-        await interaction.response.send_message("```160-1-43871-9```\n*กดค้างเพื่อคัดลอกเลขบัญชีกสิกร*", ephemeral=True)
+        await interaction.response.send_message("160-1-43871-9\n*กดค้างเพื่อคัดลอกเลขบัญชีกสิกร*", ephemeral=True)
         
-    @discord.ui.button(label="คัดลอกเลขทรูมันนี่", style=discord.ButtonStyle.primary, emoji="📋")
+    @discord.ui.button(label="คัดลอกเลขทรูมันนี่", style=discord.ButtonStyle.success, emoji="📋")
     async def copy_truemoney(self, interaction: discord.Interaction, button: Button):
-        await interaction.response.send_message("```065-506-0702```\n*กดค้างเพื่อคัดลอกเลขทรูมันนี่*", ephemeral=True)
+        await interaction.response.send_message("065-506-0702\n*กดค้างเพื่อคัดลอกเลขทรูมันนี่*", ephemeral=True)
 
 # --------------------------------------------------------------------------------------------------
 # Main Shop View
@@ -1399,7 +1399,7 @@ async def odl(ctx, item_name: str, value: str):
         
         # ตรวจสอบว่าเป็นตัวเลขหรือไม่
         if not re.match(r"^\d+$", value_clean):
-            await ctx.send("❌ กรุณากรอก Value เป็นตัวเลขที่ถูกต้อง", delete_after=10)
+            await ctx.send("❌ กรุณากรอกราคาเป็นตัวเลขที่ถูกต้อง", delete_after=10)
             return
 
         item_value = int(value_clean)
@@ -1411,7 +1411,7 @@ async def odl(ctx, item_name: str, value: str):
         )
         embed.add_field(name="📦 ประเภทสินค้า", value="Limited", inline=False)
         embed.add_field(name="🎁 ชื่อไอเทม", value=item_name, inline=True)
-        embed.add_field(name="💎 Value", value=f"{item_value:,}", inline=True)
+        embed.add_field(name="💰 ราคา (บาท)", value=f"{item_value:,}", inline=True)
         embed.add_field(name="🚚 ผู้ส่งสินค้า", value=ctx.author.mention, inline=False)
         embed.set_footer(text="การสั่งซื้อสำเร็จ • Limited")
 
@@ -1436,21 +1436,8 @@ async def qr(ctx):
     except:
         pass
     
-    # สร้างข้อความเลขบัญชี
-    bank_accounts = (
-        "**🏦 ช่องทางการโอนเงิน**\n\n"
-        "**:green_circle: ธนาคารกสิกร:**\n"
-        "ชื่อ: อริสรา ศรีจิตต์แจ่ม\n"
-        "```160-1-43871-9```\n\n"
-        "**:orange_circle: ทรูมันนี่วอเล็ต:**\n"
-        "ชื่อ: อริสรา ศรีจิตต์แจ่ม\n"
-        "```065-506-0702```\n\n"
-        "*กดปุ่มด้านล่างเพื่อคัดลอกเลขบัญชี*"
-    )
-    
     embed = discord.Embed(
         title="📱 สแกน QR เพื่อชำระเงิน",
-        description=bank_accounts,
         color=0x00CCFF
     )
     embed.set_image(url="https://media.discordapp.net/attachments/722832040860319835/1402994996600111114/186-8-06559-8.png")
