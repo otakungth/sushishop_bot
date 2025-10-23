@@ -628,129 +628,6 @@ class QRView(View):
         await interaction.response.send_message("065-506-0702", ephemeral=True)
 
 # --------------------------------------------------------------------------------------------------
-# View สำหรับเช็คเลเวล
-class LevelCheckView(View):
-    def __init__(self):
-        super().__init__(timeout=None)
-        
-    @discord.ui.button(label="📊 เช็คเลเวลของฉัน", style=discord.ButtonStyle.primary, emoji="📊")
-    async def check_level(self, interaction: discord.Interaction, button: Button):
-        await check_user_level(interaction)
-
-# --------------------------------------------------------------------------------------------------
-# Main Shop View (แก้ไขเพิ่มปุ่มเช็คเลเวล)
-class MainShopView(View):
-    def __init__(self):
-        super().__init__(timeout=None)
-        
-        # สร้างปุ่มแบบไดนามิก
-        gamepass_button = Button(
-            label="เปิดตั๋วกดเกมพาส" if shop_open and gamepass_stock > 0 else "สินค้าหมด",
-            style=discord.ButtonStyle.success if shop_open and gamepass_stock > 0 else discord.ButtonStyle.danger,
-            custom_id="open_gamepass_ticket",
-            emoji="🎮",
-            disabled=not shop_open or gamepass_stock <= 0
-        )
-        gamepass_button.callback = self.gamepass_ticket
-        self.add_item(gamepass_button)
-        
-        # ปุ่ม Group - แสดงสถานะบริการแต่ข้อมูลยังแสดงปกติใน embed
-        group_button_label = "เปิดตั๋ว Group"
-        if not group_ticket_enabled:
-            group_button_label = "บริการปิดชั่วคราว"
-        elif group_stock <= 0:
-            group_button_label = "สินค้าหมด"
-            
-        group_button_style = discord.ButtonStyle.success
-        if not group_ticket_enabled:
-            group_button_style = discord.ButtonStyle.secondary
-        elif group_stock <= 0:
-            group_button_style = discord.ButtonStyle.danger
-            
-        group_button = Button(
-            label=group_button_label,
-            style=group_button_style,
-            custom_id="open_group_ticket", 
-            emoji="👥",
-            disabled=not group_ticket_enabled or group_stock <= 0
-        )
-        group_button.callback = self.group_ticket
-        self.add_item(group_button)
-        
-        notes_button = Button(
-            label="จดวันที่เข้ากลุ่ม",
-            style=discord.ButtonStyle.secondary,
-            custom_id="personal_notes",
-            emoji="📝"
-        )
-        notes_button.callback = self.personal_notes
-        self.add_item(notes_button)
-        
-        # เพิ่มปุ่มเช็คเลเวล
-        level_button = Button(
-            label="📊 เช็คเลเวล",
-            style=discord.ButtonStyle.primary,
-            custom_id="check_level",
-            emoji="📊"
-        )
-        level_button.callback = self.check_level
-        self.add_item(level_button)
-
-    async def gamepass_ticket(self, interaction: discord.Interaction):
-        """Callback สำหรับปุ่ม Gamepass"""
-        try:
-            if not shop_open:
-                await interaction.response.send_message("❌ ร้านปิดชั่วคราว", ephemeral=True)
-                return
-            
-            if gamepass_stock <= 0:
-                await interaction.response.send_message("❌ สินค้าหมดชั่วคราว", ephemeral=True)
-                return
-            
-            await handle_open_ticket(interaction, "🍣Sushi Gamepass 🍣", GamepassTicketModal, "gamepass")
-        except Exception as e:
-            print(f"❌ ข้อผิดพลาดใน gamepass_ticket: {e}")
-            await interaction.response.send_message("❌ เกิดข้อผิดพลาด", ephemeral=True)
-
-    async def group_ticket(self, interaction: discord.Interaction):
-        """Callback สำหรับปุ่ม Group"""
-        try:
-            if not shop_open:
-                await interaction.response.send_message("❌ ร้านปิดชั่วคราว", ephemeral=True)
-                return
-            
-            if not group_ticket_enabled:
-                await interaction.response.send_message("❌ บริการ Group ปิดชั่วคราวชั่วคราว", ephemeral=True)
-                return
-                
-            if group_stock <= 0:
-                await interaction.response.send_message("❌ สินค้าหมดชั่วคราว", ephemeral=True)
-                return
-                
-            await handle_open_ticket(interaction, "💰Robux Group💰", GroupTicketModal, "group")
-        except Exception as e:
-            print(f"❌ ข้อผิดพลาดใน group_ticket: {e}")
-            await interaction.response.send_message("❌ เกิดข้อผิดพลาด", ephemeral=True)
-
-    async def personal_notes(self, interaction: discord.Interaction):
-        """Callback สำหรับปุ่มโน้ตส่วนตัว"""
-        try:
-            user_note = user_notes.get(str(interaction.user.id))
-            modal = PersonalNoteModal()
-            
-            if user_note:
-                modal.note.default = user_note["note"]
-                
-            await interaction.response.send_modal(modal)
-        except Exception as e:
-            print(f"❌ ข้อผิดพลาดใน personal_notes: {e}")
-            await interaction.response.send_message("❌ เกิดข้อผิดพลาด", ephemeral=True)
-
-    async def check_level(self, interaction: discord.Interaction):
-        """Callback สำหรับปุ่มเช็คเลเวล"""
-        await check_user_level(interaction)
-
-# --------------------------------------------------------------------------------------------------
 # ฟังก์ชันเช็คเลเวลผู้ใช้
 async def check_user_level(interaction: discord.Interaction):
     """แสดงเลเวลและ EXP ของผู้ใช้"""
@@ -813,6 +690,119 @@ async def check_user_level(interaction: discord.Interaction):
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดในการเช็คเลเวล: {e}")
         await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการเช็คเลเวล", ephemeral=True)
+
+# --------------------------------------------------------------------------------------------------
+# Main Shop View (แก้ไขเพิ่มปุ่มเช็คเลเวล)
+class MainShopView(View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        
+        # สร้างปุ่มแบบไดนามิก
+        gamepass_button = Button(
+            label="เปิดตั๋วกดเกมพาส" if shop_open and gamepass_stock > 0 else "สินค้าหมด",
+            style=discord.ButtonStyle.success if shop_open and gamepass_stock > 0 else discord.ButtonStyle.danger,
+            custom_id="open_gamepass_ticket",
+            emoji="🎮",
+            disabled=not shop_open or gamepass_stock <= 0
+        )
+        gamepass_button.callback = self.gamepass_ticket
+        self.add_item(gamepass_button)
+        
+        # ปุ่ม Group - แสดงสถานะบริการแต่ข้อมูลยังแสดงปกติใน embed
+        group_button_label = "เปิดตั๋ว Group"
+        if not group_ticket_enabled:
+            group_button_label = "บริการปิดชั่วคราว"
+        elif group_stock <= 0:
+            group_button_label = "สินค้าหมด"
+            
+        group_button_style = discord.ButtonStyle.success
+        if not group_ticket_enabled:
+            group_button_style = discord.ButtonStyle.secondary
+        elif group_stock <= 0:
+            group_button_style = discord.ButtonStyle.danger
+            
+        group_button = Button(
+            label=group_button_label,
+            style=group_button_style,
+            custom_id="open_group_ticket", 
+            emoji="👥",
+            disabled=not group_ticket_enabled or group_stock <= 0
+        )
+        group_button.callback = self.group_ticket
+        self.add_item(group_button)
+        
+        notes_button = Button(
+            label="จดวันที่เข้ากลุ่ม",
+            style=discord.ButtonStyle.secondary,
+            custom_id="personal_notes",
+            emoji="📝"
+        )
+        notes_button.callback = self.personal_notes
+        self.add_item(notes_button)
+        
+        # เพิ่มปุ่มเช็คเลเวล (สีฟ้า)
+        level_button = Button(
+            label="📊 เช็คเลเวล",
+            style=discord.ButtonStyle.primary,
+            custom_id="check_level",
+            emoji="📊"
+        )
+        level_button.callback = self.check_level
+        self.add_item(level_button)
+
+    async def gamepass_ticket(self, interaction: discord.Interaction):
+        """Callback สำหรับปุ่ม Gamepass"""
+        try:
+            if not shop_open:
+                await interaction.response.send_message("❌ ร้านปิดชั่วคราว", ephemeral=True)
+                return
+            
+            if gamepass_stock <= 0:
+                await interaction.response.send_message("❌ สินค้าหมดชั่วคราว", ephemeral=True)
+                return
+            
+            await handle_open_ticket(interaction, "🍣Sushi Gamepass 🍣", GamepassTicketModal, "gamepass")
+        except Exception as e:
+            print(f"❌ ข้อผิดพลาดใน gamepass_ticket: {e}")
+            await interaction.response.send_message("❌ เกิดข้อผิดพลาด", ephemeral=True)
+
+    async def group_ticket(self, interaction: discord.Interaction):
+        """Callback สำหรับปุ่ม Group"""
+        try:
+            if not shop_open:
+                await interaction.response.send_message("❌ ร้านปิดชั่วคราว", ephemeral=True)
+                return
+            
+            if not group_ticket_enabled:
+                await interaction.response.send_message("❌ บริการ Group ปิดชั่วคราวชั่วคราว", ephemeral=True)
+                return
+                
+            if group_stock <= 0:
+                await interaction.response.send_message("❌ สินค้าหมดชั่วคราว", ephemeral=True)
+                return
+                
+            await handle_open_ticket(interaction, "💰Robux Group💰", GroupTicketModal, "group")
+        except Exception as e:
+            print(f"❌ ข้อผิดพลาดใน group_ticket: {e}")
+            await interaction.response.send_message("❌ เกิดข้อผิดพลาด", ephemeral=True)
+
+    async def personal_notes(self, interaction: discord.Interaction):
+        """Callback สำหรับปุ่มโน้ตส่วนตัว"""
+        try:
+            user_note = user_notes.get(str(interaction.user.id))
+            modal = PersonalNoteModal()
+            
+            if user_note:
+                modal.note.default = user_note["note"]
+                
+            await interaction.response.send_modal(modal)
+        except Exception as e:
+            print(f"❌ ข้อผิดพลาดใน personal_notes: {e}")
+            await interaction.response.send_message("❌ เกิดข้อผิดพลาด", ephemeral=True)
+
+    async def check_level(self, interaction: discord.Interaction):
+        """Callback สำหรับปุ่มเช็คเลเวล"""
+        await check_user_level(interaction)
 
 # --------------------------------------------------------------------------------------------------
 # ระบบติดตามกิจกรรมในตั๋ว
@@ -1834,7 +1824,7 @@ async def love(ctx):
     await ctx.send("# LOVE <:sushiheart:1410484970291466300>")
 
 # --------------------------------------------------------------------------------------------------
-# คำสั่ง !say - พูดตามคำที่พิมพ์ (รวมคำสั่ง hello, wow, cool)
+# คำสั่ง !say - พูดตามคำที่พิมพ์
 @bot.command()
 async def say(ctx, *, message: str):
     """พูดตามคำที่พิมพ์"""
