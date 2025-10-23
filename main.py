@@ -645,27 +645,32 @@ async def check_user_level(interaction: discord.Interaction):
         
         # คำนวณ EXP ที่ต้องการสำหรับเลเวลถัดไป
         next_level_exp = 0
-        next_level_name = "ไม่มี"
+        next_level_role_id = "ไม่มี"
         if user_level < 4:
             next_level = user_level + 1
             next_level_exp = LEVELS[next_level]["exp"]
-            next_level_name = LEVELS[next_level]["role_name"]
+            next_level_role_id = LEVELS[next_level]["role_id"]
             exp_needed = next_level_exp - user_exp
         else:
             exp_needed = 0
-            next_level_name = "สูงสุดแล้ว"
+            next_level_role_id = "สูงสุดแล้ว"
+        
+        # กำหนด role_id ปัจจุบัน
+        current_role_id = "Level 0"
+        if user_level > 0 and user_level in LEVELS:
+            current_role_id = LEVELS[user_level]["role_id"]
         
         embed = discord.Embed(
-            title=f"📊 ระดับของคุณ {interaction.user.display_name}",
+            title=f"🍣 ระดับของคุณ {interaction.user.display_name}",
             color=0x00FF99
         )
-        embed.add_field(name="🎯 ระดับปัจจุบัน", value=f"**Level {user_level}**", inline=True)
+        embed.add_field(name="🎮 ระดับปัจจุบัน", value=f"**{current_role_id}**", inline=True)
         embed.add_field(name="⭐ EXP สะสม", value=f"**{user_exp:,} EXP**", inline=True)
         
         if user_level < 4:
             embed.add_field(
-                name="📈 สู่ระดับถัดไป", 
-                value=f"ต้องการอีก **{exp_needed:,} EXP** เพื่อยศ **{next_level_name}**", 
+                name="🎯 ระดับถัดไป", 
+                value=f"ต้องการอีก **{exp_needed:,} EXP** เพื่อยศ **{next_level_role_id}**", 
                 inline=False
             )
         else:
@@ -684,7 +689,7 @@ async def check_user_level(interaction: discord.Interaction):
             
             progress_bar = "🟢" * int(percentage / 20) + "⚫" * (5 - int(percentage / 20))
             embed.add_field(
-                name="📊 ความคืบหน้า",
+                name="🌱 ความคืบหน้า",
                 value=f"{progress_bar} {percentage:.1f}%",
                 inline=False
             )
@@ -745,12 +750,12 @@ class MainShopView(View):
         notes_button.callback = self.personal_notes
         self.add_item(notes_button)
         
-        # เพิ่มปุ่มเช็คเลเวล (สีฟ้า)
+        # เพิ่มปุ่มเช็คเลเวล (สีฟ้า) - แก้ไขอิโมจิและข้อความ
         level_button = Button(
-            label="📊 เช็คเลเวล",
+            label="ดูเลเวลของคุณ⭐",
             style=discord.ButtonStyle.primary,
             custom_id="check_level",
-            emoji="📊"
+            emoji="⭐"
         )
         level_button.callback = self.check_level
         self.add_item(level_button)
@@ -1688,27 +1693,32 @@ async def check_user_level_as_command(ctx, member):
         
         # คำนวณ EXP ที่ต้องการสำหรับเลเวลถัดไป
         next_level_exp = 0
-        next_level_name = "ไม่มี"
+        next_level_role_id = "ไม่มี"
         if user_level < 4:
             next_level = user_level + 1
             next_level_exp = LEVELS[next_level]["exp"]
-            next_level_name = LEVELS[next_level]["role_name"]
+            next_level_role_id = LEVELS[next_level]["role_id"]
             exp_needed = next_level_exp - user_exp
         else:
             exp_needed = 0
-            next_level_name = "สูงสุดแล้ว"
+            next_level_role_id = "สูงสุดแล้ว"
+        
+        # กำหนด role_id ปัจจุบัน
+        current_role_id = "Level 0"
+        if user_level > 0 and user_level in LEVELS:
+            current_role_id = LEVELS[user_level]["role_id"]
         
         embed = discord.Embed(
-            title=f"📊 ระดับของคุณ {member.display_name}",
+            title=f"🍣 ระดับของคุณ {member.display_name}",
             color=0x00FF99
         )
-        embed.add_field(name="🎯 ระดับปัจจุบัน", value=f"**Level {user_level}**", inline=True)
+        embed.add_field(name="🎮 ระดับปัจจุบัน", value=f"**{current_role_id}**", inline=True)
         embed.add_field(name="⭐ EXP สะสม", value=f"**{user_exp:,} EXP**", inline=True)
         
         if user_level < 4:
             embed.add_field(
-                name="📈 สู่ระดับถัดไป", 
-                value=f"ต้องการอีก **{exp_needed:,} EXP** เพื่อยศ **{next_level_name}**", 
+                name="🎯 ระดับถัดไป", 
+                value=f"ต้องการอีก **{exp_needed:,} EXP** เพื่อยศ **{next_level_role_id}**", 
                 inline=False
             )
         else:
@@ -1727,7 +1737,7 @@ async def check_user_level_as_command(ctx, member):
             
             progress_bar = "🟢" * int(percentage / 20) + "⚫" * (5 - int(percentage / 20))
             embed.add_field(
-                name="📊 ความคืบหน้า",
+                name="🌱 ความคืบหน้า",
                 value=f"{progress_bar} {percentage:.1f}%",
                 inline=False
             )
