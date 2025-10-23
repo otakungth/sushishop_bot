@@ -5,6 +5,7 @@ from discord.ext import commands
 from discord.ui import View, Button, Modal, TextInput
 import re
 import asyncio
+import json
 
 from server import server_on
 
@@ -35,6 +36,33 @@ user_notes = {}
 # ระบบติดตามกิจกรรมในตั๋ว
 ticket_activity = {}  # เก็บเวลาล่าสุดของแต่ละตั๋ว
 
+# ระบบเก็บเลเวลและ EXP
+user_data_file = "user_data.json"
+
+# โหลดข้อมูลผู้ใช้จากไฟล์
+def load_user_data():
+    try:
+        with open(user_data_file, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
+
+# บันทึกข้อมูลผู้ใช้ลงไฟล์
+def save_user_data():
+    with open(user_data_file, 'w', encoding='utf-8') as f:
+        json.dump(user_data, f, ensure_ascii=False, indent=2)
+
+# โหลดข้อมูลผู้ใช้
+user_data = load_user_data()
+
+# ระดับและ EXP
+LEVELS = {
+    1: {"exp": 1, "role_id": 1361555369825927249},
+    2: {"exp": 10000, "role_id": 1361555364776247297},
+    3: {"exp": 100000, "role_id": 1361554929017294949},
+    4: {"exp": 1000000, "role_id": 1363882685260365894}
+}
+
 # สร้างบอท
 bot = commands.Bot(
     command_prefix="!", 
@@ -43,6 +71,64 @@ bot = commands.Bot(
 )
 
 print("🔄 กำลังเริ่มต้นบอท...")
+
+# --------------------------------------------------------------------------------------------------
+# ฟังก์ชันจัดการเลเวลและ EXP
+async def add_exp(user_id, exp_amount, guild):
+    """เพิ่ม EXP ให้ผู้ใช้และอัพเดทเลเวล"""
+    user_id_str = str(user_id)
+    
+    # ตรวจสอบว่าผู้ใช้มีข้อมูลหรือไม่
+    if user_id_str not in user_data:
+        user_data[user_id_str] = {"exp": 0, "level": 0}
+    
+    # เพิ่ม EXP
+    user_data[user_id_str]["exp"] += exp_amount
+    
+    # ตรวจสอบเลเวลเดิม
+    old_level = user_data[user_id_str]["level"]
+    
+    # คำนวณเลเวลใหม่
+    new_level = 0
+    for level, data in sorted(LEVELS.items(), reverse=True):
+        if user_data[user_id_str]["exp"] >= data["exp"]:
+            new_level = level
+            break
+    
+    user_data[user_id_str]["level"] = new_level
+    
+    # บันทึกข้อมูล
+    save_user_data()
+    
+    # ถ้าเลเวลเปลี่ยนแปลง ให้อัพเดทยศ
+    if new_level != old_level:
+        await update_user_roles(user_id, guild, old_level, new_level)
+    
+    return new_level, user_data[user_id_str]["exp"]
+
+async def update_user_roles(user_id, guild, old_level, new_level):
+    """อัพเดทยศผู้ใช้ตามเลเวล"""
+    try:
+        member = guild.get_member(user_id)
+        if not member:
+            return
+        
+        # ลบยศเลเวลเดิม
+        if old_level > 0 and old_level in LEVELS:
+            old_role_id = LEVELS[old_level]["role_id"]
+            old_role = guild.get_role(old_role_id)
+            if old_role and old_role in member.roles:
+                await member.remove_roles(old_role)
+        
+        # เพิ่มยศเลเวลใหม่
+        if new_level > 0 and new_level in LEVELS:
+            new_role_id = LEVELS[new_level]["role_id"]
+            new_role = guild.get_role(new_role_id)
+            if new_role and new_role not in member.roles:
+                await member.add_roles(new_role)
+                
+    except Exception as e:
+        print(f"❌ เกิดข้อผิดพลาดในการอัพเดทยศ: {e}")
 
 # --------------------------------------------------------------------------------------------------
 # ฟังก์ชันเปลี่ยนชื่อช่องหลัก
@@ -528,21 +614,31 @@ class GiveCreditView(discord.ui.View):
         )
 
 # --------------------------------------------------------------------------------------------------
-# View สำหรับ QR Code ที่มีปุ่มคัดลอก
+# View สำหรับ QR Code ที่มีปุ่มคัดลอก (แก้ไขแล้ว)
 class QRView(View):
     def __init__(self):
         super().__init__(timeout=None)
         
-    @discord.ui.button(label="คัดลอกเลขบัญชีกสิกร", style=discord.ButtonStyle.success, emoji="📋")
+    @discord.ui.button(label="คัดลอกเลขบัญชี", style=discord.ButtonStyle.success, emoji="📋")
     async def copy_kbank(self, interaction: discord.Interaction, button: Button):
-        await interaction.response.send_message("160-1-43871-9\n*กดค้างเพื่อคัดลอกเลขบัญชีกสิกร*", ephemeral=True)
+        await interaction.response.send_message("160-1-43871-9", ephemeral=True)
         
     @discord.ui.button(label="คัดลอกเลขทรูมันนี่", style=discord.ButtonStyle.success, emoji="📋")
     async def copy_truemoney(self, interaction: discord.Interaction, button: Button):
-        await interaction.response.send_message("065-506-0702\n*กดค้างเพื่อคัดลอกเลขทรูมันนี่*", ephemeral=True)
+        await interaction.response.send_message("065-506-0702", ephemeral=True)
 
 # --------------------------------------------------------------------------------------------------
-# Main Shop View
+# View สำหรับเช็คเลเวล
+class LevelCheckView(View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        
+    @discord.ui.button(label="📊 เช็คเลเวลของฉัน", style=discord.ButtonStyle.primary, emoji="📊")
+    async def check_level(self, interaction: discord.Interaction, button: Button):
+        await check_user_level(interaction)
+
+# --------------------------------------------------------------------------------------------------
+# Main Shop View (แก้ไขเพิ่มปุ่มเช็คเลเวล)
 class MainShopView(View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -589,6 +685,16 @@ class MainShopView(View):
         )
         notes_button.callback = self.personal_notes
         self.add_item(notes_button)
+        
+        # เพิ่มปุ่มเช็คเลเวล
+        level_button = Button(
+            label="📊 เช็คเลเวล",
+            style=discord.ButtonStyle.primary,
+            custom_id="check_level",
+            emoji="📊"
+        )
+        level_button.callback = self.check_level
+        self.add_item(level_button)
 
     async def gamepass_ticket(self, interaction: discord.Interaction):
         """Callback สำหรับปุ่ม Gamepass"""
@@ -639,6 +745,74 @@ class MainShopView(View):
         except Exception as e:
             print(f"❌ ข้อผิดพลาดใน personal_notes: {e}")
             await interaction.response.send_message("❌ เกิดข้อผิดพลาด", ephemeral=True)
+
+    async def check_level(self, interaction: discord.Interaction):
+        """Callback สำหรับปุ่มเช็คเลเวล"""
+        await check_user_level(interaction)
+
+# --------------------------------------------------------------------------------------------------
+# ฟังก์ชันเช็คเลเวลผู้ใช้
+async def check_user_level(interaction: discord.Interaction):
+    """แสดงเลเวลและ EXP ของผู้ใช้"""
+    try:
+        user_id = str(interaction.user.id)
+        
+        if user_id not in user_data:
+            # ถ้ายังไม่มีข้อมูล ให้สร้างข้อมูลใหม่
+            user_data[user_id] = {"exp": 0, "level": 0}
+            save_user_data()
+        
+        user_exp = user_data[user_id]["exp"]
+        user_level = user_data[user_id]["level"]
+        
+        # คำนวณ EXP ที่ต้องการสำหรับเลเวลถัดไป
+        next_level_exp = 0
+        if user_level < 4:
+            next_level_exp = LEVELS[user_level + 1]["exp"]
+            exp_needed = next_level_exp - user_exp
+        else:
+            exp_needed = 0
+        
+        embed = discord.Embed(
+            title=f"📊 ระดับของคุณ {interaction.user.display_name}",
+            color=0x00FF99
+        )
+        embed.add_field(name="🎯 ระดับปัจจุบัน", value=f"**Level {user_level}**", inline=True)
+        embed.add_field(name="⭐ EXP สะสม", value=f"**{user_exp:,} EXP**", inline=True)
+        
+        if user_level < 4:
+            embed.add_field(
+                name="📈 สู่ระดับถัดไป", 
+                value=f"ต้องการอีก **{exp_needed:,} EXP** เพื่อเลเวล {user_level + 1}", 
+                inline=False
+            )
+        else:
+            embed.add_field(
+                name="🏆 สูงสุดแล้ว!", 
+                value="คุณถึงระดับสูงสุดแล้ว! 🎉", 
+                inline=False
+            )
+        
+        # แสดงความคืบหน้า
+        if user_level < 4:
+            current_level_exp = LEVELS[user_level]["exp"] if user_level > 0 else 0
+            progress = user_exp - current_level_exp
+            total_for_level = next_level_exp - current_level_exp
+            percentage = (progress / total_for_level) * 100 if total_for_level > 0 else 0
+            
+            progress_bar = "🟢" * int(percentage / 20) + "⚫" * (5 - int(percentage / 20))
+            embed.add_field(
+                name="📊 ความคืบหน้า",
+                value=f"{progress_bar} {percentage:.1f}%",
+                inline=False
+            )
+        
+        embed.set_footer(text="ได้รับ EXP จากการซื้อสินค้าในร้าน")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        
+    except Exception as e:
+        print(f"❌ เกิดข้อผิดพลาดในการเช็คเลเวล: {e}")
+        await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการเช็คเลเวล", ephemeral=True)
 
 # --------------------------------------------------------------------------------------------------
 # ระบบติดตามกิจกรรมในตั๋ว
@@ -1000,8 +1174,7 @@ async def help_command(ctx):
                    "`!odg <จำนวน>` - สั่งซื้อ Group\n"
                    "`!odl <ชื่อไอเทม> <จำนวน>` - สั่งซื้อ Limited\n"
                    "`!love` - แสดงความรักจากเซิร์ฟ\n"
-                   "`!hello` - ทักทายบอท\n"
-                   "`!<คำอื่นๆ>` - คำสั่งสนุกๆ",
+                   "`!level` - เช็คเลเวลและ EXP ของคุณ",
         color=0x00FF99
     )
     await ctx.send(embed=help_embed, delete_after=30)
@@ -1312,6 +1485,23 @@ async def od(ctx, *, expression: str):
         price = robux / gamepass_rate
         price_str = f"{price:,.0f} บาท"
 
+        # เพิ่ม EXP ให้ผู้ซื้อ (500 R = 500 EXP)
+        exp_to_add = robux  # 1 R = 1 EXP
+        user_id = ctx.author.id
+        
+        # หาผู้ซื้อจากข้อความก่อนหน้า (สมมติว่าผู้ซื้อคือคนที่ส่งข้อความล่าสุดก่อนคำสั่ง !od)
+        buyer = None
+        async for msg in ctx.channel.history(limit=10):
+            if msg.author != ctx.author and not msg.author.bot:
+                buyer = msg.author
+                break
+        
+        if buyer:
+            new_level, total_exp = await add_exp(buyer.id, exp_to_add, ctx.guild)
+            print(f"✅ เพิ่ม {exp_to_add} EXP ให้ {buyer.display_name} (เลเวล {new_level}, รวม {total_exp} EXP)")
+        else:
+            print("⚠️ ไม่พบผู้ซื้อในการเพิ่ม EXP")
+
         # ลด stock ตามจำนวนที่สั่ง (ไม่ใช่ลดทีละ 1)
         gamepass_stock -= robux
         if gamepass_stock < 0:
@@ -1326,6 +1516,11 @@ async def od(ctx, *, expression: str):
         embed.add_field(name="💸 จำนวนโรบัค", value=f"{robux:,}", inline=True)
         embed.add_field(name="💰 ราคาตามเรท", value=price_str, inline=True)
         embed.add_field(name="🚚 ผู้ส่งสินค้า", value=ctx.author.mention, inline=False)
+        
+        if buyer:
+            embed.add_field(name="😊 ผู้ซื้อ", value=buyer.mention, inline=False)
+            embed.add_field(name="⭐ ได้รับ EXP", value=f"{exp_to_add:,} EXP", inline=True)
+        
         embed.set_footer(text="การสั่งซื้อสำเร็จ")
 
         await ctx.send(embed=embed)
@@ -1359,6 +1554,23 @@ async def odg(ctx, *, expression: str):
         price = robux / rate
         price_str = f"{price:,.0f} บาท"
 
+        # เพิ่ม EXP ให้ผู้ซื้อ (500 R = 500 EXP)
+        exp_to_add = robux  # 1 R = 1 EXP
+        user_id = ctx.author.id
+        
+        # หาผู้ซื้อจากข้อความก่อนหน้า
+        buyer = None
+        async for msg in ctx.channel.history(limit=10):
+            if msg.author != ctx.author and not msg.author.bot:
+                buyer = msg.author
+                break
+        
+        if buyer:
+            new_level, total_exp = await add_exp(buyer.id, exp_to_add, ctx.guild)
+            print(f"✅ เพิ่ม {exp_to_add} EXP ให้ {buyer.display_name} (เลเวล {new_level}, รวม {total_exp} EXP)")
+        else:
+            print("⚠️ ไม่พบผู้ซื้อในการเพิ่ม EXP")
+
         # ลด stock ตามจำนวนที่สั่ง (ไม่ใช่ลดทีละ 1)
         group_stock -= robux
         if group_stock < 0:
@@ -1374,6 +1586,11 @@ async def odg(ctx, *, expression: str):
         embed.add_field(name="💰 ราคาตามเรท", value=price_str, inline=True)
         embed.add_field(name="📊 เรท", value=f"{rate}", inline=True)
         embed.add_field(name="🚚 ผู้ส่งสินค้า", value=ctx.author.mention, inline=False)
+        
+        if buyer:
+            embed.add_field(name="😊 ผู้ซื้อ", value=buyer.mention, inline=False)
+            embed.add_field(name="⭐ ได้รับ EXP", value=f"{exp_to_add:,} EXP", inline=True)
+        
         embed.set_footer(text="การสั่งซื้อสำเร็จ • Robux Group")
 
         await ctx.send(embed=embed)
@@ -1424,6 +1641,78 @@ async def odl(ctx, item_name: str, value: str):
 
     except Exception as e:
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
+
+# --------------------------------------------------------------------------------------------------
+# คำสั่ง !level - เช็คเลเวลและ EXP
+@bot.command()
+async def level(ctx, member: discord.Member = None):
+    """เช็คเลเวลและ EXP ของผู้ใช้"""
+    if member is None:
+        member = ctx.author
+    
+    await check_user_level_as_command(ctx, member)
+
+async def check_user_level_as_command(ctx, member):
+    """แสดงเลเวลและ EXP ของผู้ใช้ (สำหรับคำสั่ง)"""
+    try:
+        user_id = str(member.id)
+        
+        if user_id not in user_data:
+            # ถ้ายังไม่มีข้อมูล ให้สร้างข้อมูลใหม่
+            user_data[user_id] = {"exp": 0, "level": 0}
+            save_user_data()
+        
+        user_exp = user_data[user_id]["exp"]
+        user_level = user_data[user_id]["level"]
+        
+        # คำนวณ EXP ที่ต้องการสำหรับเลเวลถัดไป
+        next_level_exp = 0
+        if user_level < 4:
+            next_level_exp = LEVELS[user_level + 1]["exp"]
+            exp_needed = next_level_exp - user_exp
+        else:
+            exp_needed = 0
+        
+        embed = discord.Embed(
+            title=f"📊 ระดับของคุณ {member.display_name}",
+            color=0x00FF99
+        )
+        embed.add_field(name="🎯 ระดับปัจจุบัน", value=f"**Level {user_level}**", inline=True)
+        embed.add_field(name="⭐ EXP สะสม", value=f"**{user_exp:,} EXP**", inline=True)
+        
+        if user_level < 4:
+            embed.add_field(
+                name="📈 สู่ระดับถัดไป", 
+                value=f"ต้องการอีก **{exp_needed:,} EXP** เพื่อเลเวล {user_level + 1}", 
+                inline=False
+            )
+        else:
+            embed.add_field(
+                name="🏆 สูงสุดแล้ว!", 
+                value="คุณถึงระดับสูงสุดแล้ว! 🎉", 
+                inline=False
+            )
+        
+        # แสดงความคืบหน้า
+        if user_level < 4:
+            current_level_exp = LEVELS[user_level]["exp"] if user_level > 0 else 0
+            progress = user_exp - current_level_exp
+            total_for_level = next_level_exp - current_level_exp
+            percentage = (progress / total_for_level) * 100 if total_for_level > 0 else 0
+            
+            progress_bar = "🟢" * int(percentage / 20) + "⚫" * (5 - int(percentage / 20))
+            embed.add_field(
+                name="📊 ความคืบหน้า",
+                value=f"{progress_bar} {percentage:.1f}%",
+                inline=False
+            )
+        
+        embed.set_footer(text="ได้รับ EXP จากการซื้อสินค้าในร้าน")
+        await ctx.send(embed=embed)
+        
+    except Exception as e:
+        print(f"❌ เกิดข้อผิดพลาดในการเช็คเลเวล: {e}")
+        await ctx.send("❌ เกิดข้อผิดพลาดในการเช็คเลเวล")
 
 # --------------------------------------------------------------------------------------------------
 # คำสั่ง !qr - แสดง QR Code และเลขบัญชีแบบมีปุ่มคัดลอก
@@ -1545,41 +1834,7 @@ async def love(ctx):
     await ctx.send("# LOVE <:sushiheart:1410484970291466300>")
 
 # --------------------------------------------------------------------------------------------------
-# คำสั่ง !hello - ทักทายบอท
-@bot.command()
-async def hello(ctx):
-    """ทักทายบอท"""
-    await ctx.send("# HELLO <:sushiheart:1410484970291466300>")
-
-# --------------------------------------------------------------------------------------------------
-# คำสั่งสนุกๆ - ตอบกลับตามคำที่พิมพ์
-@bot.command()
-async def wow(ctx):
-    """แสดงความว้าว"""
-    await ctx.send("# WOW <:sushiheart:1410484970291466300>")
-
-@bot.command()
-async def cool(ctx):
-    """แสดงความคูล"""
-    await ctx.send("# COOL <:sushiheart:1410484970291466300>")
-
-@bot.command()
-async def nice(ctx):
-    """แสดงความน่ารัก"""
-    await ctx.send("# NICE <:sushiheart:1410484970291466300>")
-
-@bot.command()
-async def amazing(ctx):
-    """แสดงความอเมซิ่ง"""
-    await ctx.send("# AMAZING <:sushiheart:1410484970291466300>")
-
-@bot.command()
-async def awesome(ctx):
-    """แสดงความออสซัม"""
-    await ctx.send("# AWESOME <:sushiheart:1410484970291466300>")
-
-# --------------------------------------------------------------------------------------------------
-# คำสั่งทั่วไปสำหรับคำอื่นๆ
+# คำสั่ง !say - พูดตามคำที่พิมพ์ (รวมคำสั่ง hello, wow, cool)
 @bot.command()
 async def say(ctx, *, message: str):
     """พูดตามคำที่พิมพ์"""
