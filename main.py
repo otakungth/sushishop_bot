@@ -458,11 +458,10 @@ class TicketActionView(View):
             # สร้างข้อความเลขบัญชีที่สามารถกดค้างคัดลอกได้ (แยกช่อง)
             bank_accounts = (
                 "**🏦 ช่องทางการโอนเงิน**\n\n"
-                "**:green_circle: ธนาคารกสิกร:**\n"
-                "```160-1-43871-9```\n"
-                "**:orange_circle: ทรูมันนี่วอเล็ต:**\n"
-                "```065-506-0702```\n"
-                "**:notepad_spiral:ชื่อ: อริสรา ศรีจิตต์แจ่ม**\n"
+                "**บัญชี 1:**\n"
+                "```12345```\n"
+                "**บัญชี 2:**\n"
+                "```33333```\n"
                 "*กดค้างที่เลขบัญชีเพื่อคัดลอก*"
             )
             
@@ -527,6 +526,20 @@ class GiveCreditView(discord.ui.View):
                 emoji="⭐"
             )
         )
+
+# --------------------------------------------------------------------------------------------------
+# View สำหรับ QR Code ที่มีปุ่มคัดลอก
+class QRView(View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        
+    @discord.ui.button(label="คัดลอกเลขบัญชีกสิกร", style=discord.ButtonStyle.primary, emoji="📋")
+    async def copy_kbank(self, interaction: discord.Interaction, button: Button):
+        await interaction.response.send_message("```160-1-43871-9```\n*กดค้างเพื่อคัดลอกเลขบัญชีกสิกร*", ephemeral=True)
+        
+    @discord.ui.button(label="คัดลอกเลขทรูมันนี่", style=discord.ButtonStyle.primary, emoji="📋")
+    async def copy_truemoney(self, interaction: discord.Interaction, button: Button):
+        await interaction.response.send_message("```065-506-0702```\n*กดค้างเพื่อคัดลอกเลขทรูมันนี่*", ephemeral=True)
 
 # --------------------------------------------------------------------------------------------------
 # Main Shop View
@@ -920,7 +933,8 @@ async def on_ready():
     
     # ลงทะเบียน Persistent View
     bot.add_view(MainShopView())
-    print("✅ ลงทะเบียน MainShopView เรียบร้อย")
+    bot.add_view(QRView())
+    print("✅ ลงทะเบียน Views เรียบร้อย")
     
     # เปลี่ยนชื่อช่องหลักตามสถานะร้าน
     await update_channel_name()
@@ -984,6 +998,7 @@ async def help_command(ctx):
                    "`!restart` - รีสตาร์ทระบบปุ่ม\n"
                    "`!od <จำนวน>` - สั่งซื้อ Gamepass\n"
                    "`!odg <จำนวน>` - สั่งซื้อ Group\n"
+                   "`!odl <ชื่อไอเทม> <จำนวน>` - สั่งซื้อ Limited\n"
                    "`!love` - แสดงความรักจากเซิร์ฟ\n"
                    "`!hello` - ทักทายบอท\n"
                    "`!<คำอื่นๆ>` - คำสั่งสนุกๆ",
@@ -995,7 +1010,7 @@ async def help_command(ctx):
 # คำสั่งจัดการ Stock - แก้ไขให้เป็นแบบถาวรไม่ลบ
 @bot.command()
 @admin_only()
-async def stock(ctx, stock_type: str = None, amount: int = None):
+async def stock(ctx, stock_type: str = None, amount: str = None):
     """ตั้งค่าจำนวน stock (เฉพาะผู้ดูแล) - แสดงผลแบบถาวร"""
     global gamepass_stock, group_stock
     
@@ -1012,12 +1027,12 @@ async def stock(ctx, stock_type: str = None, amount: int = None):
         )
         embed.add_field(
             name="🎮 Gamepass Stock", 
-            value=f"**{gamepass_stock}**", 
+            value=f"**{gamepass_stock:,}**", 
             inline=True
         )
         embed.add_field(
             name="👥 Group Stock", 
-            value=f"**{group_stock}**", 
+            value=f"**{group_stock:,}**", 
             inline=True
         )
         await ctx.send(embed=embed)
@@ -1025,45 +1040,57 @@ async def stock(ctx, stock_type: str = None, amount: int = None):
         if amount is None:
             embed = discord.Embed(
                 title="🎮 Gamepass Stock",
-                description=f"**{gamepass_stock}**",
+                description=f"**{gamepass_stock:,}**",
                 color=0x00FF99
             )
             await ctx.send(embed=embed)
         else:
-            if amount < 0:
-                await ctx.send("❌ จำนวน stock ต้องมากกว่าหรือเท่ากับ 0", delete_after=5)
-                return
-            
-            gamepass_stock = amount
-            embed = discord.Embed(
-                title="✅ ตั้งค่า Stock เรียบร้อย",
-                description=f"ตั้งค่า สต๊อกเกมพาส เป็น **{gamepass_stock}** เรียบร้อยแล้ว",
-                color=0x00FF00
-            )
-            await ctx.send(embed=embed)
-            await update_main_channel()
+            # ลบ comma ออกก่อนแปลงเป็นตัวเลข
+            amount_clean = amount.replace(",", "")
+            try:
+                amount_int = int(amount_clean)
+                if amount_int < 0:
+                    await ctx.send("❌ จำนวน stock ต้องมากกว่าหรือเท่ากับ 0", delete_after=5)
+                    return
+                
+                gamepass_stock = amount_int
+                embed = discord.Embed(
+                    title="✅ ตั้งค่า Stock เรียบร้อย",
+                    description=f"ตั้งค่า สต๊อกเกมพาส เป็น **{gamepass_stock:,}** เรียบร้อยแล้ว",
+                    color=0x00FF00
+                )
+                await ctx.send(embed=embed)
+                await update_main_channel()
+            except ValueError:
+                await ctx.send("❌ กรุณากรอกจำนวน stock เป็นตัวเลขที่ถูกต้อง", delete_after=5)
     
     elif stock_type.lower() in ["g", "group", "กรุ๊ป"]:
         if amount is None:
             embed = discord.Embed(
                 title="👥 Group Stock",
-                description=f"**{group_stock}**",
+                description=f"**{group_stock:,}**",
                 color=0x00FF99
             )
             await ctx.send(embed=embed)
         else:
-            if amount < 0:
-                await ctx.send("❌ จำนวน stock ต้องมากกว่าหรือเท่ากับ 0", delete_after=5)
-                return
-            
-            group_stock = amount
-            embed = discord.Embed(
-                title="✅ ตั้งค่า Stock เรียบร้อย",
-                description=f"ตั้งค่า สต๊อกโรบัคกลุ่ม เป็น **{group_stock}** เรียบร้อยแล้ว",
-                color=0x00FF00
-            )
-            await ctx.send(embed=embed)
-            await update_main_channel()
+            # ลบ comma ออกก่อนแปลงเป็นตัวเลข
+            amount_clean = amount.replace(",", "")
+            try:
+                amount_int = int(amount_clean)
+                if amount_int < 0:
+                    await ctx.send("❌ จำนวน stock ต้องมากกว่าหรือเท่ากับ 0", delete_after=5)
+                    return
+                
+                group_stock = amount_int
+                embed = discord.Embed(
+                    title="✅ ตั้งค่า Stock เรียบร้อย",
+                    description=f"ตั้งค่า สต๊อกโรบัคกลุ่ม เป็น **{group_stock:,}** เรียบร้อยแล้ว",
+                    color=0x00FF00
+                )
+                await ctx.send(embed=embed)
+                await update_main_channel()
+            except ValueError:
+                await ctx.send("❌ กรุณากรอกจำนวน stock เป็นตัวเลขที่ถูกต้อง", delete_after=5)
     
     else:
         embed = discord.Embed(
@@ -1267,7 +1294,7 @@ async def tax(ctx, *, expression: str):
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
 
 # --------------------------------------------------------------------------------------------------
-# คำสั่งสั่งซื้อและบันทึกการขาย (!od, !odg) - สำหรับแอดมินเท่านั้น
+# คำสั่งสั่งซื้อและบันทึกการขาย (!od, !odg, !odl) - สำหรับแอดมินเท่านั้น
 @bot.command()
 @admin_only()
 async def od(ctx, *, expression: str):
@@ -1362,26 +1389,63 @@ async def odg(ctx, *, expression: str):
     except Exception as e:
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
 
+@bot.command()
+@admin_only()
+async def odl(ctx, item_name: str, value: str):
+    """คำสั่งสั่งซื้อ Limited"""
+    try:
+        # ลบ comma ออกก่อนแปลงเป็นตัวเลข
+        value_clean = value.replace(",", "")
+        
+        # ตรวจสอบว่าเป็นตัวเลขหรือไม่
+        if not re.match(r"^\d+$", value_clean):
+            await ctx.send("❌ กรุณากรอก Value เป็นตัวเลขที่ถูกต้อง", delete_after=10)
+            return
+
+        item_value = int(value_clean)
+
+        embed = discord.Embed(
+            title="🍣 ใบเสร็จคำสั่งซื้อ Limited 🍣",
+            color=0xFF69B4,  # สีชมพูสำหรับ Limited
+            timestamp=discord.utils.utcnow()
+        )
+        embed.add_field(name="📦 ประเภทสินค้า", value="Limited", inline=False)
+        embed.add_field(name="🎁 ชื่อไอเทม", value=item_name, inline=True)
+        embed.add_field(name="💎 Value", value=f"{item_value:,}", inline=True)
+        embed.add_field(name="🚚 ผู้ส่งสินค้า", value=ctx.author.mention, inline=False)
+        embed.set_footer(text="การสั่งซื้อสำเร็จ • Limited")
+
+        await ctx.send(embed=embed)
+
+        # ส่งไปยังห้องบันทึกการขาย
+        sales_channel = bot.get_channel(SALES_LOG_CHANNEL_ID)
+        if sales_channel:
+            await sales_channel.send(embed=embed)
+
+    except Exception as e:
+        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
+
 # --------------------------------------------------------------------------------------------------
-# คำสั่ง !qr - แสดง QR Code และเลขบัญชีแบบที่คัดลอกได้ง่าย
+# คำสั่ง !qr - แสดง QR Code และเลขบัญชีแบบมีปุ่มคัดลอก
 @bot.command()
 @admin_only()
 async def qr(ctx):
-    """แสดง QR Code และเลขบัญชีช่องทางการโอนเงินแบบที่คัดลอกได้ง่าย"""
+    """แสดง QR Code และเลขบัญชีช่องทางการโอนเงินแบบมีปุ่มคัดลอก"""
     try:
         await ctx.message.delete()
     except:
         pass
     
-    # สร้างข้อความเลขบัญชีที่สามารถกดค้างคัดลอกได้ง่าย
+    # สร้างข้อความเลขบัญชี
     bank_accounts = (
         "**🏦 ช่องทางการโอนเงิน**\n\n"
         "**:green_circle: ธนาคารกสิกร:**\n"
-        "```\n160-1-43871-9\n```\n"
+        "ชื่อ: อริสรา ศรีจิตต์แจ่ม\n"
+        "```160-1-43871-9```\n\n"
         "**:orange_circle: ทรูมันนี่วอเล็ต:**\n"
-        "```\n065-506-0702\n```\n"
-        "**ชื่อ: อริสรา ศรีจิตต์แจ่ม**\n\n"
-        "*กดค้างที่เลขบัญชีเพื่อคัดลอก*"
+        "ชื่อ: อริสรา ศรีจิตต์แจ่ม\n"
+        "```065-506-0702```\n\n"
+        "*กดปุ่มด้านล่างเพื่อคัดลอกเลขบัญชี*"
     )
     
     embed = discord.Embed(
@@ -1390,7 +1454,9 @@ async def qr(ctx):
         color=0x00CCFF
     )
     embed.set_image(url="https://media.discordapp.net/attachments/722832040860319835/1402994996600111114/186-8-06559-8.png")
-    await ctx.send(embed=embed)
+    
+    # ส่ง embed พร้อมปุ่มคัดลอก
+    await ctx.send(embed=embed, view=QRView())
 
 # --------------------------------------------------------------------------------------------------
 # คำสั่ง !ty - ส่งของเรียบร้อยแล้ว (พร้อมระบบลบอัตโนมัติ)
