@@ -655,9 +655,9 @@ async def on_command_completion(ctx):
 
 async def start_auto_close_countdown(channel):
     """เริ่มนับถอยหลังปิดตั๋วอัตโนมัติหลังจากใช้ !ty"""
-    print(f"🕐 เริ่มนับถอยหลังปิดตั๋วอัตโนมัติสำหรับ {channel.name} ใน 1 ชั่วโมง")
+    print(f"🕐 เริ่มนับถอยหลังปิดตั๋วอัตโนมัติสำหรับ {channel.name} ใน 10 นาที")
     
-    await asyncio.sleep(3600)  # 1 ชั่วโมง
+    await asyncio.sleep(600)  # 10 นาที
     
     # ตรวจสอบว่าตั๋วยังมีอยู่และยังไม่มีการใช้งานเพิ่มเติม
     if (channel.id in ticket_activity and 
@@ -666,8 +666,8 @@ async def start_auto_close_countdown(channel):
         last_activity = ticket_activity[channel.id]['last_activity']
         time_since_activity = datetime.datetime.now() - last_activity
         
-        # ถ้าไม่มีกิจกรรมใน 1 ชั่วโมงหลังจาก !ty ให้ปิดตั๋ว
-        if time_since_activity.total_seconds() >= 3600:
+        # ถ้าไม่มีกิจกรรมใน 10 นาทีหลังจาก !ty ให้ปิดตั๋ว
+        if time_since_activity.total_seconds() >= 600:
             print(f"⏰ ถึงเวลาปิดตั๋วอัตโนมัติ: {channel.name}")
             await close_ticket_automatically(channel)
         else:
@@ -696,7 +696,7 @@ async def close_ticket_automatically(channel):
         # ส่งข้อความแจ้งก่อนปิด
         embed = discord.Embed(
             title="⏰ ปิดตั๋วอัตโนมัติ",
-            description="ตั๋วถูกปิดอัตโนมัติเนื่องจากไม่มีกิจกรรมใน 1 ชั่วโมงหลังจากส่งสินค้าเรียบร้อย",
+            description="ตั๋วถูกปิดอัตโนมัติเนื่องจากไม่มีกิจกรรมใน 10 นาทีหลังจากส่งสินค้าเรียบร้อย",
             color=0xFFA500
         )
         await channel.send(embed=embed)
@@ -738,8 +738,8 @@ async def check_stale_tickets():
                 last_activity = activity_data['last_activity']
                 time_since_activity = current_time - last_activity
                 
-                # ถ้าไม่มีกิจกรรมใน 1 ชั่วโมงหลังจาก !ty
-                if time_since_activity.total_seconds() >= 3600:
+                # ถ้าไม่มีกิจกรรมใน 10 นาทีหลังจาก !ty
+                if time_since_activity.total_seconds() >= 600:
                     channel = bot.get_channel(channel_id)
                     if channel:
                         print(f"🔍 พบตั๋วค้าง: {channel.name} (ผ่านไป {time_since_activity.total_seconds()/60:.1f} นาที)")
@@ -908,7 +908,8 @@ async def help_command(ctx):
                    "`!setup` - ตั้งค่าระบบใหม่\n"
                    "`!restart` - รีสตาร์ทระบบปุ่ม\n"
                    "`!od <จำนวน>` - สั่งซื้อ Gamepass\n"
-                   "`!odg <จำนวน>` - สั่งซื้อ Group",
+                   "`!odg <จำนวน>` - สั่งซื้อ Group\n"
+                   "`!loveyou` - แสดงความรักจากเซิร์ฟ",
         color=0x00FF99
     )
     await ctx.send(embed=help_embed, delete_after=30)
@@ -1032,199 +1033,10 @@ async def group(ctx, status: str = None):
     await update_main_channel()
 
 # --------------------------------------------------------------------------------------------------
-# คำสั่งคำนวณราคา (สำหรับทุกคน)
+# คำสั่งคำนวณราคา (สำหรับทุกคน) - แก้ไขให้เป็นแบบถาวร
 @bot.command()
 async def gp(ctx, *, expression: str):
-    """คำนวณราคาจากจำนวน Robux (Gamepass) - ลบอัตโนมัติใน 1 นาที"""
-    try:
-        # ตรวจสอบว่าเป็นโหมดถาวรหรือไม่
-        if expression.lower().startswith('p '):
-            # โหมดถาวร - ไม่ลบ
-            actual_expression = expression[2:].strip()
-            permanent = True
-        else:
-            actual_expression = expression
-            permanent = False
-
-        actual_expression = actual_expression.replace(",", "").lower().replace("x", "*").replace("÷", "/")
-
-        if not re.match(r"^[\d\s\+\-\*\/\(\)]+$", actual_expression):
-            await ctx.send("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", delete_after=10)
-            return
-
-        robux = eval(actual_expression)
-        price = robux / gamepass_rate
-        price_str = f"{price:,.0f} บาท"
-
-        message = await ctx.send(f"🎮 Gamepass {robux:,} Robux = **{price_str}** (เรท {gamepass_rate})")
-
-        # ถ้าไม่ใช่โหมดถาวร ให้ลบอัตโนมัติใน 1 นาที
-        if not permanent:
-            await auto_delete_messages(ctx, message, 60)
-
-    except Exception as e:
-        error_msg = await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
-        if not permanent:
-            await auto_delete_messages(ctx, error_msg, 60)
-
-@bot.command()
-async def g(ctx, *, expression: str):
-    """คำนวณราคาจากจำนวน Robux (Group) - ลบอัตโนมัติใน 1 นาที"""
-    try:
-        # ตรวจสอบว่าเป็นโหมดถาวรหรือไม่
-        if expression.lower().startswith('p '):
-            actual_expression = expression[2:].strip()
-            permanent = True
-        else:
-            actual_expression = expression
-            permanent = False
-
-        actual_expression = actual_expression.replace(",", "").lower().replace("x", "*").replace("÷", "/")
-
-        if not re.match(r"^[\d\s\+\-\*\/\(\)]+$", actual_expression):
-            await ctx.send("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", delete_after=10)
-            return
-
-        robux = eval(actual_expression)
-
-        if robux < 1500:
-            rate = group_rate_low
-        else:
-            rate = group_rate_high
-
-        price = robux / rate
-        price_str = f"{price:,.0f} บาท"
-
-        message = await ctx.send(f"👥 Group {robux:,} Robux = **{price_str}** (เรท {rate})")
-
-        # ถ้าไม่ใช่โหมดถาวร ให้ลบอัตโนมัติใน 1 นาที
-        if not permanent:
-            await auto_delete_messages(ctx, message, 60)
-
-    except Exception as e:
-        error_msg = await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
-        if not permanent:
-            await auto_delete_messages(ctx, error_msg, 60)
-
-@bot.command()
-async def gpb(ctx, *, expression: str):
-    """คำนวณจากจำนวนเงิน เป็น Robux (Gamepass) - ลบอัตโนมัติใน 1 นาที"""
-    try:
-        # ตรวจสอบว่าเป็นโหมดถาวรหรือไม่
-        if expression.lower().startswith('p '):
-            actual_expression = expression[2:].strip()
-            permanent = True
-        else:
-            actual_expression = expression
-            permanent = False
-
-        actual_expression = actual_expression.replace(",", "").replace(" ", "")
-        baht = eval(actual_expression)
-
-        robux = baht * gamepass_rate
-        message = await ctx.send(f"🎮 {baht:,.0f} บาท = **{robux:,.0f} Robux** (Gamepass เรท {gamepass_rate})")
-
-        # ถ้าไม่ใช่โหมดถาวร ให้ลบอัตโนมัติใน 1 นาที
-        if not permanent:
-            await auto_delete_messages(ctx, message, 60)
-
-    except Exception as e:
-        error_msg = await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
-        if not permanent:
-            await auto_delete_messages(ctx, error_msg, 60)
-
-@bot.command()
-async def gb(ctx, *, expression: str):
-    """คำนวณจากจำนวนเงิน เป็น Robux (Group) - ลบอัตโนมัติใน 1 นาที"""
-    try:
-        # ตรวจสอบว่าเป็นโหมดถาวรหรือไม่
-        if expression.lower().startswith('p '):
-            actual_expression = expression[2:].strip()
-            permanent = True
-        else:
-            actual_expression = expression
-            permanent = False
-
-        actual_expression = actual_expression.replace(",", "").replace(" ", "")
-        baht = eval(actual_expression)
-
-        if baht < 500:
-            rate = group_rate_low
-        else:
-            rate = group_rate_high
-
-        robux = baht * rate
-        message = await ctx.send(f"👥 {baht:,.0f} บาท = **{robux:,.0f} Robux** (Group เรท {rate})")
-
-        # ถ้าไม่ใช่โหมดถาวร ให้ลบอัตโนมัติใน 1 นาที
-        if not permanent:
-            await auto_delete_messages(ctx, message, 60)
-
-    except Exception as e:
-        error_msg = await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
-        if not permanent:
-            await auto_delete_messages(ctx, error_msg, 60)
-
-# --------------------------------------------------------------------------------------------------
-# คำสั่ง !tax (คำนวณหัก Tax) - ลบอัตโนมัติใน 1 นาที
-@bot.command()
-async def tax(ctx, *, expression: str):
-    """คำนวณ Robux หลังหัก % (ภาษีหรือส่วนลด) - ลบอัตโนมัติใน 1 นาที"""
-    try:
-        # ตรวจสอบว่าเป็นโหมดถาวรหรือไม่
-        if expression.lower().startswith('p '):
-            actual_expression = expression[2:].strip()
-            permanent = True
-        else:
-            actual_expression = expression
-            permanent = False
-
-        actual_expression = actual_expression.replace(" ", "")
-        
-        if re.match(r"^\d+$", actual_expression):
-            number = int(actual_expression)
-            result = number * 0.7
-            message = await ctx.send(f"💰 {number:,} Robux หลังหัก 30% = **{result:,.0f} Robux**")
-            
-        elif re.match(r"^\d+-\d+%$", actual_expression):
-            parts = actual_expression.split('-')
-            number = int(parts[0])
-            percent = int(parts[1].replace('%', ''))
-            
-            if percent < 0 or percent > 100:
-                message = await ctx.send("❌ เปอร์เซ็นต์ต้องอยู่ระหว่าง 0-100%", delete_after=10)
-                if not permanent:
-                    await auto_delete_messages(ctx, message, 60)
-                return
-            
-            result = number * (1 - percent/100)
-            message = await ctx.send(f"💰 {number:,} Robux หลังหัก {percent}% = **{result:,.0f} Robux**")
-            
-        else:
-            message = await ctx.send(
-                "❌ รูปแบบไม่ถูกต้อง\n\n"
-                "**การใช้งาน:**\n"
-                "`!tax 100` - หัก 30% อัตโนมัติ\n"
-                "`!tax 100-30%` - หัก 30%\n"
-                "`!tax 100-50%` - หัก 50%",
-                delete_after=15
-            )
-
-        # ถ้าไม่ใช่โหมดถาวร ให้ลบอัตโนมัติใน 1 นาที
-        if not permanent:
-            await auto_delete_messages(ctx, message, 60)
-
-    except Exception as e:
-        error_msg = await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
-        if not permanent:
-            await auto_delete_messages(ctx, error_msg, 60)
-
-# --------------------------------------------------------------------------------------------------
-# คำสั่งสั่งซื้อและบันทึกการขาย (!od, !odg) - สำหรับแอดมินเท่านั้น
-@bot.command()
-@admin_only()
-async def od(ctx, *, expression: str):
-    """คำสั่งสั่งซื้อ Robux Gamepass"""
+    """คำนวณราคาจากจำนวน Robux (Gamepass) - แบบถาวร"""
     try:
         expr = expression.replace(",", "").lower().replace("x", "*").replace("÷", "/")
 
@@ -1236,6 +1048,127 @@ async def od(ctx, *, expression: str):
         price = robux / gamepass_rate
         price_str = f"{price:,.0f} บาท"
 
+        await ctx.send(f"🎮 Gamepass {robux:,} Robux = **{price_str}** (เรท {gamepass_rate})")
+
+    except Exception as e:
+        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
+
+@bot.command()
+async def g(ctx, *, expression: str):
+    """คำนวณราคาจากจำนวน Robux (Group) - แบบถาวร"""
+    try:
+        expr = expression.replace(",", "").lower().replace("x", "*").replace("÷", "/")
+
+        if not re.match(r"^[\d\s\+\-\*\/\(\)]+$", expr):
+            await ctx.send("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", delete_after=10)
+            return
+
+        robux = int(eval(expr))
+
+        if robux < 1500:
+            rate = group_rate_low
+        else:
+            rate = group_rate_high
+
+        price = robux / rate
+        price_str = f"{price:,.0f} บาท"
+
+        await ctx.send(f"👥 Group {robux:,} Robux = **{price_str}** (เรท {rate})")
+
+    except Exception as e:
+        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
+
+@bot.command()
+async def gpb(ctx, *, expression: str):
+    """คำนวณจากจำนวนเงิน เป็น Robux (Gamepass) - แบบถาวร"""
+    try:
+        expr = expression.replace(",", "").replace(" ", "")
+        baht = eval(expr)
+
+        robux = baht * gamepass_rate
+        await ctx.send(f"🎮 {baht:,.0f} บาท = **{robux:,.0f} Robux** (Gamepass เรท {gamepass_rate})")
+
+    except Exception as e:
+        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
+
+@bot.command()
+async def gb(ctx, *, expression: str):
+    """คำนวณจากจำนวนเงิน เป็น Robux (Group) - แบบถาวร"""
+    try:
+        expr = expression.replace(",", "").replace(" ", "")
+        baht = eval(expr)
+
+        if baht < 500:
+            rate = group_rate_low
+        else:
+            rate = group_rate_high
+
+        robux = baht * rate
+        await ctx.send(f"👥 {baht:,.0f} บาท = **{robux:,.0f} Robux** (Group เรท {rate})")
+
+    except Exception as e:
+        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
+
+# --------------------------------------------------------------------------------------------------
+# คำสั่ง !tax (คำนวณหัก Tax) - แบบถาวร
+@bot.command()
+async def tax(ctx, *, expression: str):
+    """คำนวณ Robux หลังหัก % (ภาษีหรือส่วนลด) - แบบถาวร"""
+    try:
+        expr = expression.replace(" ", "")
+        
+        if re.match(r"^\d+$", expr):
+            number = int(expr)
+            result = number * 0.7
+            await ctx.send(f"💰 {number:,} Robux หลังหัก 30% = **{result:,.0f} Robux**")
+            
+        elif re.match(r"^\d+-\d+%$", expr):
+            parts = expr.split('-')
+            number = int(parts[0])
+            percent = int(parts[1].replace('%', ''))
+            
+            if percent < 0 or percent > 100:
+                await ctx.send("❌ เปอร์เซ็นต์ต้องอยู่ระหว่าง 0-100%", delete_after=10)
+                return
+            
+            result = number * (1 - percent/100)
+            await ctx.send(f"💰 {number:,} Robux หลังหัก {percent}% = **{result:,.0f} Robux**")
+            
+        else:
+            await ctx.send(
+                "❌ รูปแบบไม่ถูกต้อง\n\n"
+                "**การใช้งาน:**\n"
+                "`!tax 100` - หัก 30% อัตโนมัติ\n"
+                "`!tax 100-30%` - หัก 30%\n"
+                "`!tax 100-50%` - หัก 50%",
+                delete_after=15
+            )
+
+    except Exception as e:
+        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
+
+# --------------------------------------------------------------------------------------------------
+# คำสั่งสั่งซื้อและบันทึกการขาย (!od, !odg) - สำหรับแอดมินเท่านั้น
+@bot.command()
+@admin_only()
+async def od(ctx, *, expression: str):
+    """คำสั่งสั่งซื้อ Robux Gamepass"""
+    global gamepass_stock
+    
+    try:
+        expr = expression.replace(",", "").lower().replace("x", "*").replace("÷", "/")
+
+        if not re.match(r"^[\d\s\+\-\*\/\(\)]+$", expr):
+            await ctx.send("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", delete_after=10)
+            return
+
+        robux = int(eval(expr))
+        price = robux / gamepass_rate
+        price_str = f"{price:,.0f} บาท"
+
+        # ลด stock
+        gamepass_stock -= 1
+
         embed = discord.Embed(
             title="🍣 ใบเสร็จคำสั่งซื้อ Gamepass 🍣",
             color=0x00FF99,
@@ -1244,6 +1177,7 @@ async def od(ctx, *, expression: str):
         embed.add_field(name="📦 ประเภทสินค้า", value="Robux Gamepass", inline=False)
         embed.add_field(name="💸 จำนวนโรบัค", value=f"{robux:,}", inline=True)
         embed.add_field(name="💰 ราคาตามเรท", value=price_str, inline=True)
+        embed.add_field(name="📊 Stock เหลือ", value=f"{gamepass_stock}", inline=True)
         embed.add_field(name="🚚 ผู้ส่งสินค้า", value=ctx.author.mention, inline=False)
         embed.set_footer(text="การสั่งซื้อสำเร็จ")
 
@@ -1254,6 +1188,9 @@ async def od(ctx, *, expression: str):
         if sales_channel:
             await sales_channel.send(embed=embed)
 
+        # อัพเดทช่องหลัก
+        await update_main_channel()
+
     except Exception as e:
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
 
@@ -1261,6 +1198,8 @@ async def od(ctx, *, expression: str):
 @admin_only()
 async def odg(ctx, *, expression: str):
     """คำสั่งสั่งซื้อ Robux Group"""
+    global group_stock
+    
     try:
         expr = expression.replace(",", "").lower().replace("x", "*").replace("÷", "/")
 
@@ -1273,6 +1212,9 @@ async def odg(ctx, *, expression: str):
         price = robux / rate
         price_str = f"{price:,.0f} บาท"
 
+        # ลด stock
+        group_stock -= 1
+
         embed = discord.Embed(
             title="🍣 ใบเสร็จคำสั่งซื้อโรบัคกลุ่ม 🍣",
             color=0x00AAFF,
@@ -1282,6 +1224,7 @@ async def odg(ctx, *, expression: str):
         embed.add_field(name="💸 จำนวนโรบัค", value=f"{robux:,}", inline=True)
         embed.add_field(name="💰 ราคาตามเรท", value=price_str, inline=True)
         embed.add_field(name="📊 เรท", value=f"{rate}", inline=True)
+        embed.add_field(name="📊 Stock เหลือ", value=f"{group_stock}", inline=True)
         embed.add_field(name="🚚 ผู้ส่งสินค้า", value=ctx.author.mention, inline=False)
         embed.set_footer(text="การสั่งซื้อสำเร็จ • Robux Group")
 
@@ -1291,6 +1234,9 @@ async def odg(ctx, *, expression: str):
         sales_channel = bot.get_channel(SALES_LOG_CHANNEL_ID)
         if sales_channel:
             await sales_channel.send(embed=embed)
+
+        # อัพเดทช่องหลัก
+        await update_main_channel()
 
     except Exception as e:
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
@@ -1389,14 +1335,12 @@ async def ty(ctx):
         # สร้าง View แยกสำหรับปุ่มลิงก์ให้เครดิต
         credit_view = GiveCreditView()
         
-        # ส่งข้อความขอบคุณ
+        # ส่งข้อความขอบคุณ (แก้ไขตามที่ต้องการ)
         embed = discord.Embed(
             title="✅ สินค้าถูกส่งเรียบร้อยแล้ว",
             description=(
-                "ขอบคุณที่ใช้บริการกับเรา หากไม่มีปัญหาเพิ่มเติม "
-                "สามารถกดปุ่มด้านล่างเพื่อปิดตั๋วได้เลย\n\n"
-                "⏳ **หากไม่ได้กดปิดตั๋ว ตั๋วจะถูกปิดอัตโนมัติใน 1 ชั่วโมง**\n"
-                "🕐 นับจากนี้เป็นต้นไป หากไม่มีข้อความใหม่ในตั๋ว"
+                "ขอบคุณที่ใช้บริการกับเรา หากไม่มีปัญหาเพิ่มเติมสามารถกดปุ่มปิดตั๋วได้เลย\n\n"
+                "⏳ หากไม่ได้กดปิดตั๋วเอง ตั๋วจะถูกปิดอัตโนมัติใน 10 นาที"
             ),
             color=0x00FF00
         )
@@ -1418,6 +1362,13 @@ async def ty(ctx):
         
     else:
         await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
+
+# --------------------------------------------------------------------------------------------------
+# คำสั่ง !loveyou - แสดงความรักจากเซิร์ฟ
+@bot.command()
+async def loveyou(ctx):
+    """แสดงความรักจากเซิร์ฟ"""
+    await ctx.send("# LOVE YOU :sushiheart:")
 
 # --------------------------------------------------------------------------------------------------
 # คำสั่งอื่นๆ
@@ -1459,10 +1410,6 @@ try:
     bot.run(os.getenv("TOKEN"))
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
-
-
-
-
 
 
 
