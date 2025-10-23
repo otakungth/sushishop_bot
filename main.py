@@ -57,10 +57,10 @@ user_data = load_user_data()
 
 # ระดับและ EXP
 LEVELS = {
-    1: {"exp": 1, "role_id": 1361555369825927249},
-    2: {"exp": 10000, "role_id": 1361555364776247297},
-    3: {"exp": 100000, "role_id": 1361554929017294949},
-    4: {"exp": 1000000, "role_id": 1363882685260365894}
+    1: {"exp": 1, "role_id": 1361555369825927249, "role_name": "Level 1"},
+    2: {"exp": 10000, "role_id": 1361555364776247297, "role_name": "Level 2"},
+    3: {"exp": 100000, "role_id": 1361554929017294949, "role_name": "Level 3"},
+    4: {"exp": 1000000, "role_id": 1363882685260365894, "role_name": "Level 4"}
 }
 
 # สร้างบอท
@@ -126,6 +126,7 @@ async def update_user_roles(user_id, guild, old_level, new_level):
             new_role = guild.get_role(new_role_id)
             if new_role and new_role not in member.roles:
                 await member.add_roles(new_role)
+                print(f"✅ เพิ่มยศ {LEVELS[new_level]['role_name']} ให้ {member.display_name}")
                 
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดในการอัพเดทยศ: {e}")
@@ -644,11 +645,15 @@ async def check_user_level(interaction: discord.Interaction):
         
         # คำนวณ EXP ที่ต้องการสำหรับเลเวลถัดไป
         next_level_exp = 0
+        next_level_name = "ไม่มี"
         if user_level < 4:
-            next_level_exp = LEVELS[user_level + 1]["exp"]
+            next_level = user_level + 1
+            next_level_exp = LEVELS[next_level]["exp"]
+            next_level_name = LEVELS[next_level]["role_name"]
             exp_needed = next_level_exp - user_exp
         else:
             exp_needed = 0
+            next_level_name = "สูงสุดแล้ว"
         
         embed = discord.Embed(
             title=f"📊 ระดับของคุณ {interaction.user.display_name}",
@@ -660,7 +665,7 @@ async def check_user_level(interaction: discord.Interaction):
         if user_level < 4:
             embed.add_field(
                 name="📈 สู่ระดับถัดไป", 
-                value=f"ต้องการอีก **{exp_needed:,} EXP** เพื่อเลเวล {user_level + 1}", 
+                value=f"ต้องการอีก **{exp_needed:,} EXP** เพื่อยศ **{next_level_name}**", 
                 inline=False
             )
         else:
@@ -1465,6 +1470,11 @@ async def od(ctx, *, expression: str):
     global gamepass_stock
     
     try:
+        # ตรวจสอบว่าอยู่ในตั๋วหรือไม่
+        if not ctx.channel.name.startswith("ticket-"):
+            await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
+            return
+
         expr = expression.replace(",", "").lower().replace("x", "*").replace("÷", "/")
 
         if not re.match(r"^[\d\s\+\-\*\/\(\)]+$", expr):
@@ -1475,24 +1485,32 @@ async def od(ctx, *, expression: str):
         price = robux / gamepass_rate
         price_str = f"{price:,.0f} บาท"
 
-        # เพิ่ม EXP ให้ผู้ซื้อ (500 R = 500 EXP)
-        exp_to_add = robux  # 1 R = 1 EXP
-        user_id = ctx.author.id
-        
-        # หาผู้ซื้อจากข้อความก่อนหน้า (สมมติว่าผู้ซื้อคือคนที่ส่งข้อความล่าสุดก่อนคำสั่ง !od)
+        # หาผู้ซื้อจากชื่อตั๋ว
         buyer = None
-        async for msg in ctx.channel.history(limit=10):
-            if msg.author != ctx.author and not msg.author.bot:
-                buyer = msg.author
-                break
+        channel_name = ctx.channel.name
+        if channel_name.startswith("ticket-"):
+            # แยกชื่อผู้ใช้จากชื่อตั๋ว (รูปแบบ: ticket-username-userid)
+            parts = channel_name.split('-')
+            if len(parts) >= 3:
+                user_id = int(parts[-1])  # userid อยู่ตำแหน่งสุดท้าย
+                buyer = ctx.guild.get_member(user_id)
         
+        if not buyer:
+            # ถ้าไม่พบจากชื่อตั๋ว ให้หาจากข้อความในตั๋ว
+            async for msg in ctx.channel.history(limit=20):
+                if msg.author != ctx.author and not msg.author.bot and msg.author != ctx.guild.me:
+                    buyer = msg.author
+                    break
+
+        # เพิ่ม EXP ให้ผู้ซื้อ (1 R = 1 EXP)
+        exp_to_add = robux
         if buyer:
             new_level, total_exp = await add_exp(buyer.id, exp_to_add, ctx.guild)
             print(f"✅ เพิ่ม {exp_to_add} EXP ให้ {buyer.display_name} (เลเวล {new_level}, รวม {total_exp} EXP)")
         else:
             print("⚠️ ไม่พบผู้ซื้อในการเพิ่ม EXP")
 
-        # ลด stock ตามจำนวนที่สั่ง (ไม่ใช่ลดทีละ 1)
+        # ลด stock ตามจำนวนที่สั่ง
         gamepass_stock -= robux
         if gamepass_stock < 0:
             gamepass_stock = 0
@@ -1533,6 +1551,11 @@ async def odg(ctx, *, expression: str):
     global group_stock
     
     try:
+        # ตรวจสอบว่าอยู่ในตั๋วหรือไม่
+        if not ctx.channel.name.startswith("ticket-"):
+            await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
+            return
+
         expr = expression.replace(",", "").lower().replace("x", "*").replace("÷", "/")
 
         if not re.match(r"^[\d\s\+\-\*\/\(\)]+$", expr):
@@ -1544,24 +1567,32 @@ async def odg(ctx, *, expression: str):
         price = robux / rate
         price_str = f"{price:,.0f} บาท"
 
-        # เพิ่ม EXP ให้ผู้ซื้อ (500 R = 500 EXP)
-        exp_to_add = robux  # 1 R = 1 EXP
-        user_id = ctx.author.id
-        
-        # หาผู้ซื้อจากข้อความก่อนหน้า
+        # หาผู้ซื้อจากชื่อตั๋ว
         buyer = None
-        async for msg in ctx.channel.history(limit=10):
-            if msg.author != ctx.author and not msg.author.bot:
-                buyer = msg.author
-                break
+        channel_name = ctx.channel.name
+        if channel_name.startswith("ticket-"):
+            # แยกชื่อผู้ใช้จากชื่อตั๋ว (รูปแบบ: ticket-username-userid)
+            parts = channel_name.split('-')
+            if len(parts) >= 3:
+                user_id = int(parts[-1])  # userid อยู่ตำแหน่งสุดท้าย
+                buyer = ctx.guild.get_member(user_id)
         
+        if not buyer:
+            # ถ้าไม่พบจากชื่อตั๋ว ให้หาจากข้อความในตั๋ว
+            async for msg in ctx.channel.history(limit=20):
+                if msg.author != ctx.author and not msg.author.bot and msg.author != ctx.guild.me:
+                    buyer = msg.author
+                    break
+
+        # เพิ่ม EXP ให้ผู้ซื้อ (1 R = 1 EXP)
+        exp_to_add = robux
         if buyer:
             new_level, total_exp = await add_exp(buyer.id, exp_to_add, ctx.guild)
             print(f"✅ เพิ่ม {exp_to_add} EXP ให้ {buyer.display_name} (เลเวล {new_level}, รวม {total_exp} EXP)")
         else:
             print("⚠️ ไม่พบผู้ซื้อในการเพิ่ม EXP")
 
-        # ลด stock ตามจำนวนที่สั่ง (ไม่ใช่ลดทีละ 1)
+        # ลด stock ตามจำนวนที่สั่ง
         group_stock -= robux
         if group_stock < 0:
             group_stock = 0
@@ -1657,11 +1688,15 @@ async def check_user_level_as_command(ctx, member):
         
         # คำนวณ EXP ที่ต้องการสำหรับเลเวลถัดไป
         next_level_exp = 0
+        next_level_name = "ไม่มี"
         if user_level < 4:
-            next_level_exp = LEVELS[user_level + 1]["exp"]
+            next_level = user_level + 1
+            next_level_exp = LEVELS[next_level]["exp"]
+            next_level_name = LEVELS[next_level]["role_name"]
             exp_needed = next_level_exp - user_exp
         else:
             exp_needed = 0
+            next_level_name = "สูงสุดแล้ว"
         
         embed = discord.Embed(
             title=f"📊 ระดับของคุณ {member.display_name}",
@@ -1673,7 +1708,7 @@ async def check_user_level_as_command(ctx, member):
         if user_level < 4:
             embed.add_field(
                 name="📈 สู่ระดับถัดไป", 
-                value=f"ต้องการอีก **{exp_needed:,} EXP** เพื่อเลเวล {user_level + 1}", 
+                value=f"ต้องการอีก **{exp_needed:,} EXP** เพื่อยศ **{next_level_name}**", 
                 inline=False
             )
         else:
