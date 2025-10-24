@@ -645,34 +645,33 @@ async def check_user_level(interaction: discord.Interaction):
         
         # คำนวณ EXP ที่ต้องการสำหรับเลเวลถัดไป
         next_level_exp = 0
-        next_level_role_mention = "ไม่มี"
+        next_level_display = "สูงสุดแล้ว"
         if user_level < 4:
             next_level = user_level + 1
             next_level_exp = LEVELS[next_level]["exp"]
             next_level_role_id = LEVELS[next_level]["role_id"]
-            next_level_role_mention = f"<@&{next_level_role_id}>"  # ใช้ mention role
+            next_level_display = f"<@&{next_level_role_id}>"  # ใช้ mention role
             exp_needed = next_level_exp - user_exp
         else:
             exp_needed = 0
-            next_level_role_mention = "สูงสุดแล้ว"
         
-        # กำหนด role mention ปัจจุบัน
-        current_role_mention = "Level 0"
+        # กำหนด role ปัจจุบัน
+        current_role_display = "Level 0"
         if user_level > 0 and user_level in LEVELS:
             current_role_id = LEVELS[user_level]["role_id"]
-            current_role_mention = f"<@&{current_role_id}>"  # ใช้ mention role
+            current_role_display = f"<@&{current_role_id}>"  # ใช้ mention role
         
         embed = discord.Embed(
             title=f"🍣 ระดับของคุณ {interaction.user.display_name}",
             color=0x00FF99
         )
-        embed.add_field(name="🎮 ระดับปัจจุบัน", value=current_role_mention, inline=True)
+        embed.add_field(name="🎮 ระดับปัจจุบัน", value=current_role_display, inline=True)
         embed.add_field(name="⭐ EXP สะสม", value=f"**{user_exp:,} EXP**", inline=True)
         
         if user_level < 4:
             embed.add_field(
                 name="🎯 ระดับถัดไป", 
-                value=f"ต้องการอีก **{exp_needed:,} EXP** เพื่อยศ {next_level_role_mention}", 
+                value=f"ต้องการอีก **{exp_needed:,} EXP** เพื่อยศ {next_level_display}", 
                 inline=False
             )
         else:
@@ -719,34 +718,33 @@ async def check_user_level_as_command(ctx, member):
         
         # คำนวณ EXP ที่ต้องการสำหรับเลเวลถัดไป
         next_level_exp = 0
-        next_level_role_mention = "ไม่มี"
+        next_level_display = "สูงสุดแล้ว"
         if user_level < 4:
             next_level = user_level + 1
             next_level_exp = LEVELS[next_level]["exp"]
             next_level_role_id = LEVELS[next_level]["role_id"]
-            next_level_role_mention = f"<@&{next_level_role_id}>"  # ใช้ mention role
+            next_level_display = f"<@&{next_level_role_id}>"  # ใช้ mention role
             exp_needed = next_level_exp - user_exp
         else:
             exp_needed = 0
-            next_level_role_mention = "สูงสุดแล้ว"
         
-        # กำหนด role mention ปัจจุบัน
-        current_role_mention = "Level 0"
+        # กำหนด role ปัจจุบัน
+        current_role_display = "Level 0"
         if user_level > 0 and user_level in LEVELS:
             current_role_id = LEVELS[user_level]["role_id"]
-            current_role_mention = f"<@&{current_role_id}>"  # ใช้ mention role
+            current_role_display = f"<@&{current_role_id}>"  # ใช้ mention role
         
         embed = discord.Embed(
             title=f"🍣 ระดับของคุณ {member.display_name}",
             color=0x00FF99
         )
-        embed.add_field(name="🎮 ระดับปัจจุบัน", value=current_role_mention, inline=True)
+        embed.add_field(name="🎮 ระดับปัจจุบัน", value=current_role_display, inline=True)
         embed.add_field(name="⭐ EXP สะสม", value=f"**{user_exp:,} EXP**", inline=True)
         
         if user_level < 4:
             embed.add_field(
                 name="🎯 ระดับถัดไป", 
-                value=f"ต้องการอีก **{exp_needed:,} EXP** เพื่อยศ {next_level_role_mention}", 
+                value=f"ต้องการอีก **{exp_needed:,} EXP** เพื่อยศ {next_level_display}", 
                 inline=False
             )
         else:
@@ -2078,6 +2076,7 @@ try:
     bot.run(os.getenv("TOKEN"))
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
+
 
 
 
