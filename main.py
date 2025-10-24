@@ -1004,7 +1004,7 @@ async def update_main_channel():
                 f"เรท: {gamepass_rate} (พิมพ์ !gp ตามด้วยจำนวนเพื่อเช็คราคาได้)\n"
                 "รับกดเกมพาสทุกเกมที่กิ๊ฟได้ ยัดกลุ่มได้\n"
                 "```\n"
-                f"📊 Stock: **{gamepass_stock}** ({gamepass_stock_status})\n"
+                f"📦 Stock: **{gamepass_stock}** ({gamepass_stock_status})\n"
             ),
             inline=False
         )
@@ -1020,7 +1020,7 @@ async def update_main_channel():
             "```\n"
             f"📌 กดเข้ากลุ่มนี้ :point_right: [VALKYs](https://www.roblox.com/communities/34713179/VALKYs) :point_left: \n"
             "📝จดวันที่เข้ากลุ่ม เพื่อบันทึกวันเข้ากลุ่ม\n"
-            f"📊 Stock: **{group_stock}** ({group_stock_status})\n"
+            f"📦 Stock: **{group_stock}** ({group_stock_status})\n"
         )
         
         embed.add_field(
@@ -1142,7 +1142,7 @@ async def stock(ctx, stock_type: str = None, amount: str = None):
     
     if stock_type is None:
         embed = discord.Embed(
-            title="📊 สต๊อกสินค้า",
+            title="📦 สต๊อกสินค้า",
             color=0x00FF99,
             timestamp=discord.utils.utcnow()
         )
@@ -1751,5 +1751,6 @@ try:
     bot.run(os.getenv("TOKEN"))
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
+
 
 
