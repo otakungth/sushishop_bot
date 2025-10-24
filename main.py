@@ -967,7 +967,7 @@ async def check_stale_tickets():
                 del ticket_activity[channel_id]
 
 # --------------------------------------------------------------------------------------------------
-# อัปเดตช่องหลัก - แก้ไขให้ edit ข้อความแทนการส่งใหม่
+# อัปเดตช่องหลัก - แก้ไขให้ edit ข้อความเดิมจริงๆ
 async def update_main_channel():
     """อัปเดตข้อความในช่องหลักโดยการ edit ข้อความเดิม"""
     try:
@@ -976,13 +976,17 @@ async def update_main_channel():
             print("❌ ไม่พบช่องหลัก")
             return
 
-        # หาข้อความล่าสุดของบอทในช่องนี้
-        bot_message = None
-        async for msg in channel.history(limit=50):
+        # หา embed ล่าสุดของบอทในช่องนี้
+        target_message = None
+        async for msg in channel.history(limit=100):
             if msg.author == bot.user and msg.embeds:
-                bot_message = msg
-                break
-
+                # ตรวจสอบว่าเป็น embed หลักของร้าน (มีคำว่า Sushi Shop)
+                if msg.embeds and len(msg.embeds) > 0:
+                    embed_title = msg.embeds[0].title or ""
+                    if "Sushi Shop" in embed_title:
+                        target_message = msg
+                        break
+        
         # สร้าง embed ใหม่
         embed = discord.Embed(
             title="🍣 Sushi Shop 🍣 เปิดบริการ",
@@ -1006,7 +1010,6 @@ async def update_main_channel():
         
         # ส่วน Group
         group_stock_status = "🟢 พร้อมให้บริการ" if group_stock > 0 else "🔴 สินค้าหมด"
-        group_service_status = "✅ เปิดให้บริการ" if group_ticket_enabled else "⏸️ บริการปิดชั่วคราว"
         
         group_value = (
             "```\n"
@@ -1039,11 +1042,14 @@ async def update_main_channel():
         
         embed.set_thumbnail(url="https://media.discordapp.net/attachments/717757556889747657/1403684950770847754/noFilter.png")
 
-        if bot_message:
+        if target_message:
             # ถ้ามีข้อความเดิม ให้ edit
             try:
-                await bot_message.edit(embed=embed, view=MainShopView())
-                print("✅ อัพเดท embed หลักเรียบร้อยแล้ว (edit)")
+                await target_message.edit(embed=embed, view=MainShopView())
+                print(f"✅ อัพเดท embed หลักเรียบร้อยแล้ว (แก้ไขข้อความ ID: {target_message.id})")
+            except discord.NotFound:
+                print("❌ ไม่พบข้อความเดิม ส่งข้อความใหม่")
+                await channel.send(embed=embed, view=MainShopView())
             except Exception as e:
                 print(f"❌ ไม่สามารถ edit ข้อความ: {e}")
                 # ถ้า edit ไม่ได้ ให้ส่งใหม่
@@ -1147,7 +1153,7 @@ async def stock(ctx, stock_type: str = None, amount: str = None):
         pass
     
     if stock_type is None:
-        # ส่ง embed แสดง stock ปัจจุบัน (ส่งใหม่ได้เพราะเป็นคำสั่ง)
+        # ส่ง embed แสดง stock ปัจจุบัน
         embed = discord.Embed(
             title="📊 สต๊อกสินค้า",
             color=0x00FF99,
@@ -1163,35 +1169,51 @@ async def stock(ctx, stock_type: str = None, amount: str = None):
             value=f"**{group_stock:,}**", 
             inline=True
         )
-        await ctx.send(embed=embed)
+        response_msg = await ctx.send(embed=embed)
+        # ลบหลังจาก 10 วินาที
+        await asyncio.sleep(10)
+        try:
+            await response_msg.delete()
+        except:
+            pass
         
     elif stock_type.lower() in ["gp", "gamepass", "เกมพาส"]:
         if amount is None:
-            # ส่ง embed แสดง stock ปัจจุบัน (ส่งใหม่ได้เพราะเป็นคำสั่ง)
+            # ส่ง embed แสดง stock ปัจจุบัน
             embed = discord.Embed(
                 title="🎮 Gamepass Stock",
                 description=f"**{gamepass_stock:,}**",
                 color=0x00FF99
             )
-            await ctx.send(embed=embed)
+            response_msg = await ctx.send(embed=embed)
+            # ลบหลังจาก 10 วินาที
+            await asyncio.sleep(10)
+            try:
+                await response_msg.delete()
+            except:
+                pass
         else:
             amount_clean = amount.replace(",", "")
             try:
                 amount_int = int(amount_clean)
                 if amount_int < 0:
-                    await ctx.send("❌ จำนวน stock ต้องมากกว่าหรือเท่ากับ 0", delete_after=5)
+                    error_msg = await ctx.send("❌ จำนวน stock ต้องมากกว่าหรือเท่ากับ 0")
+                    await asyncio.sleep(5)
+                    try:
+                        await error_msg.delete()
+                    except:
+                        pass
                     return
                 
                 gamepass_stock = amount_int
                 
-                # แทนที่การส่ง embed ใหม่ด้วยการ edit ข้อความตอบกลับ
+                # ส่งข้อความตอบกลับชั่วคราว
                 embed = discord.Embed(
                     title="✅ ตั้งค่า Stock เรียบร้อย",
                     description=f"ตั้งค่า สต๊อกเกมพาส เป็น **{gamepass_stock:,}** เรียบร้อยแล้ว",
                     color=0x00FF00
                 )
                 
-                # ส่งข้อความตอบกลับและบันทึก reference
                 response_msg = await ctx.send(embed=embed)
                 
                 # อัปเดตช่องหลักแบบไม่แจ้งเตือน
@@ -1205,35 +1227,50 @@ async def stock(ctx, stock_type: str = None, amount: str = None):
                     pass
                     
             except ValueError:
-                await ctx.send("❌ กรุณากรอกจำนวน stock เป็นตัวเลขที่ถูกต้อง", delete_after=5)
+                error_msg = await ctx.send("❌ กรุณากรอกจำนวน stock เป็นตัวเลขที่ถูกต้อง")
+                await asyncio.sleep(5)
+                try:
+                    await error_msg.delete()
+                except:
+                    pass
     
     elif stock_type.lower() in ["g", "group", "กรุ๊ป"]:
         if amount is None:
-            # ส่ง embed แสดง stock ปัจจุบัน (ส่งใหม่ได้เพราะเป็นคำสั่ง)
+            # ส่ง embed แสดง stock ปัจจุบัน
             embed = discord.Embed(
                 title="👥 Group Stock",
                 description=f"**{group_stock:,}**",
                 color=0x00FF99
             )
-            await ctx.send(embed=embed)
+            response_msg = await ctx.send(embed=embed)
+            # ลบหลังจาก 10 วินาที
+            await asyncio.sleep(10)
+            try:
+                await response_msg.delete()
+            except:
+                pass
         else:
             amount_clean = amount.replace(",", "")
             try:
                 amount_int = int(amount_clean)
                 if amount_int < 0:
-                    await ctx.send("❌ จำนวน stock ต้องมากกว่าหรือเท่ากับ 0", delete_after=5)
+                    error_msg = await ctx.send("❌ จำนวน stock ต้องมากกว่าหรือเท่ากับ 0")
+                    await asyncio.sleep(5)
+                    try:
+                        await error_msg.delete()
+                    except:
+                        pass
                     return
                 
                 group_stock = amount_int
                 
-                # แทนที่การส่ง embed ใหม่ด้วยการ edit ข้อความตอบกลับ
+                # ส่งข้อความตอบกลับชั่วคราว
                 embed = discord.Embed(
                     title="✅ ตั้งค่า Stock เรียบร้อย",
                     description=f"ตั้งค่า สต๊อกโรบัคกลุ่ม เป็น **{group_stock:,}** เรียบร้อยแล้ว",
                     color=0x00FF00
                 )
                 
-                # ส่งข้อความตอบกลับและบันทึก reference
                 response_msg = await ctx.send(embed=embed)
                 
                 # อัปเดตช่องหลักแบบไม่แจ้งเตือน
@@ -1247,7 +1284,12 @@ async def stock(ctx, stock_type: str = None, amount: str = None):
                     pass
                     
             except ValueError:
-                await ctx.send("❌ กรุณากรอกจำนวน stock เป็นตัวเลขที่ถูกต้อง", delete_after=5)
+                error_msg = await ctx.send("❌ กรุณากรอกจำนวน stock เป็นตัวเลขที่ถูกต้อง")
+                await asyncio.sleep(5)
+                try:
+                    await error_msg.delete()
+                except:
+                    pass
     
     else:
         embed = discord.Embed(
@@ -1260,8 +1302,14 @@ async def stock(ctx, stock_type: str = None, amount: str = None):
             ),
             color=0xFF0000
         )
-        await ctx.send(embed=embed)
-
+        response_msg = await ctx.send(embed=embed)
+        # ลบหลังจาก 10 วินาที
+        await asyncio.sleep(10)
+        try:
+            await response_msg.delete()
+        except:
+            pass
+            
 # --------------------------------------------------------------------------------------------------
 # คำสั่งเปิดปิดร้าน - แก้ไขให้ลบ embed เก่า
 @bot.command()
@@ -1789,6 +1837,7 @@ try:
     bot.run(os.getenv("TOKEN"))
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
+
 
 
 
