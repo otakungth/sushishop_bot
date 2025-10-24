@@ -595,9 +595,9 @@ class QRView(View):
         
     @discord.ui.button(label="คัดลอกเลขบัญชี", style=discord.ButtonStyle.success, emoji="📋")
     async def copy_kbank(self, interaction: discord.Interaction, button: Button):
-        await interaction.response.send_message("160-1-43871-9", ephemeral=True)
+        await interaction.response.send_message("160-1-43871-9 (กสิกร)", ephemeral=True)
         
-    @discord.ui.button(label="คัดลอกเลขทรูมันนี่", style=discord.ButtonStyle.success, emoji="📋")
+    @discord.ui.button(label="คัดลอกเบอร์ทรูมันนี่", style=discord.ButtonStyle.success, emoji="📋")
     async def copy_truemoney(self, interaction: discord.Interaction, button: Button):
         await interaction.response.send_message("065-506-0702", ephemeral=True)
 
@@ -688,7 +688,7 @@ async def check_user_level_as_command(ctx, member):
         
         # ระดับปัจจุบัน
         if user_level == 0:
-            current_display = "Level 0"
+            current_display = "สมาชิกทั่วไป"
         else:
             current_role_id = LEVELS[user_level]["role_id"]
             current_display = f"<@&{current_role_id}>"
@@ -1696,7 +1696,7 @@ async def ty(ctx):
 # คำสั่งอื่นๆ
 @bot.command()
 async def love(ctx):
-    await ctx.send("# LOVE <:sushiheart:1410484970291466300>")
+    await ctx.send("# LOVE YOU<:sushiheart:1410484970291466300>")
 
 @bot.command()
 async def say(ctx, *, message: str):
@@ -1751,6 +1751,7 @@ try:
     bot.run(os.getenv("TOKEN"))
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
+
 
 
 
