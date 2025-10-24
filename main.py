@@ -1135,7 +1135,7 @@ async def help_command(ctx):
     await ctx.send(embed=help_embed, delete_after=30)
 
 # --------------------------------------------------------------------------------------------------
-# คำสั่งจัดการ Stock
+# คำสั่งจัดการ Stock - แก้ไขให้ใช้ edit แทนส่งใหม่
 @bot.command()
 @admin_only()
 async def stock(ctx, stock_type: str = None, amount: str = None):
@@ -1147,8 +1147,9 @@ async def stock(ctx, stock_type: str = None, amount: str = None):
         pass
     
     if stock_type is None:
+        # ส่ง embed แสดง stock ปัจจุบัน (ส่งใหม่ได้เพราะเป็นคำสั่ง)
         embed = discord.Embed(
-            title="📦 สต๊อกสินค้า",
+            title="📊 สต๊อกสินค้า",
             color=0x00FF99,
             timestamp=discord.utils.utcnow()
         )
@@ -1163,8 +1164,10 @@ async def stock(ctx, stock_type: str = None, amount: str = None):
             inline=True
         )
         await ctx.send(embed=embed)
+        
     elif stock_type.lower() in ["gp", "gamepass", "เกมพาส"]:
         if amount is None:
+            # ส่ง embed แสดง stock ปัจจุบัน (ส่งใหม่ได้เพราะเป็นคำสั่ง)
             embed = discord.Embed(
                 title="🎮 Gamepass Stock",
                 description=f"**{gamepass_stock:,}**",
@@ -1180,18 +1183,33 @@ async def stock(ctx, stock_type: str = None, amount: str = None):
                     return
                 
                 gamepass_stock = amount_int
+                
+                # แทนที่การส่ง embed ใหม่ด้วยการ edit ข้อความตอบกลับ
                 embed = discord.Embed(
                     title="✅ ตั้งค่า Stock เรียบร้อย",
                     description=f"ตั้งค่า สต๊อกเกมพาส เป็น **{gamepass_stock:,}** เรียบร้อยแล้ว",
                     color=0x00FF00
                 )
-                await ctx.send(embed=embed)
+                
+                # ส่งข้อความตอบกลับและบันทึก reference
+                response_msg = await ctx.send(embed=embed)
+                
+                # อัปเดตช่องหลักแบบไม่แจ้งเตือน
                 await update_main_channel()
+                
+                # ลบข้อความตอบกลับหลังจาก 5 วินาที
+                await asyncio.sleep(5)
+                try:
+                    await response_msg.delete()
+                except:
+                    pass
+                    
             except ValueError:
                 await ctx.send("❌ กรุณากรอกจำนวน stock เป็นตัวเลขที่ถูกต้อง", delete_after=5)
     
     elif stock_type.lower() in ["g", "group", "กรุ๊ป"]:
         if amount is None:
+            # ส่ง embed แสดง stock ปัจจุบัน (ส่งใหม่ได้เพราะเป็นคำสั่ง)
             embed = discord.Embed(
                 title="👥 Group Stock",
                 description=f"**{group_stock:,}**",
@@ -1207,13 +1225,27 @@ async def stock(ctx, stock_type: str = None, amount: str = None):
                     return
                 
                 group_stock = amount_int
+                
+                # แทนที่การส่ง embed ใหม่ด้วยการ edit ข้อความตอบกลับ
                 embed = discord.Embed(
                     title="✅ ตั้งค่า Stock เรียบร้อย",
                     description=f"ตั้งค่า สต๊อกโรบัคกลุ่ม เป็น **{group_stock:,}** เรียบร้อยแล้ว",
                     color=0x00FF00
                 )
-                await ctx.send(embed=embed)
+                
+                # ส่งข้อความตอบกลับและบันทึก reference
+                response_msg = await ctx.send(embed=embed)
+                
+                # อัปเดตช่องหลักแบบไม่แจ้งเตือน
                 await update_main_channel()
+                
+                # ลบข้อความตอบกลับหลังจาก 5 วินาที
+                await asyncio.sleep(5)
+                try:
+                    await response_msg.delete()
+                except:
+                    pass
+                    
             except ValueError:
                 await ctx.send("❌ กรุณากรอกจำนวน stock เป็นตัวเลขที่ถูกต้อง", delete_after=5)
     
@@ -1757,6 +1789,7 @@ try:
     bot.run(os.getenv("TOKEN"))
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
+
 
 
 
