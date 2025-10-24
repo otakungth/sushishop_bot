@@ -629,11 +629,10 @@ class QRView(View):
         await interaction.response.send_message("065-506-0702", ephemeral=True)
 
 # --------------------------------------------------------------------------------------------------
-# ฟังก์ชันเช็คเลเวลผู้ใช้
-async def check_user_level(interaction: discord.Interaction):
-    """แสดงเลเวลและ EXP ของผู้ใช้"""
+async def check_user_level_as_command(ctx, member):
+    """แสดงเลเวลและ EXP ของผู้ใช้ (สำหรับคำสั่ง)"""
     try:
-        user_id = str(interaction.user.id)
+        user_id = str(member.id)
         
         if user_id not in user_data:
             # ถ้ายังไม่มีข้อมูล ให้สร้างข้อมูลใหม่
@@ -663,7 +662,7 @@ async def check_user_level(interaction: discord.Interaction):
             current_role_mention = f"<@&{current_role_id}>"  # ใช้ mention role
         
         embed = discord.Embed(
-            title=f"🍣 ระดับของคุณ {interaction.user.display_name}",
+            title=f"🍣 ระดับของคุณ {member.display_name}",
             color=0x00FF99
         )
         embed.add_field(name="🎮 ระดับปัจจุบัน", value=current_role_mention, inline=True)
@@ -697,11 +696,11 @@ async def check_user_level(interaction: discord.Interaction):
             )
         
         embed.set_footer(text="ได้รับ EXP จากการซื้อสินค้าในร้าน")
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await ctx.send(embed=embed)
         
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดในการเช็คเลเวล: {e}")
-        await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการเช็คเลเวล", ephemeral=True)
+        await ctx.send("❌ เกิดข้อผิดพลาดในการเช็คเลเวล")
 
 # --------------------------------------------------------------------------------------------------
 async def check_user_level_as_command(ctx, member):
@@ -2078,6 +2077,7 @@ try:
     bot.run(os.getenv("TOKEN"))
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
+
 
 
 
