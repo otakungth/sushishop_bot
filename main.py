@@ -56,14 +56,15 @@ def save_user_data():
 user_data = load_user_data()
 
 # ระดับและ EXP - อัปเดตตามลำดับใหม่
+# ระดับและ EXP - อัปเดตตามลำดับใหม่
 LEVELS = {
     1: {"exp": 1, "role_id": 1361555369825927249, "role_name": "Level 1"},
     2: {"exp": 5000, "role_id": 1432070662977093703, "role_name": "Level 2"},
     3: {"exp": 10000, "role_id": 1361555364776247297, "role_name": "Level 3"},
     4: {"exp": 20000, "role_id": 1432075600746643537, "role_name": "Level 4"},
     5: {"exp": 50000, "role_id": 1432075369179254804, "role_name": "Level 5"},
-    6: {"exp": 100000, "role_id": 1432077732862492722, "role_name": "Level 6"},
-    7: {"exp": 250000, "role_id": 1361554929017294949, "role_name": "Level 7"},
+    6: {"exp": 100000, "role_id": 1361554929017294949, "role_name": "Level 6"},
+    7: {"exp": 250000, "role_id": 1432077732862492722, "role_name": "Level 7"},
     8: {"exp": 500000, "role_id": 1363882685260365894, "role_name": "Level 8"},
     9: {"exp": 1000000, "role_id": 1406309272786047106, "role_name": "Level 9"}
 }
@@ -666,8 +667,8 @@ async def check_user_level(interaction: discord.Interaction):
             current_role_id = LEVELS[user_level]["role_id"]
             current_display = f"<@&{current_role_id}>"
         
-        # ระดับถัดไป - แก้ไขเป็น 9
-        if user_level < 9:  # ✅ แก้ไขจาก 4 เป็น 9
+        # ระดับถัดไป
+        if user_level < 9:  # ระดับสูงสุดคือ 9
             next_level = user_level + 1
             next_level_exp = LEVELS[next_level]["exp"]
             next_role_id = LEVELS[next_level]["role_id"]
@@ -684,7 +685,7 @@ async def check_user_level(interaction: discord.Interaction):
         embed.add_field(name="🎮 ระดับปัจจุบัน", value=current_display, inline=True)
         embed.add_field(name="⭐ EXP สะสม", value=f"**{user_exp:,} EXP**", inline=True)
         
-        if user_level < 9:  # ✅ แก้ไขจาก 4 เป็น 9
+        if user_level < 9:  # ระดับสูงสุดคือ 9
             embed.add_field(
                 name="🎯 ระดับถัดไป", 
                 value=f"ต้องการอีก **{exp_needed:,} EXP** เพื่อยศ {next_display}", 
@@ -697,7 +698,7 @@ async def check_user_level(interaction: discord.Interaction):
                 inline=False
             )
         
-        if user_level < 9:  # ✅ แก้ไขจาก 4 เป็น 9
+        if user_level < 9:  # ระดับสูงสุดคือ 9
             current_level_exp = LEVELS[user_level]["exp"] if user_level > 0 else 0
             progress = user_exp - current_level_exp
             total_for_level = next_level_exp - current_level_exp
@@ -716,6 +717,77 @@ async def check_user_level(interaction: discord.Interaction):
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดในการเช็คเลเวล: {e}")
         await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการเช็คเลเวล", ephemeral=True)
+
+# --------------------------------------------------------------------------------------------------
+async def check_user_level_as_command(ctx, member):
+    """แสดงเลเวลและ EXP ของผู้ใช้ (สำหรับคำสั่ง)"""
+    try:
+        user_id = str(member.id)
+        
+        if user_id not in user_data:
+            user_data[user_id] = {"exp": 0, "level": 0}
+            save_user_data()
+        
+        user_exp = user_data[user_id]["exp"]
+        user_level = user_data[user_id]["level"]
+        
+        # ระดับปัจจุบัน
+        if user_level == 0:
+            current_display = "Level 0"
+        else:
+            current_role_id = LEVELS[user_level]["role_id"]
+            current_display = f"<@&{current_role_id}>"
+        
+        # ระดับถัดไป
+        if user_level < 9:  # ระดับสูงสุดคือ 9
+            next_level = user_level + 1
+            next_level_exp = LEVELS[next_level]["exp"]
+            next_role_id = LEVELS[next_level]["role_id"]
+            next_display = f"<@&{next_role_id}>"
+            exp_needed = next_level_exp - user_exp
+        else:
+            exp_needed = 0
+            next_display = "สูงสุดแล้ว"
+        
+        embed = discord.Embed(
+            title=f"🍣 ระดับของคุณ {member.display_name}",
+            color=0x00FF99
+        )
+        embed.add_field(name="🎮 ระดับปัจจุบัน", value=current_display, inline=True)
+        embed.add_field(name="⭐ EXP สะสม", value=f"**{user_exp:,} EXP**", inline=True)
+        
+        if user_level < 9:  # ระดับสูงสุดคือ 9
+            embed.add_field(
+                name="🎯 ระดับถัดไป", 
+                value=f"ต้องการอีก **{exp_needed:,} EXP** เพื่อยศ {next_display}", 
+                inline=False
+            )
+        else:
+            embed.add_field(
+                name="🏆 สูงสุดแล้ว!", 
+                value="คุณถึงระดับสูงสุดแล้ว! 🎉", 
+                inline=False
+            )
+        
+        if user_level < 9:  # ระดับสูงสุดคือ 9
+            current_level_exp = LEVELS[user_level]["exp"] if user_level > 0 else 0
+            progress = user_exp - current_level_exp
+            total_for_level = next_level_exp - current_level_exp
+            percentage = (progress / total_for_level) * 100 if total_for_level > 0 else 0
+            
+            progress_bar = "🟢" * int(percentage / 20) + "⚫" * (5 - int(percentage / 20))
+            embed.add_field(
+                name="🌱 ความคืบหน้า",
+                value=f"{progress_bar} {percentage:.1f}%",
+                inline=False
+            )
+        
+        embed.set_footer(text="ได้รับ EXP จากการซื้อสินค้าในร้าน")
+        await ctx.send(embed=embed)
+        
+    except Exception as e:
+        print(f"❌ เกิดข้อผิดพลาดในการเช็คเลเวล: {e}")
+        await ctx.send("❌ เกิดข้อผิดพลาดในการเช็คเลเวล")
 
 # --------------------------------------------------------------------------------------------------
 async def check_user_level_as_command(ctx, member):
@@ -1293,6 +1365,60 @@ def admin_only():
     return commands.check(predicate)
 
 # --------------------------------------------------------------------------------------------------
+# คำสั่ง !leaderboard
+@bot.command()
+async def leaderboard(ctx):
+    """แสดงอันดับผู้ใช้ที่มี EXP สูงสุด 10 อันดับแรก"""
+    try:
+        # เรียงลำดับผู้ใช้ตาม EXP จากมากไปน้อย
+        sorted_users = sorted(user_data.items(), key=lambda x: x[1]["exp"], reverse=True)
+        
+        embed = discord.Embed(
+            title="🏆 อันดับยอด EXP 🏆",
+            color=0xFFD700,  # สีทอง
+            timestamp=discord.utils.utcnow()
+        )
+        
+        if not sorted_users:
+            embed.description = "❌ ยังไม่มีข้อมูล EXP ในระบบ"
+            await ctx.send(embed=embed)
+            return
+        
+        leaderboard_text = ""
+        for i, (user_id, user_info) in enumerate(sorted_users[:10], 1):  # แสดงแค่ 10 อันดับแรก
+            try:
+                user = await bot.fetch_user(int(user_id))
+                username = user.display_name
+                mention = user.mention
+            except:
+                username = f"User {user_id}"
+                mention = f"<@{user_id}>"
+            
+            exp = user_info["exp"]
+            level = user_info["level"]
+            
+            # เลือกอิโมจิตามอันดับ
+            if i == 1:
+                rank_emoji = "🥇"
+            elif i == 2:
+                rank_emoji = "🥈"
+            elif i == 3:
+                rank_emoji = "🥉"
+            else:
+                rank_emoji = f"{i}."
+            
+            leaderboard_text += f"{rank_emoji} {mention} - **{exp:,} EXP** (เลเวล {level})\n"
+        
+        embed.description = leaderboard_text
+        embed.set_footer(text=f"แสดง {min(len(sorted_users), 10)} อันดับแรกจากทั้งหมด {len(sorted_users)} คน")
+        
+        await ctx.send(embed=embed)
+        
+    except Exception as e:
+        print(f"❌ เกิดข้อผิดพลาดในการแสดง leaderboard: {e}")
+        await ctx.send("❌ เกิดข้อผิดพลาดในการแสดงอันดับ")
+
+# --------------------------------------------------------------------------------------------------
 # คำสั่งพื้นฐาน
 @bot.command(name='help')
 async def help_command(ctx):
@@ -1304,6 +1430,9 @@ async def help_command(ctx):
                    "`!gpb <จำนวน>` - คำนวณ Robux จากเงิน (Gamepass)\n"
                    "`!gb <จำนวน>` - คำนวณ Robux จากเงิน (Group)\n"
                    "`!tax <จำนวน>` - คำนวณ Robux หลังหักภาษี\n\n"
+                   "**คำสั่งทั่วไป:**\n"
+                   "`!level` - เช็คเลเวลและ EXP ของคุณ\n"
+                   "`!leaderboard` - ดูอันดับ EXP สูงสุด\n\n"
                    "**คำสั่งผู้ดูแลระบบเท่านั้น:**\n"
                    "`!stock` - ตรวจสอบ stock\n"
                    "`!sushi` - เปิด/ปิดร้าน\n"
@@ -1315,8 +1444,7 @@ async def help_command(ctx):
                    "`!od <จำนวน>` - สั่งซื้อ Gamepass\n"
                    "`!odg <จำนวน>` - สั่งซื้อ Group\n"
                    "`!odl <ชื่อไอเทม> <จำนวน>` - สั่งซื้อ Limited\n"
-                   "`!love` - แสดงความรักจากเซิร์ฟ\n"
-                   "`!level` - เช็คเลเวลและ EXP ของคุณ",
+                   "`!love` - แสดงความรักจากเซิร์ฟ",
         color=0x00FF99
     )
     await ctx.send(embed=help_embed, delete_after=30)
@@ -2060,5 +2188,6 @@ try:
     bot.run(os.getenv("TOKEN"))
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
+
 
 
