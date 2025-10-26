@@ -290,7 +290,7 @@ class GamepassTicketModal(Modal, title="📋 แบบฟอร์มกดเ�
             )
             customer_embed.add_field(name="🗺️ แมพ", value=self.map_name.value, inline=False)
             customer_embed.add_field(name="🎟 เกมพาส", value=self.gamepass_name.value, inline=False)
-            customer_embed.add_field(name="💸 จำนวนโรบัค", value=f"{robux:,}", inline=True)
+            customer_embed.add_field(name="💸 ราคาโรบัค", value=f"{robux:,}", inline=True)
             customer_embed.add_field(name="💰 ราคา", value=price_str, inline=True)
             customer_embed.set_footer(text="ทีมงานจะตอบกลับโดยเร็วที่สุด")
 
@@ -347,7 +347,7 @@ class GroupTicketModal(Modal, title="📋 แบบฟอร์มสั่ง�
             await interaction.response.send_message("❌ กรุณากรอกจำนวนโรบัคเป็นตัวเลข", ephemeral=True)
 
 # --------------------------------------------------------------------------------------------------
-# View สำหรับยืนยันตั๋ว
+# View สำหรับยืนยันตั๋ว - แก้ไขให้เหลือแค่ปุ่มยกเลิกหลังจากยืนยัน
 class ConfirmTicketView(View):
     def __init__(self, embed_data: discord.Embed):
         super().__init__(timeout=300)
@@ -367,11 +367,49 @@ class ConfirmTicketView(View):
                 await interaction.response.send_message("⚠️ คำสั่งซื้อนี้ถูกยืนยันแล้ว", ephemeral=True)
                 return
 
+            # เพิ่ม EXP ให้ผู้ซื้อ
+            buyer_mention = None
+            for field in self.embed_data.fields:
+                if field.name == "😊 ผู้ซื้อ":
+                    buyer_mention = field.value
+                    break
+            
+            if buyer_mention:
+                # แปลง mention เป็น user ID
+                import re
+                match = re.search(r'<@!?(\d+)>', buyer_mention)
+                if match:
+                    buyer_id = int(match.group(1))
+                    buyer = interaction.guild.get_member(buyer_id)
+                    if buyer:
+                        # คำนวณ EXP จากจำนวน Robux
+                        robux_field = next((f for f in self.embed_data.fields if f.name == "💸 จำนวนโรบัค"), None)
+                        if robux_field:
+                            try:
+                                robux_amount = int(robux_field.value.replace(',', '').replace(' Robux', '').strip())
+                                exp_to_add = robux_amount
+                                new_level, total_exp = await add_exp(buyer.id, exp_to_add, interaction.guild)
+                                print(f"✅ เพิ่ม {exp_to_add} EXP ให้ {buyer.display_name} (เลเวล {new_level}, รวม {total_exp} EXP)")
+                                
+                                # เพิ่มข้อมูล EXP ใน embed
+                                self.embed_data.add_field(name="⭐ ได้รับ EXP", value=f"{exp_to_add:,} EXP", inline=True)
+                            except:
+                                print("⚠️ ไม่สามารถคำนวณ EXP จากจำนวน Robux")
+
             self.embed_data.add_field(name="📋 ยืนยันโดย", value=interaction.user.mention, inline=False)
             await send_sale_log(self.embed_data, interaction=interaction, delivered_by=interaction.user)
 
             await interaction.response.send_message("✅ ส่งของเรียบร้อยแล้ว", ephemeral=True)
-            await interaction.message.edit(embed=self.embed_data, view=None)
+            
+            # สร้าง View ใหม่ที่มีแค่ปุ่มยกเลิก
+            cancel_only_view = View()
+            cancel_only_view.add_item(Button(
+                label="❌ ยกเลิกสินค้า", 
+                style=discord.ButtonStyle.danger, 
+                custom_id="cancel_ticket_only"
+            ))
+            
+            await interaction.message.edit(embed=self.embed_data, view=cancel_only_view)
             
         except Exception as e:
             print(f"❌ เกิดข้อผิดพลาดในการยืนยัน: {e}")
@@ -380,11 +418,12 @@ class ConfirmTicketView(View):
     @discord.ui.button(label="❌ ยกเลิกสินค้า", style=discord.ButtonStyle.danger, custom_id="cancel_ticket")
     async def cancel_button(self, interaction: discord.Interaction, button: Button):
         try:
-            await interaction.response.send_message("❌ คำสั่งซื้อถูกยกเลิก", ephemeral=True)
+            # แสดงข้อความยกเลิกให้ทุกคนเห็น
+            await interaction.response.send_message("❌ คำสั่งซื้อถูกยกเลิกโดยผู้ดูแลระบบ")
             await interaction.message.delete()
         except Exception as e:
-            await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการยกเลิก", ephemeral=True)
-
+            await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการยกเลิก")
+            
 # --------------------------------------------------------------------------------------------------
 # ฟังก์ชันจัดการการเปิดตั๋ว
 async def handle_open_ticket(interaction, category_name, modal_class, stock_type):
@@ -480,7 +519,7 @@ async def handle_open_ticket(interaction, category_name, modal_class, stock_type
         )
         welcome_embed.add_field(
             name="คำแนะนำ:",
-            value="• กรุณาระบุสิ่งที่ต้องการซื้อ\n• ใช้คำสั่ง !gp ตามด้วยจำนวนเพื่อเช็คราคา\nขอบคุณที่ใช้บริการ! 🎉",
+            value="• ระบุสิ่งที่ต้องการซื้อ\n• ใช้คำสั่ง !gp ตามด้วยจำนวนเพื่อเช็คราคา\nขอบคุณที่ใช้บริการ! 🎉",
             inline=False
         )
         welcome_embed.set_footer(text="Sushi Shop บริการรับกดเกมพาส")
@@ -967,7 +1006,7 @@ async def check_stale_tickets():
                 del ticket_activity[channel_id]
 
 # --------------------------------------------------------------------------------------------------
-# อัปเดตช่องหลัก - แก้ไขให้ edit ข้อความเดิมจริงๆ
+# อัปเดตช่องหลัก - เปลี่ยนสีเป็นสีส้ม
 async def update_main_channel():
     """อัปเดตข้อความในช่องหลักโดยการ edit ข้อความเดิม"""
     try:
@@ -980,17 +1019,16 @@ async def update_main_channel():
         target_message = None
         async for msg in channel.history(limit=100):
             if msg.author == bot.user and msg.embeds:
-                # ตรวจสอบว่าเป็น embed หลักของร้าน (มีคำว่า Sushi Shop)
                 if msg.embeds and len(msg.embeds) > 0:
                     embed_title = msg.embeds[0].title or ""
                     if "Sushi Shop" in embed_title:
                         target_message = msg
                         break
         
-        # สร้าง embed ใหม่
+        # สร้าง embed ใหม่ด้วยสีส้ม (0xFFA500)
         embed = discord.Embed(
-            title="🍣 Sushi Shop 🍣 เปิดบริการ",
-            color=0x2B2D31,
+            title="🍣 Sushi Shop 🍣 เปิดให้บริการ",
+            color=0xFFA500,  # สีส้ม
             timestamp=discord.utils.utcnow()
         )
         
@@ -1000,8 +1038,8 @@ async def update_main_channel():
             name="🎮 **บริการกดเกมพาส**",
             value=(
                 "```\n"
-                f"เรท: {gamepass_rate} (พิมพ์ !gp ตามด้วยจำนวนเพื่อเช็คราคาได้)\n"
-                "รับกดเกมพาสทุกเกมที่กิ๊ฟได้ ยัดกลุ่มได้\n"
+                f"เรท: {gamepass_rate} | โรแท้ซื้อยัดกลุ่มได้\n"
+                "พิมพ์ !gp ตามด้วยจำนวนเพื่อเช็คราคาได้\n"
                 "```\n"
                 f"📊 Stock: **{gamepass_stock}** ({gamepass_stock_status})\n"
             ),
@@ -1013,11 +1051,11 @@ async def update_main_channel():
         
         group_value = (
             "```\n"
-            f"เรท: {group_rate_low}-{group_rate_high}\n"
-            "500 บาทขึ้นไปเรท 4.5 ⚠️ต้องเข้ากลุ่ม 15 วันก่อนซื้อ\n"
+            f"เรท: {group_rate_low}-{group_rate_high} | 500 บาทขึ้นไปเรท 4.5 \n"
+            "⚠️ต้องเข้ากลุ่ม 15 วันก่อนซื้อ⚠️\n"
             "```\n"
-            f"📌 กดเข้ากลุ่มนี้ :point_right: [VALKYs](https://www.roblox.com/communities/34713179/VALKYs) :point_left: \n"
-            "📝จดวันที่เข้ากลุ่ม เพื่อบันทึกวันเข้ากลุ่ม\n"
+            f"📌 กดเข้ากลุ่มนี้ : :point_right: [VALKYs](https://www.roblox.com/communities/34713179/VALKYs) :point_left: \n"
+            "📝เข้ากลุ่มแล้วจดวันที่เข้ากลุ่มด้วย\n"
             f"📊 Stock: **{group_stock}** ({group_stock_status})\n"
         )
         
@@ -1042,8 +1080,7 @@ async def update_main_channel():
         
         embed.set_thumbnail(url="https://media.discordapp.net/attachments/717757556889747657/1403684950770847754/noFilter.png")
 
-        if target_message:
-            # ถ้ามีข้อความเดิม ให้ edit
+       if target_message:
             try:
                 await target_message.edit(embed=embed, view=MainShopView())
                 print(f"✅ อัพเดท embed หลักเรียบร้อยแล้ว (แก้ไขข้อความ ID: {target_message.id})")
@@ -1052,11 +1089,8 @@ async def update_main_channel():
                 await channel.send(embed=embed, view=MainShopView())
             except Exception as e:
                 print(f"❌ ไม่สามารถ edit ข้อความ: {e}")
-                # ถ้า edit ไม่ได้ ให้ส่งใหม่
                 await channel.send(embed=embed, view=MainShopView())
-                print("✅ สร้าง embed หลักใหม่เรียบร้อยแล้ว")
         else:
-            # ถ้าไม่มีข้อความเดิม ให้ส่งใหม่
             await channel.send(embed=embed, view=MainShopView())
             print("✅ สร้าง embed หลักใหม่เรียบร้อยแล้ว")
         
@@ -1311,7 +1345,7 @@ async def stock(ctx, stock_type: str = None, amount: str = None):
             pass
             
 # --------------------------------------------------------------------------------------------------
-# คำสั่งเปิดปิดร้าน - แก้ไขให้ลบ embed เก่า
+# คำสั่งเปิดปิดร้าน - แก้ไขให้ลบข้อความหลังใช้คำสั่ง
 @bot.command()
 @admin_only()
 async def sushi(ctx):
@@ -1329,13 +1363,23 @@ async def sushi(ctx):
         description=f"**{status}**",
         color=0x00FF00 if shop_open else 0xFF0000
     )
-    await ctx.send(embed=embed)
+    
+    # ส่งข้อความและบันทึก reference เพื่อลบภายหลัง
+    status_msg = await ctx.send(embed=embed)
     
     # อัปเดตชื่อช่องหลัก
     await update_channel_name()
     
     # อัปเดต embed หลัก
     await update_main_channel()
+    
+    # ลบข้อความสถานะหลังจาก 5 วินาที
+    await asyncio.sleep(3)
+    try:
+        await status_msg.delete()
+        print("✅ ลบข้อความสถานะร้านเรียบร้อยแล้ว")
+    except:
+        print("❌ ไม่สามารถลบข้อความสถานะร้าน")
 
 # --------------------------------------------------------------------------------------------------
 # คำสั่งเปิดปิด Group Ticket
@@ -1492,7 +1536,8 @@ async def tax(ctx, *, expression: str):
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
 
 # --------------------------------------------------------------------------------------------------
-# คำสั่งสั่งซื้อ
+# คำสั่ง !od - Gamepass
+
 @bot.command()
 @admin_only()
 async def od(ctx, *, expression: str):
@@ -1537,13 +1582,12 @@ async def od(ctx, *, expression: str):
         gamepass_stock -= robux
         if gamepass_stock < 0:
             gamepass_stock = 0
-
+        
         embed = discord.Embed(
             title="🍣 ใบเสร็จคำสั่งซื้อ Gamepass 🍣",
             color=0x00FF99,
             timestamp=discord.utils.utcnow()
         )
-        embed.add_field(name="📦 ประเภทสินค้า", value="Robux Gamepass", inline=False)
         embed.add_field(name="💸 จำนวนโรบัค", value=f"{robux:,}", inline=True)
         embed.add_field(name="💰 ราคาตามเรท", value=price_str, inline=True)
         embed.add_field(name="🚚 ผู้ส่งสินค้า", value=ctx.author.mention, inline=False)
@@ -1564,6 +1608,9 @@ async def od(ctx, *, expression: str):
 
     except Exception as e:
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
+
+# --------------------------------------------------------------------------------------------------
+# คำสั่ง !odg - Group
 
 @bot.command()
 @admin_only()
@@ -1610,16 +1657,14 @@ async def odg(ctx, *, expression: str):
         group_stock -= robux
         if group_stock < 0:
             group_stock = 0
-
+        
         embed = discord.Embed(
             title="🍣 ใบเสร็จคำสั่งซื้อโรบัคกลุ่ม 🍣",
             color=0x00AAFF,
             timestamp=discord.utils.utcnow()
         )
-        embed.add_field(name="📦 ประเภทสินค้า", value="Robux Group", inline=False)
         embed.add_field(name="💸 จำนวนโรบัค", value=f"{robux:,}", inline=True)
         embed.add_field(name="💰 ราคาตามเรท", value=price_str, inline=True)
-        embed.add_field(name="📊 เรท", value=f"{rate}", inline=True)
         embed.add_field(name="🚚 ผู้ส่งสินค้า", value=ctx.author.mention, inline=False)
         
         if buyer:
@@ -1639,6 +1684,9 @@ async def odg(ctx, *, expression: str):
     except Exception as e:
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
 
+# --------------------------------------------------------------------------------------------------
+# คำสั่ง !odl - เพิ่มระบบ EXP
+
 @bot.command()
 @admin_only()
 async def odl(ctx, item_name: str, value: str):
@@ -1651,19 +1699,47 @@ async def odl(ctx, item_name: str, value: str):
 
         item_value = int(value_clean)
 
+        # หาผู้ซื้อจากชื่อตั๋ว
+        buyer = None
+        channel_name = ctx.channel.name
+        if channel_name.startswith("ticket-"):
+            parts = channel_name.split('-')
+            if len(parts) >= 3:
+                user_id = int(parts[-1])
+                buyer = ctx.guild.get_member(user_id)
+        
+        if not buyer:
+            async for msg in ctx.channel.history(limit=20):
+                if msg.author != ctx.author and not msg.author.bot and msg.author != ctx.guild.me:
+                    buyer = msg.author
+                    break
+
+        # เพิ่ม EXP ให้ผู้ซื้อ (1 บาท = 1 EXP)
+        exp_to_add = item_value
+        if buyer:
+            new_level, total_exp = await add_exp(buyer.id, exp_to_add, ctx.guild)
+            print(f"✅ เพิ่ม {exp_to_add} EXP ให้ {buyer.display_name} (เลเวล {new_level}, รวม {total_exp} EXP)")
+        else:
+            print("⚠️ ไม่พบผู้ซื้อในการเพิ่ม EXP")
+
         embed = discord.Embed(
             title="🍣 ใบเสร็จคำสั่งซื้อ Limited 🍣",
             color=0xFF69B4,
             timestamp=discord.utils.utcnow()
         )
-        embed.add_field(name="📦 ประเภทสินค้า", value="Limited", inline=False)
         embed.add_field(name="🎁 ชื่อไอเทม", value=item_name, inline=True)
         embed.add_field(name="💰 ราคา (บาท)", value=f"{item_value:,}", inline=True)
         embed.add_field(name="🚚 ผู้ส่งสินค้า", value=ctx.author.mention, inline=False)
+        
+        if buyer:
+            embed.add_field(name="😊 ผู้ซื้อ", value=buyer.mention, inline=False)
+            embed.add_field(name="⭐ ได้รับ EXP", value=f"{exp_to_add:,} EXP", inline=True)
+        
         embed.set_footer(text="การสั่งซื้อสำเร็จ • Limited")
 
         await ctx.send(embed=embed)
 
+        # ส่งไปยังห้องบันทึกการขาย
         sales_channel = bot.get_channel(SALES_LOG_CHANNEL_ID)
         if sales_channel:
             await sales_channel.send(embed=embed)
@@ -1837,10 +1913,3 @@ try:
     bot.run(os.getenv("TOKEN"))
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
-
-
-
-
-
-
-
