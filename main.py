@@ -353,73 +353,11 @@ class GroupTicketModal(Modal, title="📋 แบบฟอร์มสั่ง�
             await interaction.response.send_message("❌ กรุณากรอกจำนวนโรบัคเป็นตัวเลข", ephemeral=True)
 
 # --------------------------------------------------------------------------------------------------
-# View สำหรับยืนยันตั๋ว - แก้ไขให้เหลือแค่ปุ่มยกเลิกหลังจากยืนยัน
+# View สำหรับยืนยันตั๋ว - ลบปุ่มส่งของเรียบร้อยแล้วออก
 class ConfirmTicketView(View):
     def __init__(self, embed_data: discord.Embed):
         super().__init__(timeout=300)
         self.embed_data = embed_data
-
-    @discord.ui.button(label="✅ ส่งของเรียบร้อยแล้ว", style=discord.ButtonStyle.success, custom_id="confirm_ticket")
-    async def confirm_button(self, interaction: discord.Interaction, button: Button):
-        try:
-            if not interaction.user.guild_permissions.administrator:
-                role_id = 1361016912259055896
-                role = interaction.guild.get_role(role_id)
-                if role is None or role not in interaction.user.roles:
-                    await interaction.response.send_message("❌ คุณไม่มีสิทธิ์ยืนยันการสั่งซื้อนี้", ephemeral=True)
-                    return
-
-            if any(field.name == "📋 ยืนยันโดย" for field in self.embed_data.fields):
-                await interaction.response.send_message("⚠️ คำสั่งซื้อนี้ถูกยืนยันแล้ว", ephemeral=True)
-                return
-
-            # เพิ่ม EXP ให้ผู้ซื้อ
-            buyer_mention = None
-            for field in self.embed_data.fields:
-                if field.name == "😊 ผู้ซื้อ":
-                    buyer_mention = field.value
-                    break
-            
-            if buyer_mention:
-                # แปลง mention เป็น user ID
-                import re
-                match = re.search(r'<@!?(\d+)>', buyer_mention)
-                if match:
-                    buyer_id = int(match.group(1))
-                    buyer = interaction.guild.get_member(buyer_id)
-                    if buyer:
-                        # คำนวณ EXP จากจำนวน Robux
-                        robux_field = next((f for f in self.embed_data.fields if f.name == "💸 จำนวนโรบัค"), None)
-                        if robux_field:
-                            try:
-                                robux_amount = int(robux_field.value.replace(',', '').replace(' Robux', '').strip())
-                                exp_to_add = robux_amount
-                                new_level, total_exp = await add_exp(buyer.id, exp_to_add, interaction.guild)
-                                print(f"✅ เพิ่ม {exp_to_add} EXP ให้ {buyer.display_name} (เลเวล {new_level}, รวม {total_exp} EXP)")
-                                
-                                # เพิ่มข้อมูล EXP ใน embed
-                                self.embed_data.add_field(name="⭐ ได้รับ EXP", value=f"{exp_to_add:,} EXP", inline=True)
-                            except:
-                                print("⚠️ ไม่สามารถคำนวณ EXP จากจำนวน Robux")
-
-            self.embed_data.add_field(name="📋 ยืนยันโดย", value=interaction.user.mention, inline=False)
-            await send_sale_log(self.embed_data, interaction=interaction, delivered_by=interaction.user)
-
-            await interaction.response.send_message("✅ ส่งของเรียบร้อยแล้ว", ephemeral=True)
-            
-            # สร้าง View ใหม่ที่มีแค่ปุ่มยกเลิก
-            cancel_only_view = View()
-            cancel_only_view.add_item(Button(
-                label="❌ ยกเลิกสินค้า", 
-                style=discord.ButtonStyle.danger, 
-                custom_id="cancel_ticket_only"
-            ))
-            
-            await interaction.message.edit(embed=self.embed_data, view=cancel_only_view)
-            
-        except Exception as e:
-            print(f"❌ เกิดข้อผิดพลาดในการยืนยัน: {e}")
-            await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการยืนยัน", ephemeral=True)
 
     @discord.ui.button(label="❌ ยกเลิกสินค้า", style=discord.ButtonStyle.danger, custom_id="cancel_ticket")
     async def cancel_button(self, interaction: discord.Interaction, button: Button):
@@ -544,79 +482,6 @@ async def handle_open_ticket(interaction, category_name, modal_class, stock_type
             except:
                 pass
 
-# --------------------------------------------------------------------------------------------------
-# View สำหรับตั๋ว
-class TicketActionView(View):
-    def __init__(self, channel: discord.TextChannel, owner: discord.Member, modal_class):
-        super().__init__(timeout=None)
-        self.channel = channel
-        self.owner = owner
-        self.modal_class = modal_class
-
-    @discord.ui.button(label="📝 กรอกแบบฟอร์ม", style=discord.ButtonStyle.primary, emoji="📝")
-    async def open_form(self, interaction: discord.Interaction, button: Button):
-        try:
-            await interaction.response.send_modal(self.modal_class())
-        except Exception as e:
-            await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการเปิดฟอร์ม", ephemeral=True)
-
-    @discord.ui.button(label="📤 ช่องทางการโอนเงิน", style=discord.ButtonStyle.success, emoji="📤")
-    async def payment_info(self, interaction: discord.Interaction, button: Button):
-        try:
-            bank_accounts = (
-                "**🏦 ช่องทางการโอนเงิน**\n\n"
-                "**บัญชี 1:**\n"
-                "```12345```\n"
-                "**บัญชี 2:**\n"
-                "```33333```\n"
-                "*กดค้างที่เลขบัญชีเพื่อคัดลอก*"
-            )
-            
-            embed = discord.Embed(
-                title="📤 ช่องทางการโอนเงิน",
-                description=bank_accounts,
-                color=0x00CCFF
-            )
-            embed.set_image(url="https://media.discordapp.net/attachments/722832040860319835/1402994996600111114/186-8-06559-8.png")
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-        except Exception as e:
-            await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการแสดงข้อมูล", ephemeral=True)
-
-    @discord.ui.button(label="🔒 ปิดตั๋ว", style=discord.ButtonStyle.danger, emoji="🔒")
-    async def close_ticket(self, interaction: discord.Interaction, button: Button):
-        if interaction.user.id != self.owner.id and not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("❌ คุณไม่ใช่เจ้าของตั๋วนี้", ephemeral=True)
-            return
-
-        await interaction.response.send_message("📪 กำลังปิดตั๋วใน 5 วินาที...", ephemeral=True)
-        await asyncio.sleep(5)
-        
-        global gamepass_stock, group_stock
-        if self.channel.category and "gamepass" in self.channel.category.name.lower():
-            gamepass_stock += 1
-        elif self.channel.category and "group" in self.channel.category.name.lower():
-            group_stock += 1
-            
-        if self.channel.id in ticket_activity:
-            del ticket_activity[self.channel.id]
-            
-        try:
-            await self.channel.delete()
-        except Exception as e:
-            print(f"❌ เกิดข้อผิดพลาดในการลบช่อง: {e}")
-
-# --------------------------------------------------------------------------------------------------
-# View สำหรับไปที่ตั๋ว
-class GoToTicketView(discord.ui.View):
-    def __init__(self, channel):
-        super().__init__(timeout=None)
-        self.add_item(
-            discord.ui.Button(
-                label="ไปที่ตั๋ว",
-                url=channel.jump_url,
-                style=discord.ButtonStyle.link
-            )
-        )
 
 # --------------------------------------------------------------------------------------------------
 # View สำหรับให้เครดิต
@@ -738,8 +603,8 @@ async def check_user_level_as_command(ctx, member):
             current_role_id = LEVELS[user_level]["role_id"]
             current_display = f"<@&{current_role_id}>"
         
-        # ระดับถัดไป
-        if user_level < 9:  # ระดับสูงสุดคือ 9
+        # ระดับถัดไป - แก้ไขเป็น 9
+        if user_level < 9:  # ✅ แก้ไขจาก 4 เป็น 9
             next_level = user_level + 1
             next_level_exp = LEVELS[next_level]["exp"]
             next_role_id = LEVELS[next_level]["role_id"]
@@ -756,7 +621,7 @@ async def check_user_level_as_command(ctx, member):
         embed.add_field(name="🎮 ระดับปัจจุบัน", value=current_display, inline=True)
         embed.add_field(name="⭐ EXP สะสม", value=f"**{user_exp:,} EXP**", inline=True)
         
-        if user_level < 9:  # ระดับสูงสุดคือ 9
+        if user_level < 9:  # ✅ แก้ไขจาก 4 เป็น 9
             embed.add_field(
                 name="🎯 ระดับถัดไป", 
                 value=f"ต้องการอีก **{exp_needed:,} EXP** เพื่อยศ {next_display}", 
@@ -769,7 +634,7 @@ async def check_user_level_as_command(ctx, member):
                 inline=False
             )
         
-        if user_level < 9:  # ระดับสูงสุดคือ 9
+        if user_level < 9:  # ✅ แก้ไขจาก 4 เป็น 9
             current_level_exp = LEVELS[user_level]["exp"] if user_level > 0 else 0
             progress = user_exp - current_level_exp
             total_for_level = next_level_exp - current_level_exp
@@ -1365,60 +1230,6 @@ def admin_only():
     return commands.check(predicate)
 
 # --------------------------------------------------------------------------------------------------
-# คำสั่ง !leaderboard
-@bot.command()
-async def leaderboard(ctx):
-    """แสดงอันดับผู้ใช้ที่มี EXP สูงสุด 10 อันดับแรก"""
-    try:
-        # เรียงลำดับผู้ใช้ตาม EXP จากมากไปน้อย
-        sorted_users = sorted(user_data.items(), key=lambda x: x[1]["exp"], reverse=True)
-        
-        embed = discord.Embed(
-            title="🏆 อันดับยอด EXP 🏆",
-            color=0xFFD700,  # สีทอง
-            timestamp=discord.utils.utcnow()
-        )
-        
-        if not sorted_users:
-            embed.description = "❌ ยังไม่มีข้อมูล EXP ในระบบ"
-            await ctx.send(embed=embed)
-            return
-        
-        leaderboard_text = ""
-        for i, (user_id, user_info) in enumerate(sorted_users[:10], 1):  # แสดงแค่ 10 อันดับแรก
-            try:
-                user = await bot.fetch_user(int(user_id))
-                username = user.display_name
-                mention = user.mention
-            except:
-                username = f"User {user_id}"
-                mention = f"<@{user_id}>"
-            
-            exp = user_info["exp"]
-            level = user_info["level"]
-            
-            # เลือกอิโมจิตามอันดับ
-            if i == 1:
-                rank_emoji = "🥇"
-            elif i == 2:
-                rank_emoji = "🥈"
-            elif i == 3:
-                rank_emoji = "🥉"
-            else:
-                rank_emoji = f"{i}."
-            
-            leaderboard_text += f"{rank_emoji} {mention} - **{exp:,} EXP** (เลเวล {level})\n"
-        
-        embed.description = leaderboard_text
-        embed.set_footer(text=f"แสดง {min(len(sorted_users), 10)} อันดับแรกจากทั้งหมด {len(sorted_users)} คน")
-        
-        await ctx.send(embed=embed)
-        
-    except Exception as e:
-        print(f"❌ เกิดข้อผิดพลาดในการแสดง leaderboard: {e}")
-        await ctx.send("❌ เกิดข้อผิดพลาดในการแสดงอันดับ")
-
-# --------------------------------------------------------------------------------------------------
 # คำสั่งพื้นฐาน
 @bot.command(name='help')
 async def help_command(ctx):
@@ -1432,7 +1243,6 @@ async def help_command(ctx):
                    "`!tax <จำนวน>` - คำนวณ Robux หลังหักภาษี\n\n"
                    "**คำสั่งทั่วไป:**\n"
                    "`!level` - เช็คเลเวลและ EXP ของคุณ\n"
-                   "`!leaderboard` - ดูอันดับ EXP สูงสุด\n\n"
                    "**คำสั่งผู้ดูแลระบบเท่านั้น:**\n"
                    "`!stock` - ตรวจสอบ stock\n"
                    "`!sushi` - เปิด/ปิดร้าน\n"
@@ -2188,6 +1998,7 @@ try:
     bot.run(os.getenv("TOKEN"))
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
+
 
 
 
