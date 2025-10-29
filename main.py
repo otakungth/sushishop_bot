@@ -55,7 +55,7 @@ def save_user_data():
 # โหลดข้อมูลผู้ใช้
 user_data = load_user_data()
 
-# ระดับและ EXP - อัปเดตตามลำดับใหม่
+# ระดับและ EXP
 LEVELS = {
     1: {"exp": 1, "role_id": 1361555369825927249, "role_name": "Level 1"},
     2: {"exp": 5000, "role_id": 1432070662977093703, "role_name": "Level 2"},
@@ -139,6 +139,7 @@ async def update_channel_name():
             else:
                 new_name = "〔🔴〕ปิดชั่วคราว"
             
+            # ตรวจสอบว่าชื่อช่องปัจจุบันต่างจากที่ต้องการหรือไม่
             if channel.name != new_name:
                 await channel.edit(name=new_name)
                 print(f"✅ เปลี่ยนชื่อช่องเป็น: {new_name}")
@@ -351,7 +352,7 @@ class GroupTicketModal(Modal, title="📋 แบบฟอร์มสั่ง�
             await interaction.response.send_message("❌ กรุณากรอกจำนวนโรบัคเป็นตัวเลข", ephemeral=True)
 
 # --------------------------------------------------------------------------------------------------
-# View สำหรับยืนยันตั๋ว - ลบปุ่มส่งของเรียบร้อยแล้วออก
+# View สำหรับยืนยันตั๋ว
 class ConfirmTicketView(View):
     def __init__(self, embed_data: discord.Embed):
         super().__init__(timeout=300)
@@ -360,63 +361,53 @@ class ConfirmTicketView(View):
     @discord.ui.button(label="❌ ยกเลิกสินค้า", style=discord.ButtonStyle.danger, custom_id="cancel_ticket")
     async def cancel_button(self, interaction: discord.Interaction, button: Button):
         try:
-            # แสดงข้อความยกเลิกให้ทุกคนเห็น
             await interaction.response.send_message("❌ คำสั่งซื้อถูกยกเลิกโดยผู้ดูแลระบบ")
             await interaction.message.delete()
         except Exception as e:
             await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการยกเลิก")
 
 # --------------------------------------------------------------------------------------------------
-# View สำหรับตั๋ว - ลบแค่ปุ่มช่องทางการโอนเงิน
-class TicketActionView(View):
-    def __init__(self, channel: discord.TextChannel, owner: discord.Member, modal_class):
-        super().__init__(timeout=None)
-        self.channel = channel
-        self.owner = owner
-        self.modal_class = modal_class
-
-    @discord.ui.button(label="📝 กรอกแบบฟอร์ม", style=discord.ButtonStyle.primary, emoji="📝")
-    async def open_form(self, interaction: discord.Interaction, button: Button):
-        try:
-            await interaction.response.send_modal(self.modal_class())
-        except Exception as e:
-            await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการเปิดฟอร์ม", ephemeral=True)
-
-    @discord.ui.button(label="🔒 ปิดตั๋ว", style=discord.ButtonStyle.danger, emoji="🔒")
-    async def close_ticket(self, interaction: discord.Interaction, button: Button):
-        if interaction.user.id != self.owner.id and not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("❌ คุณไม่ใช่เจ้าของตั๋วนี้", ephemeral=True)
-            return
-
-        await interaction.response.send_message("📪 กำลังปิดตั๋วใน 5 วินาที...", ephemeral=True)
-        await asyncio.sleep(5)
-        
-        global gamepass_stock, group_stock
-        if self.channel.category and "gamepass" in self.channel.category.name.lower():
-            gamepass_stock += 1
-        elif self.channel.category and "group" in self.channel.category.name.lower():
-            group_stock += 1
-            
-        if self.channel.id in ticket_activity:
-            del ticket_activity[self.channel.id]
-            
-        try:
-            await self.channel.delete()
-        except Exception as e:
-            print(f"❌ เกิดข้อผิดพลาดในการลบช่อง: {e}")
-
-# --------------------------------------------------------------------------------------------------
 # View สำหรับไปที่ตั๋ว
-class GoToTicketView(discord.ui.View):
+class GoToTicketView(View):
     def __init__(self, channel):
         super().__init__(timeout=None)
         self.add_item(
             discord.ui.Button(
-                label="ไปที่ตั๋ว",
-                url=channel.jump_url,
+                label="📩 ไปที่ตั๋ว", 
+                url=f"https://discord.com/channels/{channel.guild.id}/{channel.id}", 
                 style=discord.ButtonStyle.link
             )
         )
+
+# --------------------------------------------------------------------------------------------------
+# View สำหรับการดำเนินการในตั๋ว
+class TicketActionView(View):
+    def __init__(self, channel, user, modal_class):
+        super().__init__(timeout=None)
+        self.channel = channel
+        self.user = user
+        self.modal_class = modal_class
+
+    @discord.ui.button(label="📝 กรอกแบบฟอร์มใหม่", style=discord.ButtonStyle.primary, emoji="📝")
+    async def refill_form(self, interaction: discord.Interaction, button: Button):
+        try:
+            modal = self.modal_class()
+            await interaction.response.send_modal(modal)
+        except Exception as e:
+            await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการเปิดแบบฟอร์ม", ephemeral=True)
+
+    @discord.ui.button(label="🔒 ปิดตั๋ว", style=discord.ButtonStyle.danger, emoji="🔒")
+    async def close_ticket(self, interaction: discord.Interaction, button: Button):
+        try:
+            admin_role = interaction.guild.get_role(1361016912259055896)
+            if admin_role and admin_role in interaction.user.roles:
+                await interaction.response.send_message("📪 กำลังปิดตั๋ว...")
+                await asyncio.sleep(2)
+                await self.channel.delete()
+            else:
+                await interaction.response.send_message("❌ คุณไม่มีสิทธิ์ปิดตั๋วนี้", ephemeral=True)
+        except Exception as e:
+            await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการปิดตั๋ว", ephemeral=True)
 
 # --------------------------------------------------------------------------------------------------
 # ฟังก์ชันจัดการการเปิดตั๋ว
@@ -508,16 +499,30 @@ async def handle_open_ticket(interaction, category_name, modal_class, stock_type
             value=admin_role.mention if admin_role else "รอพนักงานติดต่อ", 
             inline=False
         )
-        welcome_embed.add_field(
-            name="บริการกดเกมพาสเรท: 6",
-            value=f"📦 Stock: **{gamepass_stock}**",
-            inline=False
-        )
-        welcome_embed.add_field(
-            name="คำแนะนำ:",
-            value="• ระบุสิ่งที่ต้องการซื้อ\n• ใช้คำสั่ง !gp ตามด้วยจำนวนเพื่อเช็คราคา\nขอบคุณที่ใช้บริการ! 🎉",
-            inline=False
-        )
+        
+        if stock_type == "gamepass":
+            welcome_embed.add_field(
+                name="บริการกดเกมพาสเรท: 6",
+                value=f"📦 Stock: **{gamepass_stock}**",
+                inline=False
+            )
+            welcome_embed.add_field(
+                name="คำแนะนำ:",
+                value="• ระบุสิ่งที่ต้องการซื้อ\n• ใช้คำสั่ง !gp ตามด้วยจำนวนเพื่อเช็คราคา\nขอบคุณที่ใช้บริการ! 🎉",
+                inline=False
+            )
+        else:
+            welcome_embed.add_field(
+                name="บริการโรบัคกลุ่ม",
+                value=f"📦 Stock: **{group_stock}**",
+                inline=False
+            )
+            welcome_embed.add_field(
+                name="คำแนะนำ:",
+                value="• ตรวจสอบข้อมูลการโอน\n• รอทีมงานดำเนินการ\nขอบคุณที่ใช้บริการ! 🎉",
+                inline=False
+            )
+            
         welcome_embed.set_footer(text="Sushi Shop บริการรับกดเกมพาส")
         welcome_embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
 
@@ -583,7 +588,7 @@ async def check_user_level(interaction: discord.Interaction):
             current_role_id = LEVELS[user_level]["role_id"]
             current_display = f"<@&{current_role_id}>"
         
-        # ระดับถัดไป - แก้ไขทั้งหมดเป็น 9
+        # ระดับถัดไป
         if user_level < 9:
             next_level = user_level + 1
             next_level_exp = LEVELS[next_level]["exp"]
@@ -614,7 +619,7 @@ async def check_user_level(interaction: discord.Interaction):
                 inline=False
             )
         
-        # แสดงความคืบหน้า - แก้ไขทั้งหมดเป็น 9
+        # แสดงความคืบหน้า
         if user_level < 9:
             current_level_exp = LEVELS[user_level]["exp"] if user_level > 0 else 0
             progress = user_exp - current_level_exp
@@ -636,6 +641,7 @@ async def check_user_level(interaction: discord.Interaction):
         await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการเช็คเลเวล", ephemeral=True)
 
 # --------------------------------------------------------------------------------------------------
+# ฟังก์ชันเช็คเลเวลผู้ใช้ (สำหรับคำสั่ง)
 async def check_user_level_as_command(ctx, member):
     """แสดงเลเวลและ EXP ของผู้ใช้ (สำหรับคำสั่ง)"""
     try:
@@ -655,7 +661,7 @@ async def check_user_level_as_command(ctx, member):
             current_role_id = LEVELS[user_level]["role_id"]
             current_display = f"<@&{current_role_id}>"
         
-        # ระดับถัดไป - แก้ไขทั้งหมดเป็น 9
+        # ระดับถัดไป
         if user_level < 9:
             next_level = user_level + 1
             next_level_exp = LEVELS[next_level]["exp"]
@@ -686,7 +692,7 @@ async def check_user_level_as_command(ctx, member):
                 inline=False
             )
         
-        # แสดงความคืบหน้า - แก้ไขทั้งหมดเป็น 9
+        # แสดงความคืบหน้า
         if user_level < 9:
             current_level_exp = LEVELS[user_level]["exp"] if user_level > 0 else 0
             progress = user_exp - current_level_exp
@@ -785,7 +791,7 @@ class MainShopView(View):
                 return
             
             if not group_ticket_enabled:
-                await interaction.response.send_message("❌ บริการ Group ปิดชั่วคราวชั่วคราว", ephemeral=True)
+                await interaction.response.send_message("❌ บริการ Group ปิดชั่วคราว", ephemeral=True)
                 return
                 
             if group_stock <= 0:
@@ -842,7 +848,9 @@ async def on_command_completion(ctx):
             'ty_time': datetime.datetime.now()
         }
         
-        await start_auto_close_countdown(channel):
+        await start_auto_close_countdown(ctx.channel)
+
+async def start_auto_close_countdown(channel):
     print(f"🕐 เริ่มนับถอยหลังปิดตั๋วอัตโนมัติสำหรับ {channel.name} ใน 10 นาที")
     
     await asyncio.sleep(600)
@@ -928,7 +936,7 @@ async def check_stale_tickets():
                 del ticket_activity[channel_id]
 
 # --------------------------------------------------------------------------------------------------
-# อัปเดตช่องหลัก - เปลี่ยนสีเป็นสีส้ม
+# อัปเดตช่องหลัก
 async def update_main_channel():
     """อัปเดตข้อความในช่องหลักโดยการ edit ข้อความเดิม"""
     try:
@@ -1098,7 +1106,7 @@ async def help_command(ctx):
     await ctx.send(embed=help_embed, delete_after=30)
 
 # --------------------------------------------------------------------------------------------------
-# คำสั่งจัดการ Stock - แก้ไขให้ใช้ edit แทนส่งใหม่
+# คำสั่งจัดการ Stock
 @bot.command()
 @admin_only()
 async def stock(ctx, stock_type: str = None, amount: str = None):
@@ -1268,7 +1276,7 @@ async def stock(ctx, stock_type: str = None, amount: str = None):
             pass
             
 # --------------------------------------------------------------------------------------------------
-# คำสั่งเปิดปิดร้าน - แก้ไขให้ลบข้อความหลังใช้คำสั่ง
+# คำสั่งเปิดปิดร้าน
 @bot.command()
 @admin_only()
 async def sushi(ctx):
@@ -1460,7 +1468,6 @@ async def tax(ctx, *, expression: str):
 
 # --------------------------------------------------------------------------------------------------
 # คำสั่ง !od - Gamepass
-
 @bot.command()
 @admin_only()
 async def od(ctx, *, expression: str):
@@ -1534,7 +1541,6 @@ async def od(ctx, *, expression: str):
 
 # --------------------------------------------------------------------------------------------------
 # คำสั่ง !odg - Group
-
 @bot.command()
 @admin_only()
 async def odg(ctx, *, expression: str):
@@ -1608,8 +1614,7 @@ async def odg(ctx, *, expression: str):
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
 
 # --------------------------------------------------------------------------------------------------
-# คำสั่ง !odl - เพิ่มระบบ EXP
-
+# คำสั่ง !odl - Limited
 @bot.command()
 @admin_only()
 async def odl(ctx, item_name: str, value: str):
@@ -1836,9 +1841,6 @@ try:
     bot.run(os.getenv("TOKEN"))
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
-
-
-
 
 
 
