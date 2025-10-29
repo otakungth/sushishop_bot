@@ -353,45 +353,6 @@ class GroupTicketModal(Modal, title="📋 แบบฟอร์มสั่ง�
             await interaction.response.send_message("❌ กรุณากรอกจำนวนโรบัคเป็นตัวเลข", ephemeral=True)
 
 # --------------------------------------------------------------------------------------------------
-# View สำหรับตั๋ว - ลบแค่ปุ่มช่องทางการโอนเงิน
-class TicketActionView(View):
-    def __init__(self, channel: discord.TextChannel, owner: discord.Member, modal_class):
-        super().__init__(timeout=None)
-        self.channel = channel
-        self.owner = owner
-        self.modal_class = modal_class
-
-    @discord.ui.button(label="📝 กรอกแบบฟอร์ม", style=discord.ButtonStyle.primary, emoji="📝")
-    async def open_form(self, interaction: discord.Interaction, button: Button):
-        try:
-            await interaction.response.send_modal(self.modal_class())
-        except Exception as e:
-            await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการเปิดฟอร์ม", ephemeral=True)
-
-    @discord.ui.button(label="🔒 ปิดตั๋ว", style=discord.ButtonStyle.danger, emoji="🔒")
-    async def close_ticket(self, interaction: discord.Interaction, button: Button):
-        if interaction.user.id != self.owner.id and not interaction.user.guild_permissions.administrator:
-            await interaction.response.send_message("❌ คุณไม่ใช่เจ้าของตั๋วนี้", ephemeral=True)
-            return
-
-        await interaction.response.send_message("📪 กำลังปิดตั๋วใน 5 วินาที...", ephemeral=True)
-        await asyncio.sleep(5)
-        
-        global gamepass_stock, group_stock
-        if self.channel.category and "gamepass" in self.channel.category.name.lower():
-            gamepass_stock += 1
-        elif self.channel.category and "group" in self.channel.category.name.lower():
-            group_stock += 1
-            
-        if self.channel.id in ticket_activity:
-            del ticket_activity[self.channel.id]
-            
-        try:
-            await self.channel.delete()
-        except Exception as e:
-            print(f"❌ เกิดข้อผิดพลาดในการลบช่อง: {e}")
-
-# --------------------------------------------------------------------------------------------------
 # View สำหรับยืนยันตั๋ว - ลบปุ่มส่งของเรียบร้อยแล้วออก
 class ConfirmTicketView(View):
     def __init__(self, embed_data: discord.Embed):
@@ -478,9 +439,11 @@ async def handle_open_ticket(interaction, category_name, modal_class, stock_type
             view=GoToTicketView(channel)
         )
 
+        # ส่งข้อความแจ้ง admin ก่อน
         if admin_role:
-            await channel.send(content=f"{admin_role.mention} มีตั๋วใหม่!")
+            await channel.send(content=f"{admin_role.mention} มีตั๋วใหม่!")  # ✅ ข้อความนี้ต้องอยู่ก่อน embed
 
+        # แล้วค่อยส่ง embed ต้อนรับ
         welcome_embed = discord.Embed(
             title="🍣 Sushi Shop 🍣",
             color=0x00FF99
@@ -509,7 +472,7 @@ async def handle_open_ticket(interaction, category_name, modal_class, stock_type
         welcome_embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
 
         view = TicketActionView(channel, user, modal_class)
-        await channel.send(embed=welcome_embed, view=view)
+        await channel.send(embed=welcome_embed, view=view)  # ✅ ส่ง embed หลังจากข้อความแจ้ง admin
 
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดในการเปิดตั๋ว: {e}")
@@ -1826,6 +1789,7 @@ try:
     bot.run(os.getenv("TOKEN"))
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
+
 
 
 
