@@ -10,7 +10,7 @@ import json
 from server import server_on
 
 # ตั้งค่าเรท
-gamepass_rate = 6
+gamepass_rate = 6.2
 group_rate_low = 4
 group_rate_high = 4.5
 
@@ -1841,6 +1841,7 @@ try:
     bot.run(os.getenv("TOKEN"))
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
+
 
 
 
