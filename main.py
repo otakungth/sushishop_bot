@@ -6,7 +6,6 @@ from discord.ui import View, Button, Modal, TextInput
 import re
 import asyncio
 import json
-from discord import app_commands
 
 from server import server_on
 
@@ -77,278 +76,6 @@ bot = commands.Bot(
 )
 
 print("🔄 กำลังเริ่มต้นบอท...")
-
-# --------------------------------------------------------------------------------------------------
-# Slash Commands สำหรับตรวจสอบราคา
-@bot.tree.command(name="gp", description="คำนวณราคา Gamepass")
-@app_commands.describe(amount="จำนวน Robux ที่ต้องการคำนวณราคา (สามารถใช้ + - * / ได้)")
-async def gp_slash(interaction: discord.Interaction, amount: str):
-    """คำสั่งคำนวณราคา Gamepass ที่ใช้ได้ทั้งในเซิร์ฟเวอร์และ DM"""
-    try:
-        # ทำความสะอาดและแปลงนิพจน์ทางคณิตศาสตร์
-        expr = amount.replace(",", "").replace(" ", "").lower().replace("x", "*").replace("÷", "/")
-
-        # ตรวจสอบความปลอดภัยของนิพจน์
-        if not re.match(r"^[\d\s\+\-\*\/\(\)\.]+$", expr):
-            await interaction.response.send_message(
-                "❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", 
-                ephemeral=True
-            )
-            return
-
-        # คำนวณผลลัพธ์
-        robux = int(eval(expr))
-        price = robux / gamepass_rate
-        price_str = f"{price:,.0f} บาท"
-
-        # ส่งผลลัพธ์
-        await interaction.response.send_message(
-            f"🎮 Gamepass {robux:,} Robux = **{price_str}** (เรท {gamepass_rate})"
-        )
-
-    except ZeroDivisionError:
-        await interaction.response.send_message("❌ ไม่สามารถหารด้วยศูนย์ได้", ephemeral=True)
-    except ValueError:
-        await interaction.response.send_message("❌ กรุณากรอกตัวเลขที่ถูกต้อง", ephemeral=True)
-    except Exception as e:
-        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {str(e)}", ephemeral=True)
-
-@bot.tree.command(name="g", description="คำนวณราคา Group")
-@app_commands.describe(amount="จำนวน Robux ที่ต้องการคำนวณราคา (สามารถใช้ + - * / ได้)")
-async def g_slash(interaction: discord.Interaction, amount: str):
-    """คำสั่งคำนวณราคา Group ที่ใช้ได้ทั้งในเซิร์ฟเวอร์และ DM"""
-    try:
-        # ทำความสะอาดและแปลงนิพจน์ทางคณิตศาสตร์
-        expr = amount.replace(",", "").replace(" ", "").lower().replace("x", "*").replace("÷", "/")
-
-        # ตรวจสอบความปลอดภัยของนิพจน์
-        if not re.match(r"^[\d\s\+\-\*\/\(\)\.]+$", expr):
-            await interaction.response.send_message(
-                "❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", 
-                ephemeral=True
-            )
-            return
-
-        # คำนวณผลลัพธ์
-        robux = int(eval(expr))
-        
-        # เลือกเรทตามจำนวน
-        if robux < 1500:
-            rate = group_rate_low
-        else:
-            rate = group_rate_high
-
-        price = robux / rate
-        price_str = f"{price:,.0f} บาท"
-
-        # ส่งผลลัพธ์
-        await interaction.response.send_message(
-            f"👥 Group {robux:,} Robux = **{price_str}** (เรท {rate})"
-        )
-
-    except ZeroDivisionError:
-        await interaction.response.send_message("❌ ไม่สามารถหารด้วยศูนย์ได้", ephemeral=True)
-    except ValueError:
-        await interaction.response.send_message("❌ กรุณากรอกตัวเลขที่ถูกต้อง", ephemeral=True)
-    except Exception as e:
-        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {str(e)}", ephemeral=True)
-
-@bot.tree.command(name="gpb", description="คำนวณ Robux จากเงินบาท (Gamepass)")
-@app_commands.describe(amount="จำนวนเงินบาท (สามารถใช้ + - * / ได้)")
-async def gpb_slash(interaction: discord.Interaction, amount: str):
-    """คำสั่งคำนวณ Robux จากเงินบาท (Gamepass)"""
-    try:
-        # ทำความสะอาดนิพจน์
-        expr = amount.replace(",", "").replace(" ", "").lower().replace("x", "*").replace("÷", "/")
-
-        # ตรวจสอบความปลอดภัยของนิพจน์
-        if not re.match(r"^[\d\s\+\-\*\/\(\)\.]+$", expr):
-            await interaction.response.send_message(
-                "❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", 
-                ephemeral=True
-            )
-            return
-
-        # คำนวณผลลัพธ์
-        baht = eval(expr)
-        robux = baht * gamepass_rate
-
-        await interaction.response.send_message(
-            f"🎮 {baht:,.0f} บาท = **{robux:,.0f} Robux** (Gamepass เรท {gamepass_rate})"
-        )
-
-    except ZeroDivisionError:
-        await interaction.response.send_message("❌ ไม่สามารถหารด้วยศูนย์ได้", ephemeral=True)
-    except ValueError:
-        await interaction.response.send_message("❌ กรุณากรอกตัวเลขที่ถูกต้อง", ephemeral=True)
-    except Exception as e:
-        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {str(e)}", ephemeral=True)
-
-@bot.tree.command(name="gb", description="คำนวณ Robux จากเงินบาท (Group)")
-@app_commands.describe(amount="จำนวนเงินบาท (สามารถใช้ + - * / ได้)")
-async def gb_slash(interaction: discord.Interaction, amount: str):
-    """คำสั่งคำนวณ Robux จากเงินบาท (Group)"""
-    try:
-        # ทำความสะอาดนิพจน์
-        expr = amount.replace(",", "").replace(" ", "").lower().replace("x", "*").replace("÷", "/")
-
-        # ตรวจสอบความปลอดภัยของนิพจน์
-        if not re.match(r"^[\d\s\+\-\*\/\(\)\.]+$", expr):
-            await interaction.response.send_message(
-                "❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", 
-                ephemeral=True
-            )
-            return
-
-        # คำนวณผลลัพธ์
-        baht = eval(expr)
-        
-        # เลือกเรทตามจำนวน
-        if baht < 500:
-            rate = group_rate_low
-        else:
-            rate = group_rate_high
-
-        robux = baht * rate
-
-        await interaction.response.send_message(
-            f"👥 {baht:,.0f} บาท = **{robux:,.0f} Robux** (Group เรท {rate})"
-        )
-
-    except ZeroDivisionError:
-        await interaction.response.send_message("❌ ไม่สามารถหารด้วยศูนย์ได้", ephemeral=True)
-    except ValueError:
-        await interaction.response.send_message("❌ กรุณากรอกตัวเลขที่ถูกต้อง", ephemeral=True)
-    except Exception as e:
-        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {str(e)}", ephemeral=True)
-
-@bot.tree.command(name="tax", description="คำนวณ Robux หลังหักภาษี")
-@app_commands.describe(amount="จำนวน Robux หรือรูปแบบ เช่น 100 หรือ 100-30%")
-async def tax_slash(interaction: discord.Interaction, amount: str):
-    """คำสั่งคำนวณ Robux หลังหักภาษี"""
-    try:
-        expr = amount.replace(" ", "")
-        
-        if re.match(r"^\d+$", expr):
-            # รูปแบบ: 100 (หัก 30% อัตโนมัติ)
-            number = int(expr)
-            result = number * 0.7
-            await interaction.response.send_message(
-                f"💰 {number:,} Robux หลังหัก 30% = **{result:,.0f} Robux**"
-            )
-            
-        elif re.match(r"^\d+-\d+%$", expr):
-            # รูปแบบ: 100-30% (หักตามเปอร์เซ็นต์ที่กำหนด)
-            parts = expr.split('-')
-            number = int(parts[0])
-            percent = int(parts[1].replace('%', ''))
-            
-            if percent < 0 or percent > 100:
-                await interaction.response.send_message(
-                    "❌ เปอร์เซ็นต์ต้องอยู่ระหว่าง 0-100%", 
-                    ephemeral=True
-                )
-                return
-            
-            result = number * (1 - percent/100)
-            await interaction.response.send_message(
-                f"💰 {number:,} Robux หลังหัก {percent}% = **{result:,.0f} Robux**"
-            )
-            
-        else:
-            await interaction.response.send_message(
-                "❌ รูปแบบไม่ถูกต้อง\n\n"
-                "**การใช้งาน:**\n"
-                "`/tax 100` - หัก 30% อัตโนมัติ\n"
-                "`/tax 100-30%` - หัก 30%\n"
-                "`/tax 100-50%` - หัก 50%",
-                ephemeral=True
-            )
-
-    except Exception as e:
-        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {str(e)}", ephemeral=True)
-
-# --------------------------------------------------------------------------------------------------
-# Slash Commands สำหรับคำนวณอัตราแลกเปลี่ยน
-@bot.tree.command(name="exch", description="คำนวณอัตราแลกเปลี่ยน (เรท 33.5)")
-@app_commands.describe(amount="จำนวนเงินบาท (สามารถใช้ + - * / และทศนิยมได้)")
-async def exch_slash(interaction: discord.Interaction, amount: str):
-    """คำสั่งคำนวณอัตราแลกเปลี่ยน เรท 33.5"""
-    try:
-        # ตรวจสอบว่าเป็น DM หรือไม่
-        if interaction.guild is None:
-            print(f"📨 ใช้คำสั่ง /exch ใน DM โดย: {interaction.user}")
-        
-        # ทำความสะอาดนิพจน์
-        expr = amount.replace(",", "").replace(" ", "").lower().replace("x", "*").replace("÷", "/")
-
-        # ตรวจสอบความปลอดภัยของนิพจน์ (อนุญาตทศนิยมด้วย)
-        if not re.match(r"^[\d\s\+\-\*\/\(\)\.]+$", expr):
-            await interaction.response.send_message(
-                "❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ () และจุดทศนิยม", 
-                ephemeral=True
-            )
-            return
-
-        # คำนวณผลลัพธ์ (ใช้ float เพื่อรองรับทศนิยม)
-        baht = float(eval(expr))
-        exchange_rate = 33.5
-        result = baht * exchange_rate
-
-        # ส่งผลลัพธ์ (แสดงทศนิยม 2 ตำแหน่ง)
-        await interaction.response.send_message(
-            f"💱 {baht:,.2f} บาท × {exchange_rate} = **{result:,.2f}**"
-        )
-
-    except ZeroDivisionError:
-        await interaction.response.send_message("❌ ไม่สามารถหารด้วยศูนย์ได้", ephemeral=True)
-    except ValueError:
-        await interaction.response.send_message("❌ กรุณากรอกตัวเลขที่ถูกต้อง", ephemeral=True)
-    except Exception as e:
-        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {str(e)}", ephemeral=True)
-
-@bot.tree.command(name="exch_custom", description="คำนวณอัตราแลกเปลี่ยนแบบกำหนดเรทเอง")
-@app_commands.describe(
-    amount="จำนวนเงินบาท (สามารถใช้ + - * / และทศนิยมได้)",
-    rate="อัตราแลกเปลี่ยน (เช่น 33.5, 35.2)"
-)
-async def exch_custom_slash(interaction: discord.Interaction, amount: str, rate: str):
-    """คำสั่งคำนวณอัตราแลกเปลี่ยนแบบกำหนดเรทเอง"""
-    try:
-        # ตรวจสอบว่าเป็น DM หรือไม่
-        if interaction.guild is None:
-            print(f"📨 ใช้คำสั่ง /exch_custom ใน DM โดย: {interaction.user}")
-        
-        # ทำความสะอาดนิพจน์จำนวนเงิน
-        amount_expr = amount.replace(",", "").replace(" ", "").lower().replace("x", "*").replace("÷", "/")
-        
-        # ทำความสะอาดนิพจน์เรท
-        rate_expr = rate.replace(",", "").replace(" ", "").lower().replace("x", "*").replace("÷", "/")
-
-        # ตรวจสอบความปลอดภัยของนิพจน์ (อนุญาตทศนิยมด้วย)
-        if not re.match(r"^[\d\s\+\-\*\/\(\)\.]+$", amount_expr) or not re.match(r"^[\d\s\+\-\*\/\(\)\.]+$", rate_expr):
-            await interaction.response.send_message(
-                "❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ () และจุดทศนิยม", 
-                ephemeral=True
-            )
-            return
-
-        # คำนวณผลลัพธ์ (ใช้ float เพื่อรองรับทศนิยม)
-        baht = float(eval(amount_expr))
-        exchange_rate = float(eval(rate_expr))
-        result = baht * exchange_rate
-
-        # ส่งผลลัพธ์ (แสดงทศนิยม 2 ตำแหน่ง)
-        await interaction.response.send_message(
-            f"💱 {baht:,.2f} บาท × {exchange_rate} = **{result:,.2f}**"
-        )
-
-    except ZeroDivisionError:
-        await interaction.response.send_message("❌ ไม่สามารถหารด้วยศูนย์ได้", ephemeral=True)
-    except ValueError:
-        await interaction.response.send_message("❌ กรุณากรอกตัวเลขที่ถูกต้อง", ephemeral=True)
-    except Exception as e:
-        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {str(e)}", ephemeral=True)
 
 # --------------------------------------------------------------------------------------------------
 # ฟังก์ชันจัดการเลเวลและ EXP
@@ -1301,6 +1028,179 @@ async def update_main_channel():
         print(f"❌ เกิดข้อผิดพลาดในการอัปเดตช่องหลัก: {e}")
 
 # --------------------------------------------------------------------------------------------------
+# SLASH COMMANDS
+# --------------------------------------------------------------------------------------------------
+
+@bot.tree.command(name="gp", description="คำนวณราคา Gamepass")
+async def gp_slash(interaction: discord.Interaction, amount: str):
+    """คำสั่งคำนวณราคา Gamepass"""
+    try:
+        expr = amount.replace(",", "").replace(" ", "").lower().replace("x", "*").replace("÷", "/")
+
+        if not re.match(r"^[\d\s\+\-\*\/\(\)\.]+$", expr):
+            await interaction.response.send_message("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", ephemeral=True)
+            return
+
+        robux = int(eval(expr))
+        price = robux / gamepass_rate
+        price_str = f"{price:,.0f} บาท"
+
+        await interaction.response.send_message(f"🎮 Gamepass {robux:,} Robux = **{price_str}** (เรท {gamepass_rate})")
+
+    except Exception as e:
+        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
+
+@bot.tree.command(name="g", description="คำนวณราคา Group")
+async def g_slash(interaction: discord.Interaction, amount: str):
+    """คำสั่งคำนวณราคา Group"""
+    try:
+        expr = amount.replace(",", "").replace(" ", "").lower().replace("x", "*").replace("÷", "/")
+
+        if not re.match(r"^[\d\s\+\-\*\/\(\)\.]+$", expr):
+            await interaction.response.send_message("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", ephemeral=True)
+            return
+
+        robux = int(eval(expr))
+
+        if robux < 1500:
+            rate = group_rate_low
+        else:
+            rate = group_rate_high
+
+        price = robux / rate
+        price_str = f"{price:,.0f} บาท"
+
+        await interaction.response.send_message(f"👥 Group {robux:,} Robux = **{price_str}** (เรท {rate})")
+
+    except Exception as e:
+        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
+
+@bot.tree.command(name="gpb", description="คำนวณ Robux จากเงินบาท (Gamepass)")
+async def gpb_slash(interaction: discord.Interaction, amount: str):
+    """คำสั่งคำนวณ Robux จากเงินบาท (Gamepass)"""
+    try:
+        expr = amount.replace(",", "").replace(" ", "").lower().replace("x", "*").replace("÷", "/")
+
+        if not re.match(r"^[\d\s\+\-\*\/\(\)\.]+$", expr):
+            await interaction.response.send_message("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", ephemeral=True)
+            return
+
+        baht = eval(expr)
+        robux = baht * gamepass_rate
+
+        await interaction.response.send_message(f"🎮 {baht:,.0f} บาท = **{robux:,.0f} Robux** (Gamepass เรท {gamepass_rate})")
+
+    except Exception as e:
+        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
+
+@bot.tree.command(name="gb", description="คำนวณ Robux จากเงินบาท (Group)")
+async def gb_slash(interaction: discord.Interaction, amount: str):
+    """คำสั่งคำนวณ Robux จากเงินบาท (Group)"""
+    try:
+        expr = amount.replace(",", "").replace(" ", "").lower().replace("x", "*").replace("÷", "/")
+
+        if not re.match(r"^[\d\s\+\-\*\/\(\)\.]+$", expr):
+            await interaction.response.send_message("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", ephemeral=True)
+            return
+
+        baht = eval(expr)
+
+        if baht < 500:
+            rate = group_rate_low
+        else:
+            rate = group_rate_high
+
+        robux = baht * rate
+
+        await interaction.response.send_message(f"👥 {baht:,.0f} บาท = **{robux:,.0f} Robux** (Group เรท {rate})")
+
+    except Exception as e:
+        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
+
+@bot.tree.command(name="tax", description="คำนวณ Robux หลังหักภาษี")
+async def tax_slash(interaction: discord.Interaction, amount: str):
+    """คำสั่งคำนวณ Robux หลังหักภาษี"""
+    try:
+        expr = amount.replace(" ", "")
+        
+        if re.match(r"^\d+$", expr):
+            number = int(expr)
+            result = number * 0.7
+            await interaction.response.send_message(f"💰 {number:,} Robux หลังหัก 30% = **{result:,.0f} Robux**")
+            
+        elif re.match(r"^\d+-\d+%$", expr):
+            parts = expr.split('-')
+            number = int(parts[0])
+            percent = int(parts[1].replace('%', ''))
+            
+            if percent < 0 or percent > 100:
+                await interaction.response.send_message("❌ เปอร์เซ็นต์ต้องอยู่ระหว่าง 0-100%", ephemeral=True)
+                return
+            
+            result = number * (1 - percent/100)
+            await interaction.response.send_message(f"💰 {number:,} Robux หลังหัก {percent}% = **{result:,.0f} Robux**")
+            
+        else:
+            await interaction.response.send_message(
+                "❌ รูปแบบไม่ถูกต้อง\n\n"
+                "**การใช้งาน:**\n"
+                "`/tax 100` - หัก 30% อัตโนมัติ\n"
+                "`/tax 100-30%` - หัก 30%\n"
+                "`/tax 100-50%` - หัก 50%",
+                ephemeral=True
+            )
+
+    except Exception as e:
+        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
+
+@bot.tree.command(name="exch", description="คำนวณอัตราแลกเปลี่ยน (เรท 33.5)")
+async def exch_slash(interaction: discord.Interaction, amount: str):
+    """คำสั่งคำนวณอัตราแลกเปลี่ยน เรท 33.5"""
+    try:
+        expr = amount.replace(",", "").replace(" ", "").lower().replace("x", "*").replace("÷", "/")
+
+        if not re.match(r"^[\d\s\+\-\*\/\(\)\.]+$", expr):
+            await interaction.response.send_message("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ () และจุดทศนิยม", ephemeral=True)
+            return
+
+        baht = float(eval(expr))
+        exchange_rate = 33.5
+        result = baht * exchange_rate
+
+        await interaction.response.send_message(f"💱 {baht:,.2f} บาท × {exchange_rate} = **{result:,.2f}**")
+
+    except ZeroDivisionError:
+        await interaction.response.send_message("❌ ไม่สามารถหารด้วยศูนย์ได้", ephemeral=True)
+    except ValueError:
+        await interaction.response.send_message("❌ กรุณากรอกตัวเลขที่ถูกต้อง", ephemeral=True)
+    except Exception as e:
+        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {str(e)}", ephemeral=True)
+
+@bot.tree.command(name="exch_custom", description="คำนวณอัตราแลกเปลี่ยนแบบกำหนดเรทเอง")
+async def exch_custom_slash(interaction: discord.Interaction, amount: str, rate: str):
+    """คำสั่งคำนวณอัตราแลกเปลี่ยนแบบกำหนดเรทเอง"""
+    try:
+        amount_expr = amount.replace(",", "").replace(" ", "").lower().replace("x", "*").replace("÷", "/")
+        rate_expr = rate.replace(",", "").replace(" ", "").lower().replace("x", "*").replace("÷", "/")
+
+        if not re.match(r"^[\d\s\+\-\*\/\(\)\.]+$", amount_expr) or not re.match(r"^[\d\s\+\-\*\/\(\)\.]+$", rate_expr):
+            await interaction.response.send_message("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ () และจุดทศนิยม", ephemeral=True)
+            return
+
+        baht = float(eval(amount_expr))
+        exchange_rate = float(eval(rate_expr))
+        result = baht * exchange_rate
+
+        await interaction.response.send_message(f"💱 {baht:,.2f} บาท × {exchange_rate} = **{result:,.2f}**")
+
+    except ZeroDivisionError:
+        await interaction.response.send_message("❌ ไม่สามารถหารด้วยศูนย์ได้", ephemeral=True)
+    except ValueError:
+        await interaction.response.send_message("❌ กรุณากรอกตัวเลขที่ถูกต้อง", ephemeral=True)
+    except Exception as e:
+        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {str(e)}", ephemeral=True)
+
+# --------------------------------------------------------------------------------------------------
 # Events
 @bot.event
 async def on_ready():
@@ -1310,18 +1210,12 @@ async def on_ready():
     
     # Sync slash commands แบบ global
     try:
-        # ตั้งค่าให้ commands ใช้ได้ใน DMs
-        for command in bot.tree.get_commands():
-            # สำหรับ discord.py version เก่า ต้องใช้วิธีนี้
-            command.guild_only = False
-        
-        # Sync global commands
         synced = await bot.tree.sync()
         print(f"✅ Sync Global Slash Commands เรียบร้อย: {len(synced)} commands")
         
-        # ตรวจสอบว่า commands พร้อมใช้ใน DMs หรือไม่
+        # แสดงคำสั่งทั้งหมดที่ sync สำเร็จ
         for cmd in synced:
-            print(f"   - /{cmd.name} (ID: {cmd.id})")
+            print(f"   - /{cmd.name}")
             
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดในการ sync commands: {e}")
@@ -1338,6 +1232,18 @@ async def on_ready():
     print("✅ เริ่มระบบตรวจสอบตั๋วค้างเรียบร้อย")
     
     await update_main_channel()
+
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.CommandNotFound):
+        return
+    elif isinstance(error, commands.MissingPermissions):
+        await ctx.send("❌ คุณไม่มีสิทธิ์ใช้คำสั่งนี้", delete_after=5)
+    elif isinstance(error, commands.BotMissingPermissions):
+        await ctx.send("❌ บอทไม่มีสิทธิ์ที่จำเป็น", delete_after=5)
+    else:
+        print(f"❌ ข้อผิดพลาดคำสั่ง: {error}")
+        await ctx.send("❌ เกิดข้อผิดพลาดในการดำเนินการ", delete_after=5)
 
 # --------------------------------------------------------------------------------------------------
 # Decorator สำหรับตรวจสอบสิทธิ์แอดมิน
@@ -2138,8 +2044,6 @@ try:
     bot.run(os.getenv("TOKEN"))
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
-
-
 
 
 
