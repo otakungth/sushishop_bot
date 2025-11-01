@@ -1238,10 +1238,7 @@ async def on_ready():
     
     # Sync slash commands แบบ global
     try:
-        # ลบ commands เก่าทั้งหมดก่อน
-        bot.tree.clear_commands(guild=None)
-        
-        # Sync global commands
+        # ใช้เฉพาะ sync เท่านั้น ไม่ต้อง clear
         synced = await bot.tree.sync()
         print(f"✅ Sync Global Slash Commands เรียบร้อย: {len(synced)} commands")
         
@@ -1646,6 +1643,7 @@ try:
     bot.run(os.getenv("TOKEN"))
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
+
 
 
 
