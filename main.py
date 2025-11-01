@@ -80,11 +80,7 @@ print("🔄 กำลังเริ่มต้นบอท...")
 
 # --------------------------------------------------------------------------------------------------
 # Slash Commands สำหรับตรวจสอบราคา
-@bot.tree.command(
-    name="gp", 
-    description="คำนวณราคา Gamepass",
-    dm_permission=True  # ✅ อนุญาตให้ใช้ใน DMs
-)
+@bot.tree.command(name="gp", description="คำนวณราคา Gamepass")
 @app_commands.describe(amount="จำนวน Robux ที่ต้องการคำนวณราคา (สามารถใช้ + - * / ได้)")
 async def gp_slash(interaction: discord.Interaction, amount: str):
     """คำสั่งคำนวณราคา Gamepass ที่ใช้ได้ทั้งในเซิร์ฟเวอร์และ DM"""
@@ -117,11 +113,7 @@ async def gp_slash(interaction: discord.Interaction, amount: str):
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {str(e)}", ephemeral=True)
 
-@bot.tree.command(
-    name="g", 
-    description="คำนวณราคา Group",
-    dm_permission=True  # ✅ อนุญาตให้ใช้ใน DMs
-)
+@bot.tree.command(name="g", description="คำนวณราคา Group")
 @app_commands.describe(amount="จำนวน Robux ที่ต้องการคำนวณราคา (สามารถใช้ + - * / ได้)")
 async def g_slash(interaction: discord.Interaction, amount: str):
     """คำสั่งคำนวณราคา Group ที่ใช้ได้ทั้งในเซิร์ฟเวอร์และ DM"""
@@ -161,11 +153,7 @@ async def g_slash(interaction: discord.Interaction, amount: str):
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {str(e)}", ephemeral=True)
 
-@bot.tree.command(
-    name="gpb", 
-    description="คำนวณ Robux จากเงินบาท (Gamepass)",
-    dm_permission=True  # ✅ อนุญาตให้ใช้ใน DMs
-)
+@bot.tree.command(name="gpb", description="คำนวณ Robux จากเงินบาท (Gamepass)")
 @app_commands.describe(amount="จำนวนเงินบาท (สามารถใช้ + - * / ได้)")
 async def gpb_slash(interaction: discord.Interaction, amount: str):
     """คำสั่งคำนวณ Robux จากเงินบาท (Gamepass)"""
@@ -196,11 +184,7 @@ async def gpb_slash(interaction: discord.Interaction, amount: str):
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {str(e)}", ephemeral=True)
 
-@bot.tree.command(
-    name="gb", 
-    description="คำนวณ Robux จากเงินบาท (Group)",
-    dm_permission=True  # ✅ อนุญาตให้ใช้ใน DMs
-)
+@bot.tree.command(name="gb", description="คำนวณ Robux จากเงินบาท (Group)")
 @app_commands.describe(amount="จำนวนเงินบาท (สามารถใช้ + - * / ได้)")
 async def gb_slash(interaction: discord.Interaction, amount: str):
     """คำสั่งคำนวณ Robux จากเงินบาท (Group)"""
@@ -238,11 +222,7 @@ async def gb_slash(interaction: discord.Interaction, amount: str):
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {str(e)}", ephemeral=True)
 
-@bot.tree.command(
-    name="tax", 
-    description="คำนวณ Robux หลังหักภาษี",
-    dm_permission=True  # ✅ อนุญาตให้ใช้ใน DMs
-)
+@bot.tree.command(name="tax", description="คำนวณ Robux หลังหักภาษี")
 @app_commands.describe(amount="จำนวน Robux หรือรูปแบบ เช่น 100 หรือ 100-30%")
 async def tax_slash(interaction: discord.Interaction, amount: str):
     """คำสั่งคำนวณ Robux หลังหักภาษี"""
@@ -290,11 +270,7 @@ async def tax_slash(interaction: discord.Interaction, amount: str):
 
 # --------------------------------------------------------------------------------------------------
 # Slash Commands สำหรับคำนวณอัตราแลกเปลี่ยน
-@bot.tree.command(
-    name="exch", 
-    description="คำนวณอัตราแลกเปลี่ยน (เรท 33.5)",
-    dm_permission=True
-)
+@bot.tree.command(name="exch", description="คำนวณอัตราแลกเปลี่ยน (เรท 33.5)")
 @app_commands.describe(amount="จำนวนเงินบาท (สามารถใช้ + - * / และทศนิยมได้)")
 async def exch_slash(interaction: discord.Interaction, amount: str):
     """คำสั่งคำนวณอัตราแลกเปลี่ยน เรท 33.5"""
@@ -331,11 +307,7 @@ async def exch_slash(interaction: discord.Interaction, amount: str):
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {str(e)}", ephemeral=True)
 
-@bot.tree.command(
-    name="exch_custom", 
-    description="คำนวณอัตราแลกเปลี่ยนแบบกำหนดเรทเอง",
-    dm_permission=True
-)
+@bot.tree.command(name="exch_custom", description="คำนวณอัตราแลกเปลี่ยนแบบกำหนดเรทเอง")
 @app_commands.describe(
     amount="จำนวนเงินบาท (สามารถใช้ + - * / และทศนิยมได้)",
     rate="อัตราแลกเปลี่ยน (เช่น 33.5, 35.2)"
@@ -1338,8 +1310,10 @@ async def on_ready():
     
     # Sync slash commands แบบ global
     try:
-        # ลบ commands เดิมทั้งหมด (optional)
-        # await bot.tree.clear_commands(guild=None)
+        # ตั้งค่าให้ commands ใช้ได้ใน DMs
+        for command in bot.tree.get_commands():
+            # สำหรับ discord.py version เก่า ต้องใช้วิธีนี้
+            command.guild_only = False
         
         # Sync global commands
         synced = await bot.tree.sync()
@@ -2164,6 +2138,7 @@ try:
     bot.run(os.getenv("TOKEN"))
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
+
 
 
 
