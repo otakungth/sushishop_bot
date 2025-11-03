@@ -10,7 +10,7 @@ import json
 from server import server_on
 
 # ตั้งค่าเรท
-gamepass_rate = 6.2
+gamepass_rate = 6
 group_rate_low = 4
 group_rate_high = 4.5
 
@@ -58,14 +58,9 @@ user_data = load_user_data()
 # ระดับและ EXP
 LEVELS = {
     1: {"exp": 1, "role_id": 1361555369825927249, "role_name": "Level 1"},
-    2: {"exp": 5000, "role_id": 1432070662977093703, "role_name": "Level 2"},
-    3: {"exp": 10000, "role_id": 1361555364776247297, "role_name": "Level 3"},
-    4: {"exp": 20000, "role_id": 1432075600746643537, "role_name": "Level 4"},
-    5: {"exp": 50000, "role_id": 1432075369179254804, "role_name": "Level 5"},
-    6: {"exp": 100000, "role_id": 1361554929017294949, "role_name": "Level 6"},
-    7: {"exp": 250000, "role_id": 1432077732862492722, "role_name": "Level 7"},
-    8: {"exp": 500000, "role_id": 1363882685260365894, "role_name": "Level 8"},
-    9: {"exp": 1000000, "role_id": 1406309272786047106, "role_name": "Level 9"}
+    2: {"exp": 10000, "role_id": 1361555364776247297, "role_name": "Level 2"},
+    3: {"exp": 100000, "role_id": 1361554929017294949, "role_name": "Level 3"},
+    4: {"exp": 1000000, "role_id": 1363882685260365894, "role_name": "Level 4"}
 }
 
 # สร้างบอท
@@ -352,63 +347,83 @@ class GroupTicketModal(Modal, title="📋 แบบฟอร์มสั่ง�
             await interaction.response.send_message("❌ กรุณากรอกจำนวนโรบัคเป็นตัวเลข", ephemeral=True)
 
 # --------------------------------------------------------------------------------------------------
-# View สำหรับยืนยันตั๋ว
+# View สำหรับยืนยันตั๋ว - แก้ไขให้เหลือแค่ปุ่มยกเลิกหลังจากยืนยัน
 class ConfirmTicketView(View):
     def __init__(self, embed_data: discord.Embed):
         super().__init__(timeout=300)
         self.embed_data = embed_data
 
+    @discord.ui.button(label="✅ ส่งของเรียบร้อยแล้ว", style=discord.ButtonStyle.success, custom_id="confirm_ticket")
+    async def confirm_button(self, interaction: discord.Interaction, button: Button):
+        try:
+            if not interaction.user.guild_permissions.administrator:
+                role_id = 1361016912259055896
+                role = interaction.guild.get_role(role_id)
+                if role is None or role not in interaction.user.roles:
+                    await interaction.response.send_message("❌ คุณไม่มีสิทธิ์ยืนยันการสั่งซื้อนี้", ephemeral=True)
+                    return
+
+            if any(field.name == "📋 ยืนยันโดย" for field in self.embed_data.fields):
+                await interaction.response.send_message("⚠️ คำสั่งซื้อนี้ถูกยืนยันแล้ว", ephemeral=True)
+                return
+
+            # เพิ่ม EXP ให้ผู้ซื้อ
+            buyer_mention = None
+            for field in self.embed_data.fields:
+                if field.name == "😊 ผู้ซื้อ":
+                    buyer_mention = field.value
+                    break
+            
+            if buyer_mention:
+                # แปลง mention เป็น user ID
+                import re
+                match = re.search(r'<@!?(\d+)>', buyer_mention)
+                if match:
+                    buyer_id = int(match.group(1))
+                    buyer = interaction.guild.get_member(buyer_id)
+                    if buyer:
+                        # คำนวณ EXP จากจำนวน Robux
+                        robux_field = next((f for f in self.embed_data.fields if f.name == "💸 จำนวนโรบัค"), None)
+                        if robux_field:
+                            try:
+                                robux_amount = int(robux_field.value.replace(',', '').replace(' Robux', '').strip())
+                                exp_to_add = robux_amount
+                                new_level, total_exp = await add_exp(buyer.id, exp_to_add, interaction.guild)
+                                print(f"✅ เพิ่ม {exp_to_add} EXP ให้ {buyer.display_name} (เลเวล {new_level}, รวม {total_exp} EXP)")
+                                
+                                # เพิ่มข้อมูล EXP ใน embed
+                                self.embed_data.add_field(name="⭐ ได้รับ EXP", value=f"{exp_to_add:,} EXP", inline=True)
+                            except:
+                                print("⚠️ ไม่สามารถคำนวณ EXP จากจำนวน Robux")
+
+            self.embed_data.add_field(name="📋 ยืนยันโดย", value=interaction.user.mention, inline=False)
+            await send_sale_log(self.embed_data, interaction=interaction, delivered_by=interaction.user)
+
+            await interaction.response.send_message("✅ ส่งของเรียบร้อยแล้ว", ephemeral=True)
+            
+            # สร้าง View ใหม่ที่มีแค่ปุ่มยกเลิก
+            cancel_only_view = View()
+            cancel_only_view.add_item(Button(
+                label="❌ ยกเลิกสินค้า", 
+                style=discord.ButtonStyle.danger, 
+                custom_id="cancel_ticket_only"
+            ))
+            
+            await interaction.message.edit(embed=self.embed_data, view=cancel_only_view)
+            
+        except Exception as e:
+            print(f"❌ เกิดข้อผิดพลาดในการยืนยัน: {e}")
+            await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการยืนยัน", ephemeral=True)
+
     @discord.ui.button(label="❌ ยกเลิกสินค้า", style=discord.ButtonStyle.danger, custom_id="cancel_ticket")
     async def cancel_button(self, interaction: discord.Interaction, button: Button):
         try:
+            # แสดงข้อความยกเลิกให้ทุกคนเห็น
             await interaction.response.send_message("❌ คำสั่งซื้อถูกยกเลิกโดยผู้ดูแลระบบ")
             await interaction.message.delete()
         except Exception as e:
             await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการยกเลิก")
-
-# --------------------------------------------------------------------------------------------------
-# View สำหรับไปที่ตั๋ว
-class GoToTicketView(View):
-    def __init__(self, channel):
-        super().__init__(timeout=None)
-        self.add_item(
-            discord.ui.Button(
-                label="📩 ไปที่ตั๋ว", 
-                url=f"https://discord.com/channels/{channel.guild.id}/{channel.id}", 
-                style=discord.ButtonStyle.link
-            )
-        )
-
-# --------------------------------------------------------------------------------------------------
-# View สำหรับการดำเนินการในตั๋ว
-class TicketActionView(View):
-    def __init__(self, channel, user, modal_class):
-        super().__init__(timeout=None)
-        self.channel = channel
-        self.user = user
-        self.modal_class = modal_class
-
-    @discord.ui.button(label="📝 กรอกแบบฟอร์มใหม่", style=discord.ButtonStyle.primary, emoji="📝")
-    async def refill_form(self, interaction: discord.Interaction, button: Button):
-        try:
-            modal = self.modal_class()
-            await interaction.response.send_modal(modal)
-        except Exception as e:
-            await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการเปิดแบบฟอร์ม", ephemeral=True)
-
-    @discord.ui.button(label="🔒 ปิดตั๋ว", style=discord.ButtonStyle.danger, emoji="🔒")
-    async def close_ticket(self, interaction: discord.Interaction, button: Button):
-        try:
-            admin_role = interaction.guild.get_role(1361016912259055896)
-            if admin_role and admin_role in interaction.user.roles:
-                await interaction.response.send_message("📪 กำลังปิดตั๋ว...")
-                await asyncio.sleep(2)
-                await self.channel.delete()
-            else:
-                await interaction.response.send_message("❌ คุณไม่มีสิทธิ์ปิดตั๋วนี้", ephemeral=True)
-        except Exception as e:
-            await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการปิดตั๋ว", ephemeral=True)
-
+            
 # --------------------------------------------------------------------------------------------------
 # ฟังก์ชันจัดการการเปิดตั๋ว
 async def handle_open_ticket(interaction, category_name, modal_class, stock_type):
@@ -480,11 +495,9 @@ async def handle_open_ticket(interaction, category_name, modal_class, stock_type
             view=GoToTicketView(channel)
         )
 
-        # ส่งข้อความแจ้ง admin ก่อน
         if admin_role:
             await channel.send(content=f"{admin_role.mention} มีตั๋วใหม่!")
 
-        # แล้วค่อยส่ง embed ต้อนรับ
         welcome_embed = discord.Embed(
             title="🍣 Sushi Shop 🍣",
             color=0x00FF99
@@ -499,30 +512,16 @@ async def handle_open_ticket(interaction, category_name, modal_class, stock_type
             value=admin_role.mention if admin_role else "รอพนักงานติดต่อ", 
             inline=False
         )
-        
-        if stock_type == "gamepass":
-            welcome_embed.add_field(
-                name="บริการกดเกมพาสเรท: 6",
-                value=f"📦 Stock: **{gamepass_stock}**",
-                inline=False
-            )
-            welcome_embed.add_field(
-                name="คำแนะนำ:",
-                value="• ระบุสิ่งที่ต้องการซื้อ\n• ใช้คำสั่ง !gp ตามด้วยจำนวนเพื่อเช็คราคา\nขอบคุณที่ใช้บริการ! 🎉",
-                inline=False
-            )
-        else:
-            welcome_embed.add_field(
-                name="บริการโรบัคกลุ่ม",
-                value=f"📦 Stock: **{group_stock}**",
-                inline=False
-            )
-            welcome_embed.add_field(
-                name="คำแนะนำ:",
-                value="• ตรวจสอบข้อมูลการโอน\n• รอทีมงานดำเนินการ\nขอบคุณที่ใช้บริการ! 🎉",
-                inline=False
-            )
-            
+        welcome_embed.add_field(
+            name="บริการกดเกมพาสเรท: 6",
+            value=f"📦 Stock: **{gamepass_stock}**",
+            inline=False
+        )
+        welcome_embed.add_field(
+            name="คำแนะนำ:",
+            value="• ระบุสิ่งที่ต้องการซื้อ\n• ใช้คำสั่ง !gp ตามด้วยจำนวนเพื่อเช็คราคา\nขอบคุณที่ใช้บริการ! 🎉",
+            inline=False
+        )
         welcome_embed.set_footer(text="Sushi Shop บริการรับกดเกมพาส")
         welcome_embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
 
@@ -538,6 +537,80 @@ async def handle_open_ticket(interaction, category_name, modal_class, stock_type
                 await interaction.edit_original_response(content="❌ เกิดข้อผิดพลาดในการเปิดตั๋ว")
             except:
                 pass
+
+# --------------------------------------------------------------------------------------------------
+# View สำหรับตั๋ว
+class TicketActionView(View):
+    def __init__(self, channel: discord.TextChannel, owner: discord.Member, modal_class):
+        super().__init__(timeout=None)
+        self.channel = channel
+        self.owner = owner
+        self.modal_class = modal_class
+
+    @discord.ui.button(label="📝 กรอกแบบฟอร์ม", style=discord.ButtonStyle.primary, emoji="📝")
+    async def open_form(self, interaction: discord.Interaction, button: Button):
+        try:
+            await interaction.response.send_modal(self.modal_class())
+        except Exception as e:
+            await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการเปิดฟอร์ม", ephemeral=True)
+
+    @discord.ui.button(label="📤 ช่องทางการโอนเงิน", style=discord.ButtonStyle.success, emoji="📤")
+    async def payment_info(self, interaction: discord.Interaction, button: Button):
+        try:
+            bank_accounts = (
+                "**🏦 ช่องทางการโอนเงิน**\n\n"
+                "**บัญชี 1:**\n"
+                "```12345```\n"
+                "**บัญชี 2:**\n"
+                "```33333```\n"
+                "*กดค้างที่เลขบัญชีเพื่อคัดลอก*"
+            )
+            
+            embed = discord.Embed(
+                title="📤 ช่องทางการโอนเงิน",
+                description=bank_accounts,
+                color=0x00CCFF
+            )
+            embed.set_image(url="https://media.discordapp.net/attachments/722832040860319835/1402994996600111114/186-8-06559-8.png")
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+        except Exception as e:
+            await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการแสดงข้อมูล", ephemeral=True)
+
+    @discord.ui.button(label="🔒 ปิดตั๋ว", style=discord.ButtonStyle.danger, emoji="🔒")
+    async def close_ticket(self, interaction: discord.Interaction, button: Button):
+        if interaction.user.id != self.owner.id and not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message("❌ คุณไม่ใช่เจ้าของตั๋วนี้", ephemeral=True)
+            return
+
+        await interaction.response.send_message("📪 กำลังปิดตั๋วใน 5 วินาที...", ephemeral=True)
+        await asyncio.sleep(5)
+        
+        global gamepass_stock, group_stock
+        if self.channel.category and "gamepass" in self.channel.category.name.lower():
+            gamepass_stock += 1
+        elif self.channel.category and "group" in self.channel.category.name.lower():
+            group_stock += 1
+            
+        if self.channel.id in ticket_activity:
+            del ticket_activity[self.channel.id]
+            
+        try:
+            await self.channel.delete()
+        except Exception as e:
+            print(f"❌ เกิดข้อผิดพลาดในการลบช่อง: {e}")
+
+# --------------------------------------------------------------------------------------------------
+# View สำหรับไปที่ตั๋ว
+class GoToTicketView(discord.ui.View):
+    def __init__(self, channel):
+        super().__init__(timeout=None)
+        self.add_item(
+            discord.ui.Button(
+                label="ไปที่ตั๋ว",
+                url=channel.jump_url,
+                style=discord.ButtonStyle.link
+            )
+        )
 
 # --------------------------------------------------------------------------------------------------
 # View สำหรับให้เครดิต
@@ -589,7 +662,7 @@ async def check_user_level(interaction: discord.Interaction):
             current_display = f"<@&{current_role_id}>"
         
         # ระดับถัดไป
-        if user_level < 9:
+        if user_level < 4:
             next_level = user_level + 1
             next_level_exp = LEVELS[next_level]["exp"]
             next_role_id = LEVELS[next_level]["role_id"]
@@ -606,7 +679,7 @@ async def check_user_level(interaction: discord.Interaction):
         embed.add_field(name="🎮 ระดับปัจจุบัน", value=current_display, inline=True)
         embed.add_field(name="⭐ EXP สะสม", value=f"**{user_exp:,} EXP**", inline=True)
         
-        if user_level < 9:
+        if user_level < 4:
             embed.add_field(
                 name="🎯 ระดับถัดไป", 
                 value=f"ต้องการอีก **{exp_needed:,} EXP** เพื่อยศ {next_display}", 
@@ -619,8 +692,7 @@ async def check_user_level(interaction: discord.Interaction):
                 inline=False
             )
         
-        # แสดงความคืบหน้า
-        if user_level < 9:
+        if user_level < 4:
             current_level_exp = LEVELS[user_level]["exp"] if user_level > 0 else 0
             progress = user_exp - current_level_exp
             total_for_level = next_level_exp - current_level_exp
@@ -641,7 +713,6 @@ async def check_user_level(interaction: discord.Interaction):
         await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการเช็คเลเวล", ephemeral=True)
 
 # --------------------------------------------------------------------------------------------------
-# ฟังก์ชันเช็คเลเวลผู้ใช้ (สำหรับคำสั่ง)
 async def check_user_level_as_command(ctx, member):
     """แสดงเลเวลและ EXP ของผู้ใช้ (สำหรับคำสั่ง)"""
     try:
@@ -656,13 +727,13 @@ async def check_user_level_as_command(ctx, member):
         
         # ระดับปัจจุบัน
         if user_level == 0:
-            current_display = "Level 0"
+            current_display = "สมาชิกทั่วไป"
         else:
             current_role_id = LEVELS[user_level]["role_id"]
             current_display = f"<@&{current_role_id}>"
         
         # ระดับถัดไป
-        if user_level < 9:
+        if user_level < 4:
             next_level = user_level + 1
             next_level_exp = LEVELS[next_level]["exp"]
             next_role_id = LEVELS[next_level]["role_id"]
@@ -679,7 +750,7 @@ async def check_user_level_as_command(ctx, member):
         embed.add_field(name="🎮 ระดับปัจจุบัน", value=current_display, inline=True)
         embed.add_field(name="⭐ EXP สะสม", value=f"**{user_exp:,} EXP**", inline=True)
         
-        if user_level < 9:
+        if user_level < 4:
             embed.add_field(
                 name="🎯 ระดับถัดไป", 
                 value=f"ต้องการอีก **{exp_needed:,} EXP** เพื่อยศ {next_display}", 
@@ -692,8 +763,7 @@ async def check_user_level_as_command(ctx, member):
                 inline=False
             )
         
-        # แสดงความคืบหน้า
-        if user_level < 9:
+        if user_level < 4:
             current_level_exp = LEVELS[user_level]["exp"] if user_level > 0 else 0
             progress = user_exp - current_level_exp
             total_for_level = next_level_exp - current_level_exp
@@ -791,7 +861,7 @@ class MainShopView(View):
                 return
             
             if not group_ticket_enabled:
-                await interaction.response.send_message("❌ บริการ Group ปิดชั่วคราว", ephemeral=True)
+                await interaction.response.send_message("❌ บริการ Group ปิดชั่วคราวชั่วคราว", ephemeral=True)
                 return
                 
             if group_stock <= 0:
@@ -936,7 +1006,7 @@ async def check_stale_tickets():
                 del ticket_activity[channel_id]
 
 # --------------------------------------------------------------------------------------------------
-# อัปเดตช่องหลัก
+# อัปเดตช่องหลัก - เปลี่ยนสีเป็นสีส้ม
 async def update_main_channel():
     """อัปเดตข้อความในช่องหลักโดยการ edit ข้อความเดิม"""
     try:
@@ -1010,7 +1080,7 @@ async def update_main_channel():
         
         embed.set_thumbnail(url="https://media.discordapp.net/attachments/717757556889747657/1403684950770847754/noFilter.png")
 
-        if target_message:
+       if target_message:
             try:
                 await target_message.edit(embed=embed, view=MainShopView())
                 print(f"✅ อัพเดท embed หลักเรียบร้อยแล้ว (แก้ไขข้อความ ID: {target_message.id})")
@@ -1028,226 +1098,12 @@ async def update_main_channel():
         print(f"❌ เกิดข้อผิดพลาดในการอัปเดตช่องหลัก: {e}")
 
 # --------------------------------------------------------------------------------------------------
-# SLASH COMMANDS - ใช้ชื่อใหม่และรองรับ DM
-# --------------------------------------------------------------------------------------------------
-
-@bot.tree.command(name="gamepass", description="คำนวณราคา Gamepass จาก Robux")
-async def gamepass_slash(interaction: discord.Interaction, robux_amount: str):
-    """คำสั่งคำนวณราคา Gamepass"""
-    try:
-        # ตรวจสอบว่าเป็น DM หรือไม่
-        if interaction.guild is None:
-            print(f"📨 ใช้คำสั่ง /gamepass ใน DM โดย: {interaction.user}")
-        
-        expr = robux_amount.replace(",", "").replace(" ", "").lower().replace("x", "*").replace("÷", "/")
-
-        if not re.match(r"^[\d\s\+\-\*\/\(\)\.]+$", expr):
-            await interaction.response.send_message("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", ephemeral=True)
-            return
-
-        robux = int(eval(expr))
-        price = robux / gamepass_rate
-        price_str = f"{price:,.0f} บาท"
-
-        await interaction.response.send_message(f"🎮 Gamepass {robux:,} Robux = **{price_str}** (เรท {gamepass_rate})")
-
-    except Exception as e:
-        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
-
-@bot.tree.command(name="group", description="คำนวณราคา Group จาก Robux")
-async def group_slash(interaction: discord.Interaction, robux_amount: str):
-    """คำสั่งคำนวณราคา Group"""
-    try:
-        # ตรวจสอบว่าเป็น DM หรือไม่
-        if interaction.guild is None:
-            print(f"📨 ใช้คำสั่ง /group ใน DM โดย: {interaction.user}")
-        
-        expr = robux_amount.replace(",", "").replace(" ", "").lower().replace("x", "*").replace("÷", "/")
-
-        if not re.match(r"^[\d\s\+\-\*\/\(\)\.]+$", expr):
-            await interaction.response.send_message("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", ephemeral=True)
-            return
-
-        robux = int(eval(expr))
-
-        if robux < 1500:
-            rate = group_rate_low
-        else:
-            rate = group_rate_high
-
-        price = robux / rate
-        price_str = f"{price:,.0f} บาท"
-
-        await interaction.response.send_message(f"👥 Group {robux:,} Robux = **{price_str}** (เรท {rate})")
-
-    except Exception as e:
-        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
-
-@bot.tree.command(name="baht_gamepass", description="คำนวณ Robux จากเงินบาท (Gamepass)")
-async def baht_gamepass_slash(interaction: discord.Interaction, baht_amount: str):
-    """คำสั่งคำนวณ Robux จากเงินบาท (Gamepass)"""
-    try:
-        # ตรวจสอบว่าเป็น DM หรือไม่
-        if interaction.guild is None:
-            print(f"📨 ใช้คำสั่ง /baht_gamepass ใน DM โดย: {interaction.user}")
-        
-        expr = baht_amount.replace(",", "").replace(" ", "").lower().replace("x", "*").replace("÷", "/")
-
-        if not re.match(r"^[\d\s\+\-\*\/\(\)\.]+$", expr):
-            await interaction.response.send_message("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", ephemeral=True)
-            return
-
-        baht = eval(expr)
-        robux = baht * gamepass_rate
-
-        await interaction.response.send_message(f"🎮 {baht:,.0f} บาท = **{robux:,.0f} Robux** (Gamepass เรท {gamepass_rate})")
-
-    except Exception as e:
-        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
-
-@bot.tree.command(name="baht_group", description="คำนวณ Robux จากเงินบาท (Group)")
-async def baht_group_slash(interaction: discord.Interaction, baht_amount: str):
-    """คำสั่งคำนวณ Robux จากเงินบาท (Group)"""
-    try:
-        # ตรวจสอบว่าเป็น DM หรือไม่
-        if interaction.guild is None:
-            print(f"📨 ใช้คำสั่ง /baht_group ใน DM โดย: {interaction.user}")
-        
-        expr = baht_amount.replace(",", "").replace(" ", "").lower().replace("x", "*").replace("÷", "/")
-
-        if not re.match(r"^[\d\s\+\-\*\/\(\)\.]+$", expr):
-            await interaction.response.send_message("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", ephemeral=True)
-            return
-
-        baht = eval(expr)
-
-        if baht < 500:
-            rate = group_rate_low
-        else:
-            rate = group_rate_high
-
-        robux = baht * rate
-
-        await interaction.response.send_message(f"👥 {baht:,.0f} บาท = **{robux:,.0f} Robux** (Group เรท {rate})")
-
-    except Exception as e:
-        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
-
-@bot.tree.command(name="tax", description="คำนวณ Robux หลังหักภาษี")
-async def tax_slash(interaction: discord.Interaction, amount: str):
-    """คำสั่งคำนวณ Robux หลังหักภาษี"""
-    try:
-        # ตรวจสอบว่าเป็น DM หรือไม่
-        if interaction.guild is None:
-            print(f"📨 ใช้คำสั่ง /tax ใน DM โดย: {interaction.user}")
-        
-        expr = amount.replace(" ", "")
-        
-        if re.match(r"^\d+$", expr):
-            number = int(expr)
-            result = number * 0.7
-            await interaction.response.send_message(f"💰 {number:,} Robux หลังหัก 30% = **{result:,.0f} Robux**")
-            
-        elif re.match(r"^\d+-\d+%$", expr):
-            parts = expr.split('-')
-            number = int(parts[0])
-            percent = int(parts[1].replace('%', ''))
-            
-            if percent < 0 or percent > 100:
-                await interaction.response.send_message("❌ เปอร์เซ็นต์ต้องอยู่ระหว่าง 0-100%", ephemeral=True)
-                return
-            
-            result = number * (1 - percent/100)
-            await interaction.response.send_message(f"💰 {number:,} Robux หลังหัก {percent}% = **{result:,.0f} Robux**")
-            
-        else:
-            await interaction.response.send_message(
-                "❌ รูปแบบไม่ถูกต้อง\n\n"
-                "**การใช้งาน:**\n"
-                "`/tax 100` - หัก 30% อัตโนมัติ\n"
-                "`/tax 100-30%` - หัก 30%\n"
-                "`/tax 100-50%` - หัก 50%",
-                ephemeral=True
-            )
-
-    except Exception as e:
-        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
-
-@bot.tree.command(name="exch", description="คำนวณอัตราแลกเปลี่ยน (เรท 33.5)")
-async def exch_slash(interaction: discord.Interaction, amount: str):
-    """คำสั่งคำนวณอัตราแลกเปลี่ยน เรท 33.5"""
-    try:
-        # ตรวจสอบว่าเป็น DM หรือไม่
-        if interaction.guild is None:
-            print(f"📨 ใช้คำสั่ง /exch ใน DM โดย: {interaction.user}")
-        
-        expr = amount.replace(",", "").replace(" ", "").lower().replace("x", "*").replace("÷", "/")
-
-        if not re.match(r"^[\d\s\+\-\*\/\(\)\.]+$", expr):
-            await interaction.response.send_message("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ () และจุดทศนิยม", ephemeral=True)
-            return
-
-        baht = float(eval(expr))
-        exchange_rate = 33.5
-        result = baht * exchange_rate
-
-        await interaction.response.send_message(f"💱 {baht:,.2f} บาท × {exchange_rate} = **{result:,.2f}**")
-
-    except ZeroDivisionError:
-        await interaction.response.send_message("❌ ไม่สามารถหารด้วยศูนย์ได้", ephemeral=True)
-    except ValueError:
-        await interaction.response.send_message("❌ กรุณากรอกตัวเลขที่ถูกต้อง", ephemeral=True)
-    except Exception as e:
-        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {str(e)}", ephemeral=True)
-
-@bot.tree.command(name="exch_custom", description="คำนวณอัตราแลกเปลี่ยนแบบกำหนดเรทเอง")
-async def exch_custom_slash(interaction: discord.Interaction, amount: str, rate: str):
-    """คำสั่งคำนวณอัตราแลกเปลี่ยนแบบกำหนดเรทเอง"""
-    try:
-        # ตรวจสอบว่าเป็น DM หรือไม่
-        if interaction.guild is None:
-            print(f"📨 ใช้คำสั่ง /exch_custom ใน DM โดย: {interaction.user}")
-        
-        amount_expr = amount.replace(",", "").replace(" ", "").lower().replace("x", "*").replace("÷", "/")
-        rate_expr = rate.replace(",", "").replace(" ", "").lower().replace("x", "*").replace("÷", "/")
-
-        if not re.match(r"^[\d\s\+\-\*\/\(\)\.]+$", amount_expr) or not re.match(r"^[\d\s\+\-\*\/\(\)\.]+$", rate_expr):
-            await interaction.response.send_message("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ () และจุดทศนิยม", ephemeral=True)
-            return
-
-        baht = float(eval(amount_expr))
-        exchange_rate = float(eval(rate_expr))
-        result = baht * exchange_rate
-
-        await interaction.response.send_message(f"💱 {baht:,.2f} บาท × {exchange_rate} = **{result:,.2f}**")
-
-    except ZeroDivisionError:
-        await interaction.response.send_message("❌ ไม่สามารถหารด้วยศูนย์ได้", ephemeral=True)
-    except ValueError:
-        await interaction.response.send_message("❌ กรุณากรอกตัวเลขที่ถูกต้อง", ephemeral=True)
-    except Exception as e:
-        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {str(e)}", ephemeral=True)
-
-# --------------------------------------------------------------------------------------------------
 # Events
 @bot.event
 async def on_ready():
     print(f"✅ บอทออนไลน์แล้ว: {bot.user} (ID: {bot.user.id})")
     print(f"✅ Prefix: {bot.command_prefix}")
     print(f"✅ Guilds: {len(bot.guilds)}")
-    
-    # Sync slash commands แบบ global
-    try:
-        # ใช้เฉพาะ sync เท่านั้น ไม่ต้อง clear
-        synced = await bot.tree.sync()
-        print(f"✅ Sync Global Slash Commands เรียบร้อย: {len(synced)} commands")
-        
-        # แสดงคำสั่งทั้งหมดที่ sync สำเร็จ
-        for cmd in synced:
-            print(f"   - /{cmd.name}")
-            
-    except Exception as e:
-        print(f"❌ เกิดข้อผิดพลาดในการ sync commands: {e}")
     
     await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name="ร้าน Sushi Shop"))
     
@@ -1295,16 +1151,12 @@ def admin_only():
 async def help_command(ctx):
     help_embed = discord.Embed(
         title="🍣 Sushi Shop - คำสั่งทั้งหมด",
-        description="**คำสั่ง Slash Commands (ใช้ /):**\n"
-                   "`/gamepass <จำนวน>` - คำนวณราคา Gamepass จาก Robux\n"
-                   "`/group <จำนวน>` - คำนวณราคา Group จาก Robux\n"
-                   "`/baht_gamepass <จำนวน>` - คำนวณ Robux จากเงินบาท (Gamepass)\n"
-                   "`/baht_group <จำนวน>` - คำนวณ Robux จากเงินบาท (Group)\n"
-                   "`/tax <จำนวน>` - คำนวณ Robux หลังหักภาษี\n"
-                   "`/exch <จำนวน>` - คำนวณอัตราแลกเปลี่ยน (เรท 33.5)\n"
-                   "`/exch_custom <จำนวน> <เรท>` - คำนวณอัตราแลกเปลี่ยนแบบกำหนดเรท\n\n"
-                   "**คำสั่งทั่วไป:**\n"
-                   "`!level` - เช็คเลเวลและ EXP ของคุณ\n"
+        description="**คำสั่งคำนวณราคา (สำหรับทุกคน):**\n"
+                   "`!gp <จำนวน>` - คำนวณราคา Gamepass\n"
+                   "`!g <จำนวน>` - คำนวณราคา Group\n"
+                   "`!gpb <จำนวน>` - คำนวณ Robux จากเงิน (Gamepass)\n"
+                   "`!gb <จำนวน>` - คำนวณ Robux จากเงิน (Group)\n"
+                   "`!tax <จำนวน>` - คำนวณ Robux หลังหักภาษี\n\n"
                    "**คำสั่งผู้ดูแลระบบเท่านั้น:**\n"
                    "`!stock` - ตรวจสอบ stock\n"
                    "`!sushi` - เปิด/ปิดร้าน\n"
@@ -1316,13 +1168,14 @@ async def help_command(ctx):
                    "`!od <จำนวน>` - สั่งซื้อ Gamepass\n"
                    "`!odg <จำนวน>` - สั่งซื้อ Group\n"
                    "`!odl <ชื่อไอเทม> <จำนวน>` - สั่งซื้อ Limited\n"
-                   "`!love` - แสดงความรักจากเซิร์ฟ",
+                   "`!love` - แสดงความรักจากเซิร์ฟ\n"
+                   "`!level` - เช็คเลเวลและ EXP ของคุณ",
         color=0x00FF99
     )
     await ctx.send(embed=help_embed, delete_after=30)
 
 # --------------------------------------------------------------------------------------------------
-# คำสั่งจัดการ Stock
+# คำสั่งจัดการ Stock - แก้ไขให้ใช้ edit แทนส่งใหม่
 @bot.command()
 @admin_only()
 async def stock(ctx, stock_type: str = None, amount: str = None):
@@ -1492,7 +1345,7 @@ async def stock(ctx, stock_type: str = None, amount: str = None):
             pass
             
 # --------------------------------------------------------------------------------------------------
-# คำสั่งเปิดปิดร้าน
+# คำสั่งเปิดปิดร้าน - แก้ไขให้ลบข้อความหลังใช้คำสั่ง
 @bot.command()
 @admin_only()
 async def sushi(ctx):
@@ -1575,6 +1428,433 @@ async def group(ctx, status: str = None):
     await update_main_channel()
 
 # --------------------------------------------------------------------------------------------------
+# คำสั่งคำนวณราคา
+@bot.command()
+async def gp(ctx, *, expression: str):
+    try:
+        expr = expression.replace(",", "").lower().replace("x", "*").replace("÷", "/")
+
+        if not re.match(r"^[\d\s\+\-\*\/\(\)]+$", expr):
+            await ctx.send("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", delete_after=10)
+            return
+
+        robux = int(eval(expr))
+        price = robux / gamepass_rate
+        price_str = f"{price:,.0f} บาท"
+
+        await ctx.send(f"🎮 Gamepass {robux:,} Robux = **{price_str}** (เรท {gamepass_rate})")
+
+    except Exception as e:
+        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
+
+@bot.command()
+async def g(ctx, *, expression: str):
+    try:
+        expr = expression.replace(",", "").lower().replace("x", "*").replace("÷", "/")
+
+        if not re.match(r"^[\d\s\+\-\*\/\(\)]+$", expr):
+            await ctx.send("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", delete_after=10)
+            return
+
+        robux = int(eval(expr))
+
+        if robux < 1500:
+            rate = group_rate_low
+        else:
+            rate = group_rate_high
+
+        price = robux / rate
+        price_str = f"{price:,.0f} บาท"
+
+        await ctx.send(f"👥 Group {robux:,} Robux = **{price_str}** (เรท {rate})")
+
+    except Exception as e:
+        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
+
+@bot.command()
+async def gpb(ctx, *, expression: str):
+    try:
+        expr = expression.replace(",", "").replace(" ", "")
+        baht = eval(expr)
+
+        robux = baht * gamepass_rate
+        await ctx.send(f"🎮 {baht:,.0f} บาท = **{robux:,.0f} Robux** (Gamepass เรท {gamepass_rate})")
+
+    except Exception as e:
+        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
+
+@bot.command()
+async def gb(ctx, *, expression: str):
+    try:
+        expr = expression.replace(",", "").replace(" ", "")
+        baht = eval(expr)
+
+        if baht < 500:
+            rate = group_rate_low
+        else:
+            rate = group_rate_high
+
+        robux = baht * rate
+        await ctx.send(f"👥 {baht:,.0f} บาท = **{robux:,.0f} Robux** (Group เรท {rate})")
+
+    except Exception as e:
+        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
+
+@bot.command()
+async def tax(ctx, *, expression: str):
+    try:
+        expr = expression.replace(" ", "")
+        
+        if re.match(r"^\d+$", expr):
+            number = int(expr)
+            result = number * 0.7
+            await ctx.send(f"💰 {number:,} Robux หลังหัก 30% = **{result:,.0f} Robux**")
+            
+        elif re.match(r"^\d+-\d+%$", expr):
+            parts = expr.split('-')
+            number = int(parts[0])
+            percent = int(parts[1].replace('%', ''))
+            
+            if percent < 0 or percent > 100:
+                await ctx.send("❌ เปอร์เซ็นต์ต้องอยู่ระหว่าง 0-100%", delete_after=10)
+                return
+            
+            result = number * (1 - percent/100)
+            await ctx.send(f"💰 {number:,} Robux หลังหัก {percent}% = **{result:,.0f} Robux**")
+            
+        else:
+            await ctx.send(
+                "❌ รูปแบบไม่ถูกต้อง\n\n"
+                "**การใช้งาน:**\n"
+                "`!tax 100` - หัก 30% อัตโนมัติ\n"
+                "`!tax 100-30%` - หัก 30%\n"
+                "`!tax 100-50%` - หัก 50%",
+                delete_after=15
+            )
+
+    except Exception as e:
+        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
+
+# --------------------------------------------------------------------------------------------------
+# คำสั่ง !od - Gamepass
+
+@bot.command()
+@admin_only()
+async def od(ctx, *, expression: str):
+    global gamepass_stock
+    
+    try:
+        if not ctx.channel.name.startswith("ticket-"):
+            await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
+            return
+
+        expr = expression.replace(",", "").lower().replace("x", "*").replace("÷", "/")
+
+        if not re.match(r"^[\d\s\+\-\*\/\(\)]+$", expr):
+            await ctx.send("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", delete_after=10)
+            return
+
+        robux = int(eval(expr))
+        price = robux / gamepass_rate
+        price_str = f"{price:,.0f} บาท"
+
+        buyer = None
+        channel_name = ctx.channel.name
+        if channel_name.startswith("ticket-"):
+            parts = channel_name.split('-')
+            if len(parts) >= 3:
+                user_id = int(parts[-1])
+                buyer = ctx.guild.get_member(user_id)
+        
+        if not buyer:
+            async for msg in ctx.channel.history(limit=20):
+                if msg.author != ctx.author and not msg.author.bot and msg.author != ctx.guild.me:
+                    buyer = msg.author
+                    break
+
+        exp_to_add = robux
+        if buyer:
+            new_level, total_exp = await add_exp(buyer.id, exp_to_add, ctx.guild)
+            print(f"✅ เพิ่ม {exp_to_add} EXP ให้ {buyer.display_name} (เลเวล {new_level}, รวม {total_exp} EXP)")
+        else:
+            print("⚠️ ไม่พบผู้ซื้อในการเพิ่ม EXP")
+
+        gamepass_stock -= robux
+        if gamepass_stock < 0:
+            gamepass_stock = 0
+        
+        embed = discord.Embed(
+            title="🍣 ใบเสร็จคำสั่งซื้อ Gamepass 🍣",
+            color=0x00FF99,
+            timestamp=discord.utils.utcnow()
+        )
+        embed.add_field(name="💸 จำนวนโรบัค", value=f"{robux:,}", inline=True)
+        embed.add_field(name="💰 ราคาตามเรท", value=price_str, inline=True)
+        embed.add_field(name="🚚 ผู้ส่งสินค้า", value=ctx.author.mention, inline=False)
+        
+        if buyer:
+            embed.add_field(name="😊 ผู้ซื้อ", value=buyer.mention, inline=False)
+            embed.add_field(name="⭐ ได้รับ EXP", value=f"{exp_to_add:,} EXP", inline=True)
+        
+        embed.set_footer(text="การสั่งซื้อสำเร็จ")
+
+        await ctx.send(embed=embed)
+
+        sales_channel = bot.get_channel(SALES_LOG_CHANNEL_ID)
+        if sales_channel:
+            await sales_channel.send(embed=embed)
+
+        await update_main_channel()
+
+    except Exception as e:
+        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
+
+# --------------------------------------------------------------------------------------------------
+# คำสั่ง !odg - Group
+
+@bot.command()
+@admin_only()
+async def odg(ctx, *, expression: str):
+    global group_stock
+    
+    try:
+        if not ctx.channel.name.startswith("ticket-"):
+            await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
+            return
+
+        expr = expression.replace(",", "").lower().replace("x", "*").replace("÷", "/")
+
+        if not re.match(r"^[\d\s\+\-\*\/\(\)]+$", expr):
+            await ctx.send("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", delete_after=10)
+            return
+
+        robux = int(eval(expr))
+        rate = group_rate_low if robux < 1500 else group_rate_high
+        price = robux / rate
+        price_str = f"{price:,.0f} บาท"
+
+        buyer = None
+        channel_name = ctx.channel.name
+        if channel_name.startswith("ticket-"):
+            parts = channel_name.split('-')
+            if len(parts) >= 3:
+                user_id = int(parts[-1])
+                buyer = ctx.guild.get_member(user_id)
+        
+        if not buyer:
+            async for msg in ctx.channel.history(limit=20):
+                if msg.author != ctx.author and not msg.author.bot and msg.author != ctx.guild.me:
+                    buyer = msg.author
+                    break
+
+        exp_to_add = robux
+        if buyer:
+            new_level, total_exp = await add_exp(buyer.id, exp_to_add, ctx.guild)
+            print(f"✅ เพิ่ม {exp_to_add} EXP ให้ {buyer.display_name} (เลเวล {new_level}, รวม {total_exp} EXP)")
+        else:
+            print("⚠️ ไม่พบผู้ซื้อในการเพิ่ม EXP")
+
+        group_stock -= robux
+        if group_stock < 0:
+            group_stock = 0
+        
+        embed = discord.Embed(
+            title="🍣 ใบเสร็จคำสั่งซื้อโรบัคกลุ่ม 🍣",
+            color=0x00AAFF,
+            timestamp=discord.utils.utcnow()
+        )
+        embed.add_field(name="💸 จำนวนโรบัค", value=f"{robux:,}", inline=True)
+        embed.add_field(name="💰 ราคาตามเรท", value=price_str, inline=True)
+        embed.add_field(name="🚚 ผู้ส่งสินค้า", value=ctx.author.mention, inline=False)
+        
+        if buyer:
+            embed.add_field(name="😊 ผู้ซื้อ", value=buyer.mention, inline=False)
+            embed.add_field(name="⭐ ได้รับ EXP", value=f"{exp_to_add:,} EXP", inline=True)
+        
+        embed.set_footer(text="การสั่งซื้อสำเร็จ • Robux Group")
+
+        await ctx.send(embed=embed)
+
+        sales_channel = bot.get_channel(SALES_LOG_CHANNEL_ID)
+        if sales_channel:
+            await sales_channel.send(embed=embed)
+
+        await update_main_channel()
+
+    except Exception as e:
+        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
+
+# --------------------------------------------------------------------------------------------------
+# คำสั่ง !odl - เพิ่มระบบ EXP
+
+@bot.command()
+@admin_only()
+async def odl(ctx, item_name: str, value: str):
+    try:
+        value_clean = value.replace(",", "")
+        
+        if not re.match(r"^\d+$", value_clean):
+            await ctx.send("❌ กรุณากรอกราคาเป็นตัวเลขที่ถูกต้อง", delete_after=10)
+            return
+
+        item_value = int(value_clean)
+
+        # หาผู้ซื้อจากชื่อตั๋ว
+        buyer = None
+        channel_name = ctx.channel.name
+        if channel_name.startswith("ticket-"):
+            parts = channel_name.split('-')
+            if len(parts) >= 3:
+                user_id = int(parts[-1])
+                buyer = ctx.guild.get_member(user_id)
+        
+        if not buyer:
+            async for msg in ctx.channel.history(limit=20):
+                if msg.author != ctx.author and not msg.author.bot and msg.author != ctx.guild.me:
+                    buyer = msg.author
+                    break
+
+        # เพิ่ม EXP ให้ผู้ซื้อ (1 บาท = 1 EXP)
+        exp_to_add = item_value
+        if buyer:
+            new_level, total_exp = await add_exp(buyer.id, exp_to_add, ctx.guild)
+            print(f"✅ เพิ่ม {exp_to_add} EXP ให้ {buyer.display_name} (เลเวล {new_level}, รวม {total_exp} EXP)")
+        else:
+            print("⚠️ ไม่พบผู้ซื้อในการเพิ่ม EXP")
+
+        embed = discord.Embed(
+            title="🍣 ใบเสร็จคำสั่งซื้อ Limited 🍣",
+            color=0xFF69B4,
+            timestamp=discord.utils.utcnow()
+        )
+        embed.add_field(name="🎁 ชื่อไอเทม", value=item_name, inline=True)
+        embed.add_field(name="💰 ราคา (บาท)", value=f"{item_value:,}", inline=True)
+        embed.add_field(name="🚚 ผู้ส่งสินค้า", value=ctx.author.mention, inline=False)
+        
+        if buyer:
+            embed.add_field(name="😊 ผู้ซื้อ", value=buyer.mention, inline=False)
+            embed.add_field(name="⭐ ได้รับ EXP", value=f"{exp_to_add:,} EXP", inline=True)
+        
+        embed.set_footer(text="การสั่งซื้อสำเร็จ • Limited")
+
+        await ctx.send(embed=embed)
+
+        # ส่งไปยังห้องบันทึกการขาย
+        sales_channel = bot.get_channel(SALES_LOG_CHANNEL_ID)
+        if sales_channel:
+            await sales_channel.send(embed=embed)
+
+    except Exception as e:
+        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
+
+# --------------------------------------------------------------------------------------------------
+# คำสั่ง !level
+@bot.command()
+async def level(ctx, member: discord.Member = None):
+    if member is None:
+        member = ctx.author
+    
+    await check_user_level_as_command(ctx, member)
+
+# --------------------------------------------------------------------------------------------------
+# คำสั่ง !qr
+@bot.command()
+@admin_only()
+async def qr(ctx):
+    try:
+        await ctx.message.delete()
+    except:
+        pass
+    
+    embed = discord.Embed(
+        title="📱 สแกน QR เพื่อชำระเงิน",
+        color=0x00CCFF
+    )
+    embed.set_image(url="https://media.discordapp.net/attachments/722832040860319835/1402994996600111114/186-8-06559-8.png")
+    
+    await ctx.send(embed=embed, view=QRView())
+
+# --------------------------------------------------------------------------------------------------
+# คำสั่ง !ty
+@bot.command()
+@admin_only()
+async def ty(ctx):
+    try:
+        await ctx.message.delete()
+    except:
+        pass
+    
+    if ctx.channel.name.startswith("ticket-"):
+        global gamepass_stock, group_stock
+        
+        if ctx.channel.category and "gamepass" in ctx.channel.category.name.lower():
+            gamepass_stock += 1
+        elif ctx.channel.category and "group" in ctx.channel.category.name.lower():
+            group_stock += 1
+            
+        sale_embed = None
+        async for msg in ctx.channel.history():
+            if msg.embeds and "รายละเอียดการสั่งซื้อ" in msg.embeds[0].title:
+                sale_embed = msg.embeds[0]
+                break
+
+        if sale_embed:
+            confirmed = any(field.name == "📋 ยืนยันโดย" for field in sale_embed.fields)
+            if not confirmed:
+                sale_embed.add_field(name="📋 ยืนยันโดย", value=ctx.author.mention, inline=False)
+
+        delivered_category = discord.utils.get(ctx.guild.categories, name="ส่งของแล้ว")
+        if delivered_category:
+            try:
+                await ctx.channel.edit(category=delivered_category)
+            except Exception as e:
+                print(f"❌ ไม่สามารถย้ายหมวดหมู่: {e}")
+
+        class TempCloseView(View):
+            def __init__(self, channel):
+                super().__init__(timeout=None)
+                self.channel = channel
+
+            @discord.ui.button(label="🔒 ปิดตั๋ว", style=discord.ButtonStyle.danger)
+            async def close_button(self, interaction: discord.Interaction, button: Button):
+                global gamepass_stock, group_stock
+                if self.channel.category and "gamepass" in self.channel.category.name.lower():
+                    gamepass_stock += 1
+                elif self.channel.category and "group" in self.channel.category.name.lower():
+                    group_stock += 1
+                    
+                await interaction.response.send_message("📪 กำลังปิดตั๋ว...", ephemeral=True)
+                try:
+                    await self.channel.delete()
+                except:
+                    pass
+
+        credit_view = GiveCreditView()
+        
+        embed = discord.Embed(
+            title="✅ สินค้าถูกส่งเรียบร้อยแล้ว",
+            description=(
+                "ขอบคุณที่ใช้บริการกับเรา หากไม่มีปัญหาเพิ่มเติมสามารถกดปุ่มปิดตั๋วได้เลย\n\n"
+                "⏳ หากไม่ได้กดปิดตั๋วเอง ตั๋วจะถูกปิดอัตโนมัติใน 10 นาที"
+            ),
+            color=0x00FF00
+        )
+        
+        await ctx.send(embed=embed, view=TempCloseView(ctx.channel))
+        await ctx.send("กดปุ่มด้านล่างเพื่อให้เครดิตกับผู้ส่งสินค้า:", view=credit_view)
+
+        ticket_activity[ctx.channel.id] = {
+            'last_activity': datetime.datetime.now(),
+            'ty_used': True,
+            'ty_time': datetime.datetime.now()
+        }
+        
+        await start_auto_close_countdown(ctx.channel)
+        
+    else:
+        await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
+
+# --------------------------------------------------------------------------------------------------
 # คำสั่งอื่นๆ
 @bot.command()
 async def love(ctx):
@@ -1617,16 +1897,6 @@ async def restart(ctx):
 
 @bot.command()
 @admin_only()
-async def sync(ctx):
-    """Sync slash commands (สำหรับแอดมิน)"""
-    try:
-        synced = await bot.tree.sync()
-        await ctx.send(f"✅ Sync Slash Commands เรียบร้อย: {len(synced)} commands", delete_after=10)
-    except Exception as e:
-        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
-
-@bot.command()
-@admin_only()
 async def test(ctx):
     embed = discord.Embed(
         title="✅ บอททำงานปกติ!",
@@ -1643,7 +1913,3 @@ try:
     bot.run(os.getenv("TOKEN"))
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
-
-
-
-
