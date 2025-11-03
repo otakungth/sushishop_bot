@@ -9,7 +9,7 @@ import json
 
 from server import server_on
 
-# ตั้งค่าเรท
+# ตั้งค่าเรท (ค่าเริ่มต้น)
 gamepass_rate = 6
 group_rate_low = 4
 group_rate_high = 4.5
@@ -173,9 +173,9 @@ async def auto_delete_messages(ctx, bot_message, delay=60):
         print(f"❌ เกิดข้อผิดพลาดในการลบข้อความ: {e}")
 
 # --------------------------------------------------------------------------------------------------
-# ฟังก์ชันส่งบันทึกการขาย
+# ฟังก์ชันส่งบันทึกการขาย (แก้ไขแล้ว - ไม่แสดงชื่อผู้ซื้อและผู้ส่ง)
 async def send_sale_log(embed_data: discord.Embed, interaction: discord.Interaction = None, ctx: commands.Context = None, delivered_by: discord.Member = None):
-    """ส่ง Embed ไปยังห้องบันทึกการขาย"""
+    """ส่ง Embed ไปยังห้องบันทึกการขาย (ไม่แสดงชื่อผู้ซื้อและผู้ส่ง)"""
     try:
         channel = bot.get_channel(SALES_LOG_CHANNEL_ID)
         if channel is None:
@@ -184,7 +184,6 @@ async def send_sale_log(embed_data: discord.Embed, interaction: discord.Interact
 
         robux_amount = next((f.value for f in embed_data.fields if f.name == "💸 จำนวน Robux"), "ไม่ทราบ")
         price = next((f.value for f in embed_data.fields if f.name in ("💰 ราคาตามเรท", "💰 ราคา")), "ไม่ทราบ")
-        user_name = next((f.value for f in embed_data.fields if f.name == "😊 ผู้ซื้อ"), "ไม่ทราบ")
 
         sale_type = "ไม่ทราบ"
         current_channel = interaction.channel if interaction else ctx.channel if ctx else None
@@ -201,10 +200,8 @@ async def send_sale_log(embed_data: discord.Embed, interaction: discord.Interact
             timestamp=discord.utils.utcnow()
         )
         log_embed.add_field(name="📦 ประเภทสินค้า", value=sale_type, inline=False)
-        log_embed.add_field(name="😊 ผู้ซื้อ", value=user_name, inline=False)
         log_embed.add_field(name="💸 จำนวน Robux", value=robux_amount, inline=True)
         log_embed.add_field(name="💰 ราคา", value=price, inline=True)
-        log_embed.add_field(name="🚚 ผู้ส่งสินค้า", value=delivered_by.mention if delivered_by else "ไม่ทราบ", inline=False)
         log_embed.set_footer(text="การสั่งซื้อสำเร็จ")
 
         await channel.send(embed=log_embed)
@@ -1028,7 +1025,7 @@ async def update_main_channel():
         print(f"❌ เกิดข้อผิดพลาดในการอัปเดตช่องหลัก: {e}")
 
 # --------------------------------------------------------------------------------------------------
-# SLASH COMMANDS - ใช้ใน DM ได้ (ต้องอยู่หลังคลาสทั้งหมด)
+# SLASH COMMANDS - ใช้ใน DM ได้ (แก้ไขแล้ว)
 # --------------------------------------------------------------------------------------------------
 
 @bot.tree.command(name="gamepass", description="คำนวณราคา Gamepass")
@@ -1397,6 +1394,8 @@ async def help_command(ctx):
                    "`/exch_custom <จำนวน> <เรท>` - คำนวณอัตราแลกเปลี่ยนแบบกำหนดเรท\n\n"
                    "**คำสั่งทั่วไป:**\n"
                    "`!level` - เช็คเลเวลและ EXP ของคุณ\n"
+                   "`!rate <rate>` - เปลี่ยนเรท Gamepass\n"
+                   "`!rate group <low> <high>` - เปลี่ยนเรท Group\n"
                    "**คำสั่งผู้ดูแลระบบเท่านั้น:**\n"
                    "`!stock` - ตรวจสอบ stock\n"
                    "`!sushi` - เปิด/ปิดร้าน\n"
@@ -1582,9 +1581,151 @@ async def stock(ctx, stock_type: str = None, amount: str = None):
             await response_msg.delete()
         except:
             pass
-            
+
 # --------------------------------------------------------------------------------------------------
-# คำสั่งเปิดปิดร้าน
+# คำสั่งเปลี่ยนเรท (ใหม่)
+@bot.command()
+@admin_only()
+async def rate(ctx, rate_type: str = None, low_rate: str = None, high_rate: str = None):
+    """คำสั่งเปลี่ยนเรท Gamepass หรือ Group"""
+    global gamepass_rate, group_rate_low, group_rate_high
+    
+    try:
+        await ctx.message.delete()
+    except:
+        pass
+    
+    if rate_type is None:
+        # แสดงเรทปัจจุบัน
+        embed = discord.Embed(
+            title="📊 อัตราแลกเปลี่ยนปัจจุบัน",
+            color=0x00FF99,
+            timestamp=discord.utils.utcnow()
+        )
+        embed.add_field(
+            name="🎮 Gamepass Rate", 
+            value=f"**{gamepass_rate}**", 
+            inline=True
+        )
+        embed.add_field(
+            name="👥 Group Rate", 
+            value=f"**{group_rate_low} - {group_rate_high}**", 
+            inline=True
+        )
+        embed.set_footer(text="ใช้ !rate <rate> หรือ !rate group <low> <high> เพื่อเปลี่ยนเรท")
+        response_msg = await ctx.send(embed=embed)
+        await asyncio.sleep(10)
+        try:
+            await response_msg.delete()
+        except:
+            pass
+        
+    elif rate_type.lower() == "group":
+        if low_rate is None or high_rate is None:
+            embed = discord.Embed(
+                title="❌ การใช้งานไม่ถูกต้อง",
+                description="**การใช้งาน:** `!rate group <low_rate> <high_rate>`",
+                color=0xFF0000
+            )
+            response_msg = await ctx.send(embed=embed)
+            await asyncio.sleep(10)
+            try:
+                await response_msg.delete()
+            except:
+                pass
+            return
+        
+        try:
+            new_low = float(low_rate)
+            new_high = float(high_rate)
+            
+            if new_low <= 0 or new_high <= 0:
+                error_msg = await ctx.send("❌ เรทต้องมากกว่า 0")
+                await asyncio.sleep(5)
+                try:
+                    await error_msg.delete()
+                except:
+                    pass
+                return
+            
+            group_rate_low = new_low
+            group_rate_high = new_high
+            
+            embed = discord.Embed(
+                title="✅ เปลี่ยนเรท Group เรียบร้อย",
+                description=f"ตั้งค่าเรท Group เป็น **{group_rate_low} - {group_rate_high}** เรียบร้อยแล้ว",
+                color=0x00FF00
+            )
+            response_msg = await ctx.send(embed=embed)
+            
+            # อัปเดตช่องหลัก
+            await update_main_channel()
+            
+            await asyncio.sleep(5)
+            try:
+                await response_msg.delete()
+            except:
+                pass
+                
+        except ValueError:
+            error_msg = await ctx.send("❌ กรุณากรอกเรทเป็นตัวเลขที่ถูกต้อง")
+            await asyncio.sleep(5)
+            try:
+                await error_msg.delete()
+            except:
+                pass
+    
+    else:
+        # เปลี่ยนเรท Gamepass
+        try:
+            new_rate = float(rate_type)
+            
+            if new_rate <= 0:
+                error_msg = await ctx.send("❌ เรทต้องมากกว่า 0")
+                await asyncio.sleep(5)
+                try:
+                    await error_msg.delete()
+                except:
+                    pass
+                return
+            
+            gamepass_rate = new_rate
+            
+            embed = discord.Embed(
+                title="✅ เปลี่ยนเรท Gamepass เรียบร้อย",
+                description=f"ตั้งค่าเรท Gamepass เป็น **{gamepass_rate}** เรียบร้อยแล้ว",
+                color=0x00FF00
+            )
+            response_msg = await ctx.send(embed=embed)
+            
+            # อัปเดตช่องหลัก
+            await update_main_channel()
+            
+            await asyncio.sleep(5)
+            try:
+                await response_msg.delete()
+            except:
+                pass
+                
+        except ValueError:
+            embed = discord.Embed(
+                title="❌ การใช้งานไม่ถูกต้อง",
+                description=(
+                    "**การใช้งาน:**\n"
+                    "`!rate <rate>` - เปลี่ยนเรท Gamepass\n"
+                    "`!rate group <low> <high>` - เปลี่ยนเรท Group"
+                ),
+                color=0xFF0000
+            )
+            response_msg = await ctx.send(embed=embed)
+            await asyncio.sleep(10)
+            try:
+                await response_msg.delete()
+            except:
+                pass
+
+# --------------------------------------------------------------------------------------------------
+# คำสั่งเปิดปิดร้าน (แก้ไขแล้ว - แก้ปัญหาเปลี่ยนชื่อช่อง)
 @bot.command()
 @admin_only()
 async def sushi(ctx):
@@ -1606,7 +1747,7 @@ async def sushi(ctx):
     # ส่งข้อความและบันทึก reference เพื่อลบภายหลัง
     status_msg = await ctx.send(embed=embed)
     
-    # อัปเดตชื่อช่องหลัก
+    # อัปเดตชื่อช่องหลัก (แก้ไขแล้ว)
     await update_channel_name()
     
     # อัปเดต embed หลัก
@@ -1667,7 +1808,7 @@ async def group(ctx, status: str = None):
     await update_main_channel()
 
 # --------------------------------------------------------------------------------------------------
-# คำสั่ง !od - Gamepass
+# คำสั่ง !od - Gamepass (แก้ไขแล้ว - ไม่แสดงชื่อในใบเสร็จ)
 @bot.command()
 @admin_only()
 async def od(ctx, *, expression: str):
@@ -1713,6 +1854,7 @@ async def od(ctx, *, expression: str):
         if gamepass_stock < 0:
             gamepass_stock = 0
         
+        # ใบเสร็จที่ไม่แสดงชื่อผู้ซื้อและผู้ส่ง
         embed = discord.Embed(
             title="🍣 ใบเสร็จคำสั่งซื้อ Gamepass 🍣",
             color=0x00FF99,
@@ -1720,19 +1862,16 @@ async def od(ctx, *, expression: str):
         )
         embed.add_field(name="💸 จำนวนโรบัค", value=f"{robux:,}", inline=True)
         embed.add_field(name="💰 ราคาตามเรท", value=price_str, inline=True)
-        embed.add_field(name="🚚 ผู้ส่งสินค้า", value=ctx.author.mention, inline=False)
         
         if buyer:
-            embed.add_field(name="😊 ผู้ซื้อ", value=buyer.mention, inline=False)
             embed.add_field(name="⭐ ได้รับ EXP", value=f"{exp_to_add:,} EXP", inline=True)
         
         embed.set_footer(text="การสั่งซื้อสำเร็จ")
 
         await ctx.send(embed=embed)
 
-        sales_channel = bot.get_channel(SALES_LOG_CHANNEL_ID)
-        if sales_channel:
-            await sales_channel.send(embed=embed)
+        # ส่งบันทึกการขาย (ไม่แสดงชื่อ)
+        await send_sale_log(embed, ctx=ctx)
 
         await update_main_channel()
 
@@ -1740,7 +1879,7 @@ async def od(ctx, *, expression: str):
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
 
 # --------------------------------------------------------------------------------------------------
-# คำสั่ง !odg - Group
+# คำสั่ง !odg - Group (แก้ไขแล้ว - ไม่แสดงชื่อในใบเสร็จ)
 @bot.command()
 @admin_only()
 async def odg(ctx, *, expression: str):
@@ -1787,6 +1926,7 @@ async def odg(ctx, *, expression: str):
         if group_stock < 0:
             group_stock = 0
         
+        # ใบเสร็จที่ไม่แสดงชื่อผู้ซื้อและผู้ส่ง
         embed = discord.Embed(
             title="🍣 ใบเสร็จคำสั่งซื้อโรบัคกลุ่ม 🍣",
             color=0x00AAFF,
@@ -1794,19 +1934,16 @@ async def odg(ctx, *, expression: str):
         )
         embed.add_field(name="💸 จำนวนโรบัค", value=f"{robux:,}", inline=True)
         embed.add_field(name="💰 ราคาตามเรท", value=price_str, inline=True)
-        embed.add_field(name="🚚 ผู้ส่งสินค้า", value=ctx.author.mention, inline=False)
         
         if buyer:
-            embed.add_field(name="😊 ผู้ซื้อ", value=buyer.mention, inline=False)
             embed.add_field(name="⭐ ได้รับ EXP", value=f"{exp_to_add:,} EXP", inline=True)
         
         embed.set_footer(text="การสั่งซื้อสำเร็จ • Robux Group")
 
         await ctx.send(embed=embed)
 
-        sales_channel = bot.get_channel(SALES_LOG_CHANNEL_ID)
-        if sales_channel:
-            await sales_channel.send(embed=embed)
+        # ส่งบันทึกการขาย (ไม่แสดงชื่อ)
+        await send_sale_log(embed, ctx=ctx)
 
         await update_main_channel()
 
@@ -1814,7 +1951,7 @@ async def odg(ctx, *, expression: str):
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
 
 # --------------------------------------------------------------------------------------------------
-# คำสั่ง !odl - Limited
+# คำสั่ง !odl - Limited (แก้ไขแล้ว - ไม่แสดงชื่อในใบเสร็จ)
 @bot.command()
 @admin_only()
 async def odl(ctx, item_name: str, value: str):
@@ -1850,6 +1987,7 @@ async def odl(ctx, item_name: str, value: str):
         else:
             print("⚠️ ไม่พบผู้ซื้อในการเพิ่ม EXP")
 
+        # ใบเสร็จที่ไม่แสดงชื่อผู้ซื้อและผู้ส่ง
         embed = discord.Embed(
             title="🍣 ใบเสร็จคำสั่งซื้อ Limited 🍣",
             color=0xFF69B4,
@@ -1857,20 +1995,16 @@ async def odl(ctx, item_name: str, value: str):
         )
         embed.add_field(name="🎁 ชื่อไอเทม", value=item_name, inline=True)
         embed.add_field(name="💰 ราคา (บาท)", value=f"{item_value:,}", inline=True)
-        embed.add_field(name="🚚 ผู้ส่งสินค้า", value=ctx.author.mention, inline=False)
         
         if buyer:
-            embed.add_field(name="😊 ผู้ซื้อ", value=buyer.mention, inline=False)
             embed.add_field(name="⭐ ได้รับ EXP", value=f"{exp_to_add:,} EXP", inline=True)
         
         embed.set_footer(text="การสั่งซื้อสำเร็จ • Limited")
 
         await ctx.send(embed=embed)
 
-        # ส่งไปยังห้องบันทึกการขาย
-        sales_channel = bot.get_channel(SALES_LOG_CHANNEL_ID)
-        if sales_channel:
-            await sales_channel.send(embed=embed)
+        # ส่งบันทึกการขาย (ไม่แสดงชื่อ)
+        await send_sale_log(embed, ctx=ctx)
 
     except Exception as e:
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
