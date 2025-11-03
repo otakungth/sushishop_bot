@@ -173,7 +173,7 @@ async def auto_delete_messages(ctx, bot_message, delay=60):
         print(f"❌ เกิดข้อผิดพลาดในการลบข้อความ: {e}")
 
 # --------------------------------------------------------------------------------------------------
-# ฟังก์ชันส่งบันทึกการขาย (แก้ไขแล้ว - ไม่แสดงชื่อผู้ซื้อและผู้ส่ง)
+# ฟังก์ชันส่งบันทึกการขาย (แก้ไขแล้ว - ดึงข้อมูลถูกต้อง)
 async def send_sale_log(embed_data: discord.Embed, interaction: discord.Interaction = None, ctx: commands.Context = None, delivered_by: discord.Member = None):
     """ส่ง Embed ไปยังห้องบันทึกการขาย (ไม่แสดงชื่อผู้ซื้อและผู้ส่ง)"""
     try:
@@ -182,8 +182,19 @@ async def send_sale_log(embed_data: discord.Embed, interaction: discord.Interact
             print("❌ ไม่พบห้องบันทึกการขาย")
             return
 
-        robux_amount = next((f.value for f in embed_data.fields if f.name == "💸 จำนวน Robux"), "ไม่ทราบ")
-        price = next((f.value for f in embed_data.fields if f.name in ("💰 ราคาตามเรท", "💰 ราคา")), "ไม่ทราบ")
+        # ดึงข้อมูลจาก embed ให้ถูกต้อง
+        robux_amount = "ไม่ทราบ"
+        price = "ไม่ทราบ"
+        
+        for field in embed_data.fields:
+            if field.name == "💸 จำนวนโรบัค":
+                robux_amount = field.value
+            elif field.name == "💰 ราคาตามเรท":
+                price = field.value
+            elif field.name == "💸 จำนวน Robux":  # กรณีอื่นๆ
+                robux_amount = field.value
+            elif field.name == "💰 ราคา":  # กรณีอื่นๆ
+                price = field.value
 
         sale_type = "ไม่ทราบ"
         current_channel = interaction.channel if interaction else ctx.channel if ctx else None
@@ -205,6 +216,7 @@ async def send_sale_log(embed_data: discord.Embed, interaction: discord.Interact
         log_embed.set_footer(text="การสั่งซื้อสำเร็จ")
 
         await channel.send(embed=log_embed)
+        print(f"✅ ส่งบันทึกการขาย: {sale_type} - {robux_amount} Robux - {price}")
 
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดในการส่งบันทึกการขาย: {e}")
@@ -709,6 +721,60 @@ async def check_user_level_as_command(ctx, member):
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดในการเช็คเลเวล: {e}")
         await ctx.send("❌ เกิดข้อผิดพลาดในการเช็คเลเวล")
+
+# --------------------------------------------------------------------------------------------------
+# ฟังก์ชันตรวจสอบ EXP (สำหรับ debug)
+@bot.command()
+@admin_only()
+async def check_exp(ctx, member: discord.Member = None):
+    """ตรวจสอบ EXP ของผู้ใช้ (สำหรับ debug)"""
+    if member is None:
+        member = ctx.author
+    
+    user_id = str(member.id)
+    
+    if user_id not in user_data:
+        user_data[user_id] = {"exp": 0, "level": 0}
+        save_user_data()
+    
+    user_exp = user_data[user_id]["exp"]
+    user_level = user_data[user_id]["level"]
+    
+    embed = discord.Embed(
+        title=f"🔍 ตรวจสอบ EXP - {member.display_name}",
+        color=0xFFA500
+    )
+    embed.add_field(name="🆔 User ID", value=user_id, inline=True)
+    embed.add_field(name="🎮 Level", value=user_level, inline=True)
+    embed.add_field(name="⭐ EXP", value=f"{user_exp:,}", inline=True)
+    embed.add_field(name="📊 Data", value=f"```json\n{json.dumps(user_data[user_id], indent=2, ensure_ascii=False)}\n```", inline=False)
+    
+    await ctx.send(embed=embed)
+
+# --------------------------------------------------------------------------------------------------
+# ฟังก์ชันรีเซ็ต EXP (สำหรับ debug)
+@bot.command()
+@admin_only()
+async def reset_exp(ctx, member: discord.Member = None):
+    """รีเซ็ต EXP ของผู้ใช้ (สำหรับ debug)"""
+    if member is None:
+        member = ctx.author
+    
+    user_id = str(member.id)
+    
+    user_data[user_id] = {"exp": 0, "level": 0}
+    save_user_data()
+    
+    embed = discord.Embed(
+        title="✅ รีเซ็ต EXP เรียบร้อย",
+        description=f"รีเซ็ต EXP ของ {member.mention} เรียบร้อยแล้ว",
+        color=0x00FF00
+    )
+    embed.add_field(name="🆔 User ID", value=user_id, inline=True)
+    embed.add_field(name="🎮 Level", value="0", inline=True)
+    embed.add_field(name="⭐ EXP", value="0", inline=True)
+    
+    await ctx.send(embed=embed)
 
 # --------------------------------------------------------------------------------------------------
 # Main Shop View
@@ -1808,7 +1874,7 @@ async def group(ctx, status: str = None):
     await update_main_channel()
 
 # --------------------------------------------------------------------------------------------------
-# คำสั่ง !od - Gamepass (แก้ไขแล้ว - ไม่แสดงชื่อในใบเสร็จ)
+# คำสั่ง !od - Gamepass (แก้ไขแล้ว - เพิ่ม EXP ถูกต้อง)
 @bot.command()
 @admin_only()
 async def od(ctx, *, expression: str):
@@ -1843,6 +1909,7 @@ async def od(ctx, *, expression: str):
                     buyer = msg.author
                     break
 
+        # เพิ่ม EXP ให้ผู้ซื้อ (1 Robux = 1 EXP)
         exp_to_add = robux
         if buyer:
             new_level, total_exp = await add_exp(buyer.id, exp_to_add, ctx.guild)
@@ -1854,7 +1921,7 @@ async def od(ctx, *, expression: str):
         if gamepass_stock < 0:
             gamepass_stock = 0
         
-        # ใบเสร็จที่ไม่แสดงชื่อผู้ซื้อและผู้ส่ง
+        # ใบเสร็จที่ไม่แสดงชื่อผู้ซื้อและผู้ส่ง แต่แสดง EXP
         embed = discord.Embed(
             title="🍣 ใบเสร็จคำสั่งซื้อ Gamepass 🍣",
             color=0x00FF99,
@@ -1879,7 +1946,7 @@ async def od(ctx, *, expression: str):
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
 
 # --------------------------------------------------------------------------------------------------
-# คำสั่ง !odg - Group (แก้ไขแล้ว - ไม่แสดงชื่อในใบเสร็จ)
+# คำสั่ง !odg - Group (แก้ไขแล้ว - เพิ่ม EXP ถูกต้อง)
 @bot.command()
 @admin_only()
 async def odg(ctx, *, expression: str):
@@ -1915,6 +1982,7 @@ async def odg(ctx, *, expression: str):
                     buyer = msg.author
                     break
 
+        # เพิ่ม EXP ให้ผู้ซื้อ (1 Robux = 1 EXP)
         exp_to_add = robux
         if buyer:
             new_level, total_exp = await add_exp(buyer.id, exp_to_add, ctx.guild)
@@ -1926,7 +1994,7 @@ async def odg(ctx, *, expression: str):
         if group_stock < 0:
             group_stock = 0
         
-        # ใบเสร็จที่ไม่แสดงชื่อผู้ซื้อและผู้ส่ง
+        # ใบเสร็จที่ไม่แสดงชื่อผู้ซื้อและผู้ส่ง แต่แสดง EXP
         embed = discord.Embed(
             title="🍣 ใบเสร็จคำสั่งซื้อโรบัคกลุ่ม 🍣",
             color=0x00AAFF,
@@ -1949,7 +2017,7 @@ async def odg(ctx, *, expression: str):
 
     except Exception as e:
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
-
+        
 # --------------------------------------------------------------------------------------------------
 # คำสั่ง !odl - Limited (แก้ไขแล้ว - ไม่แสดงชื่อในใบเสร็จ)
 @bot.command()
@@ -2178,6 +2246,152 @@ async def test(ctx):
     await ctx.send(embed=embed, delete_after=10)
 
 # --------------------------------------------------------------------------------------------------
+# Event เมื่อมีข้อความใน DM
+@bot.event
+async def on_message(message):
+    # ตรวจสอบว่าเป็น DM และไม่ใช่ข้อความจากบอทตัวเอง
+    if isinstance(message.channel, discord.DMChannel) and message.author != bot.user:
+        print(f"📨 DM จาก {message.author.name}: {message.content}")
+        
+        # ถ้าผู้ใช้พิมพ์ "/help" ใน DM
+        if message.content.lower() in ["/help", "help", "คำสั่ง"]:
+            help_embed = discord.Embed(
+                title="🍣 Sushi Shop - คำสั่งใน DM",
+                description=(
+                    "**ขณะนี้ระบบ Slash Commands กำลังโหลด...**\n\n"
+                    "**คำสั่งที่ใช้ได้:**\n"
+                    "`/gamepass <จำนวน>` - คำนวณราคา Gamepass\n"
+                    "`/group <จำนวน>` - คำนวณราคา Group\n"
+                    "`/baht_gamepass <จำนวน>` - คำนวณ Robux จากเงินบาท\n"
+                    "`/baht_group <จำนวน>` - คำนวณ Robux จากเงินบาท (Group)\n"
+                    "`/tax <จำนวน>` - คำนวณ Robux หลังหักภาษี\n"
+                    "`/exch <จำนวน>` - คำนวณอัตราแลกเปลี่ยน\n\n"
+                    "**หมายเหตุ:**\n"
+                    "• ถ้าไม่เห็นคำสั่งเมื่อพิมพ์ `/` ให้พิมพ์คำสั่งตรงๆ ได้เลย\n"
+                    "• ระบบอาจใช้เวลา 1-2 ชั่วโมงในการโหลดคำสั่งเต็มที่\n"
+                    "• การสั่งซื้อจริงต้องทำในเซิร์ฟเวอร์เท่านั้น"
+                ),
+                color=0x00FF99
+            )
+            await message.channel.send(embed=help_embed)
+            return
+    
+    # ต่อด้วยโค้ดเดิม...
+    if message.author == bot.user:
+        return await bot.process_commands(message)
+    
+    if (message.channel.name.startswith("ticket-") and 
+        not message.content.startswith(bot.command_prefix) and
+        not message.content.startswith('!')):
+        
+        ticket_activity[message.channel.id] = {
+            'last_activity': datetime.datetime.now(),
+            'ty_used': ticket_activity.get(message.channel.id, {}).get('ty_used', False)
+        }
+    
+    await bot.process_commands(message)
+
+# --------------------------------------------------------------------------------------------------
+# Event เมื่อบอทพร้อมทำงาน - แก้ไขให้ดีขึ้น
+@bot.event
+async def on_ready():
+    print(f"✅ บอทออนไลน์แล้ว: {bot.user} (ID: {bot.user.id})")
+    print(f"✅ Prefix: {bot.command_prefix}")
+    print(f"✅ Guilds: {len(bot.guilds)}")
+    
+    # ตรวจสอบว่าเป็นบอทที่ถูกต้อง
+    print(f"✅ Bot Name: {bot.user.name}")
+    print(f"✅ Bot Discriminator: {bot.user.discriminator}")
+    
+    # Sync slash commands
+    try:
+        print("🔄 กำลัง sync slash commands...")
+        
+        # ลอง sync แบบต่างๆ
+        synced = await bot.tree.sync()
+        
+        print(f"✅ Sync Global Commands เรียบร้อย: {len(synced)} commands")
+        
+        # แสดงคำสั่งทั้งหมด
+        for cmd in synced:
+            dm_permission = getattr(cmd, 'dm_permission', 'Unknown')
+            print(f"   - /{cmd.name} | DM: {dm_permission} | {cmd.description}")
+            
+        # ตรวจสอบว่า commands ควรทำงานใน DM ได้
+        print("🔍 ตรวจสอบ DM Compatibility...")
+        
+    except Exception as e:
+        print(f"❌ เกิดข้อผิดพลาดในการ sync: {e}")
+    
+    # ตั้งค่าสถานะ
+    await bot.change_presence(
+        activity=discord.Activity(
+            type=discord.ActivityType.watching, 
+            name="ร้าน Sushi Shop | พิมพ์ /help"
+        )
+    )
+    
+    print("✅ ตั้งค่าสถานะเรียบร้อย")
+    
+    # ลงทะเบียน Views
+    bot.add_view(MainShopView())
+    bot.add_view(QRView())
+    print("✅ ลงทะเบียน Views เรียบร้อย")
+    
+    # อัพเดทช่องหลัก
+    await update_channel_name()
+    
+    # เริ่มระบบตรวจสอบตั๋ว
+    bot.loop.create_task(check_stale_tickets())
+    print("✅ เริ่มระบบตรวจสอบตั๋วค้างเรียบร้อย")
+    
+    # อัพเดทช่องหลัก
+    await update_main_channel()
+    
+    print("\n🎯 บอทพร้อมใช้งานเต็มที่!")
+    print("📨 ทดสอบใน DM โดย:")
+    print("   1. พิมพ์ '/' แล้วดูมีคำสั่งหรือไม่")
+    print("   2. พิมพ์ '/help' ตรงๆ")
+    print("   3. พิมพ์ 'help' เพื่อดูคำสั่งแบบด่วน")
+
+# --------------------------------------------------------------------------------------------------
+# คำสั่งสำหรับตรวจสอบ DM
+@bot.command()
+@admin_only()
+async def test_dm(ctx, user_id: str = None):
+    """ทดสอบส่งข้อความไปยัง DM (สำหรับแอดมิน)"""
+    try:
+        if user_id is None:
+            # ทดสอบส่งให้ตัวเอง
+            user = ctx.author
+        else:
+            user = await bot.fetch_user(int(user_id))
+        
+        try:
+            embed = discord.Embed(
+                title="🍣 ทดสอบ DM จาก Sushi Shop",
+                description=(
+                    "นี่คือข้อความทดสอบจากบอท!\n\n"
+                    "**ถ้าคุณเห็นข้อความนี้ แสดงว่าบอทส่ง DM ได้ปกติ**\n"
+                    "แต่ Slash Commands อาจยังไม่แสดงเพราะระบบ Discord กำลังโหลด\n\n"
+                    "**วิธีใช้ชั่วคราว:**\n"
+                    "• พิมพ์ `/help` ตรงๆ โดยไม่ต้องเลือกจากเมนู\n"
+                    "• พิมพ์ `help` เพื่อดูคำสั่งด่วน\n"
+                    "• รอ 1-2 ชั่วโมงสำหรับระบบเต็มรูปแบบ"
+                ),
+                color=0x00FF99
+            )
+            
+            await user.send(embed=embed)
+            await ctx.send(f"✅ ส่งข้อความทดสอบไปยัง {user.mention} เรียบร้อยแล้ว", delete_after=10)
+            
+        except discord.Forbidden:
+            await ctx.send(f"❌ ไม่สามารถส่ง DM ไปยัง {user.mention} (ผู้ใช้ปิดรับ DM)", delete_after=10)
+            
+    except Exception as e:
+        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
+
+# --------------------------------------------------------------------------------------------------
 # เริ่มต้นบอท
 print("🚀 กำลังเริ่มต้นบอท...")
 try:
@@ -2185,3 +2399,4 @@ try:
     bot.run(os.getenv("TOKEN"))
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
+
