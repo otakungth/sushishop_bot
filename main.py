@@ -6,14 +6,13 @@ from discord.ui import View, Button, Modal, TextInput
 import re
 import asyncio
 import json
-import aiohttp
 
 # ตั้งค่าเรท (ค่าเริ่มต้น)
 gamepass_rate = 6
 group_rate_low = 4
 group_rate_high = 4.5
 
-# ตั้งค่าพื้นฐาน
+# ตั้งค่าพื้นฐาน - แก้ไข Intents
 intents = discord.Intents.all()
 intents.message_content = True
 intents.guilds = True
@@ -21,6 +20,8 @@ intents.members = True
 intents.messages = True
 intents.dm_messages = True
 intents.dm_reactions = True
+intents.presences = True  # เพิ่มนี้
+
 shop_open = True
 group_ticket_enabled = True
 
@@ -69,12 +70,36 @@ LEVELS = {
     9: {"exp": 1000000, "role_id": 1406309272786047106, "role_name": "Level 9"}
 }
 
+# สร้างบอทด้วยการตั้งค่าเพิ่มเติม
+class MyBot(commands.Bot):
+    def __init__(self):
+        super().__init__(
+            command_prefix="!",
+            intents=intents,
+            help_command=None,
+            application_id=os.getenv("APPLICATION_ID")  # เพิ่ม application ID
+        )
+    
+    async def setup_hook(self):
+        # Sync commands ไปยัง global scope
+        print("🔄 กำลัง sync slash commands แบบ global...")
+        try:
+            synced = await self.tree.sync()
+            print(f"✅ Sync Global Commands เรียบร้อย: {len(synced)} commands")
+            
+            # Sync ไปยังทุก guild ที่บอทอยู่
+            for guild in self.guilds:
+                try:
+                    await self.tree.sync(guild=guild)
+                    print(f"✅ Synced commands for {guild.name}")
+                except Exception as e:
+                    print(f"❌ Failed to sync for {guild.name}: {e}")
+                    
+        except Exception as e:
+            print(f"❌ เกิดข้อผิดพลาดในการ sync: {e}")
+
 # สร้างบอท
-bot = commands.Bot(
-    command_prefix="!", 
-    intents=intents,
-    help_command=None
-)
+bot = MyBot()
 
 print("🔄 กำลังเริ่มต้นบอท...")
 
@@ -1365,6 +1390,49 @@ async def help_slash(interaction: discord.Interaction):
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
 
+# --------------------------------------------------------------------------------------------------
+# Events
+@bot.event
+async def on_ready():
+    print(f"✅ บอทออนไลน์แล้ว: {bot.user} (ID: {bot.user.id})")
+    print(f"✅ Prefix: {bot.command_prefix}")
+    print(f"✅ Guilds: {len(bot.guilds)}")
+    
+    # ตรวจสอบว่าเป็นบอทที่ถูกต้อง
+    print(f"✅ Bot Name: {bot.user.name}")
+    print(f"✅ Bot Discriminator: {bot.user.discriminator}")
+    
+    # ตั้งค่าสถานะ
+    await bot.change_presence(
+        activity=discord.Activity(
+            type=discord.ActivityType.watching, 
+            name="ร้าน Sushi Shop | พิมพ์ /help"
+        )
+    )
+    
+    print("✅ ตั้งค่าสถานะเรียบร้อย")
+    
+    # ลงทะเบียน Views
+    bot.add_view(MainShopView())
+    bot.add_view(QRView())
+    print("✅ ลงทะเบียน Views เรียบร้อย")
+    
+    # อัพเดทช่องหลัก
+    await update_channel_name()
+    
+    # เริ่มระบบตรวจสอบตั๋ว
+    bot.loop.create_task(check_stale_tickets())
+    print("✅ เริ่มระบบตรวจสอบตั๋วค้างเรียบร้อย")
+    
+    # อัพเดทช่องหลัก
+    await update_main_channel()
+    
+    print("\n🎯 บอทพร้อมใช้งานเต็มที่!")
+    print("📨 ทดสอบใน DM โดย:")
+    print("   1. พิมพ์ '/' แล้วดูมีคำสั่งหรือไม่")
+    print("   2. พิมพ์ '/help' ตรงๆ")
+    print("   3. พิมพ์ 'help' เพื่อดูคำสั่งแบบด่วน")
+    
 # --------------------------------------------------------------------------------------------------
 # TEXT COMMANDS - ใช้ในเซิร์ฟเวอร์เท่านั้น
 # --------------------------------------------------------------------------------------------------
