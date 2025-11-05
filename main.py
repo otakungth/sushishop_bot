@@ -20,7 +20,7 @@ intents.members = True
 intents.messages = True
 intents.dm_messages = True
 intents.dm_reactions = True
-intents.presences = True  # เพิ่มนี้
+intents.presences = True
 
 shop_open = True
 group_ticket_enabled = True
@@ -70,31 +70,37 @@ LEVELS = {
     9: {"exp": 1000000, "role_id": 1406309272786047106, "role_name": "Level 9"}
 }
 
-# สร้างบอทด้วยการตั้งค่าเพิ่มเติม
+# สร้างบอทด้วยการตั้งค่าเพิ่มเติมสำหรับ User Install
 class MyBot(commands.Bot):
     def __init__(self):
         super().__init__(
             command_prefix="!",
             intents=intents,
             help_command=None,
-            application_id=os.getenv("APPLICATION_ID")  # เพิ่ม application ID
+            application_id=os.getenv("APPLICATION_ID")
         )
     
     async def setup_hook(self):
-        # Sync commands ไปยัง global scope
-        print("🔄 กำลัง sync slash commands แบบ global...")
+        # ตั้งค่า integration_types และ contexts สำหรับทุกคำสั่ง
+        for cmd in self.tree.walk_commands():
+            # ตั้งค่าให้รองรับ User Install
+            cmd.integration_types = [discord.IntegrationType.user_install]
+            cmd.contexts = [
+                discord.AppCommandContext.guild, 
+                discord.AppCommandContext.bot_dm, 
+                discord.AppCommandContext.private_channel
+            ]
+        
+        # Sync commands ไปยัง global scope สำหรับ User Install
+        print("🔄 กำลัง sync slash commands สำหรับ User Install...")
         try:
             synced = await self.tree.sync()
-            print(f"✅ Sync Global Commands เรียบร้อย: {len(synced)} commands")
+            print(f"✅ Sync User Install Commands เรียบร้อย: {len(synced)} commands")
             
-            # Sync ไปยังทุก guild ที่บอทอยู่
-            for guild in self.guilds:
-                try:
-                    await self.tree.sync(guild=guild)
-                    print(f"✅ Synced commands for {guild.name}")
-                except Exception as e:
-                    print(f"❌ Failed to sync for {guild.name}: {e}")
-                    
+            # แสดงคำสั่งทั้งหมด
+            for cmd in synced:
+                print(f"   - /{cmd.name} | {cmd.description}")
+                
         except Exception as e:
             print(f"❌ เกิดข้อผิดพลาดในการ sync: {e}")
 
@@ -107,6 +113,11 @@ print("🔄 กำลังเริ่มต้นบอท...")
 # Decorator สำหรับตรวจสอบสิทธิ์แอดมิน
 def admin_only():
     async def predicate(ctx):
+        # ถ้าเป็น DM ให้ปฏิเสธคำสั่งแอดมิน
+        if isinstance(ctx.channel, discord.DMChannel):
+            await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในเซิร์ฟเวอร์เท่านั้น", delete_after=5)
+            return False
+            
         if ctx.author.guild_permissions.administrator:
             return True
         
@@ -465,6 +476,11 @@ async def handle_open_ticket(interaction, category_name, modal_class, stock_type
     global gamepass_stock, group_stock
     
     try:
+        # ตรวจสอบว่าเป็น DM หรือไม่
+        if isinstance(interaction.channel, discord.DMChannel):
+            await interaction.response.send_message("❌ การเปิดตั๋วต้องทำในเซิร์ฟเวอร์เท่านั้น กรุณาไปที่เซิร์ฟเวอร์ของเราเพื่อเปิดตั๋ว", ephemeral=True)
+            return
+            
         if stock_type == "gamepass" and gamepass_stock <= 0:
             await interaction.response.send_message("❌ ขออภัย สินค้าหมดชั่วคราว", ephemeral=True)
             return
@@ -1160,10 +1176,15 @@ async def update_main_channel():
         print(f"❌ เกิดข้อผิดพลาดในการอัปเดตช่องหลัก: {e}")
 
 # --------------------------------------------------------------------------------------------------
-# SLASH COMMANDS - แก้ไขให้ใช้กับเวอร์ชันเก่า
+# SLASH COMMANDS - สำหรับ User Install (ใช้ใน DM ได้)
 # --------------------------------------------------------------------------------------------------
 
-@bot.tree.command(name="gamepass", description="คำนวณราคา Gamepass")
+@bot.tree.command(
+    name="gamepass", 
+    description="คำนวณราคา Gamepass",
+    integration_types=[discord.IntegrationType.user_install],
+    contexts=[discord.AppCommandContext.guild, discord.AppCommandContext.bot_dm, discord.AppCommandContext.private_channel]
+)
 async def gamepass_slash(interaction: discord.Interaction, amount: str):
     """คำสั่งคำนวณราคา Gamepass"""
     try:
@@ -1186,7 +1207,12 @@ async def gamepass_slash(interaction: discord.Interaction, amount: str):
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
 
-@bot.tree.command(name="group", description="คำนวณราคา Group")
+@bot.tree.command(
+    name="group", 
+    description="คำนวณราคา Group",
+    integration_types=[discord.IntegrationType.user_install],
+    contexts=[discord.AppCommandContext.guild, discord.AppCommandContext.bot_dm, discord.AppCommandContext.private_channel]
+)
 async def group_slash(interaction: discord.Interaction, amount: str):
     """คำสั่งคำนวณราคา Group"""
     try:
@@ -1214,7 +1240,12 @@ async def group_slash(interaction: discord.Interaction, amount: str):
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
 
-@bot.tree.command(name="baht_gamepass", description="คำนวณ Robux จากเงินบาท (Gamepass)")
+@bot.tree.command(
+    name="baht_gamepass", 
+    description="คำนวณ Robux จากเงินบาท (Gamepass)",
+    integration_types=[discord.IntegrationType.user_install],
+    contexts=[discord.AppCommandContext.guild, discord.AppCommandContext.bot_dm, discord.AppCommandContext.private_channel]
+)
 async def baht_gamepass_slash(interaction: discord.Interaction, amount: str):
     """คำสั่งคำนวณ Robux จากเงินบาท (Gamepass)"""
     try:
@@ -1235,7 +1266,12 @@ async def baht_gamepass_slash(interaction: discord.Interaction, amount: str):
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
 
-@bot.tree.command(name="baht_group", description="คำนวณ Robux จากเงินบาท (Group)")
+@bot.tree.command(
+    name="baht_group", 
+    description="คำนวณ Robux จากเงินบาท (Group)",
+    integration_types=[discord.IntegrationType.user_install],
+    contexts=[discord.AppCommandContext.guild, discord.AppCommandContext.bot_dm, discord.AppCommandContext.private_channel]
+)
 async def baht_group_slash(interaction: discord.Interaction, amount: str):
     """คำสั่งคำนวณ Robux จากเงินบาท (Group)"""
     try:
@@ -1262,7 +1298,12 @@ async def baht_group_slash(interaction: discord.Interaction, amount: str):
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
 
-@bot.tree.command(name="tax", description="คำนวณ Robux หลังหักภาษี")
+@bot.tree.command(
+    name="tax", 
+    description="คำนวณ Robux หลังหักภาษี",
+    integration_types=[discord.IntegrationType.user_install],
+    contexts=[discord.AppCommandContext.guild, discord.AppCommandContext.bot_dm, discord.AppCommandContext.private_channel]
+)
 async def tax_slash(interaction: discord.Interaction, amount: str):
     """คำสั่งคำนวณ Robux หลังหักภาษี"""
     try:
@@ -1301,7 +1342,12 @@ async def tax_slash(interaction: discord.Interaction, amount: str):
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
 
-@bot.tree.command(name="exch", description="คำนวณอัตราแลกเปลี่ยน (เรท 33.5)")
+@bot.tree.command(
+    name="exch", 
+    description="คำนวณอัตราแลกเปลี่ยน (เรท 33.5)",
+    integration_types=[discord.IntegrationType.user_install],
+    contexts=[discord.AppCommandContext.guild, discord.AppCommandContext.bot_dm, discord.AppCommandContext.private_channel]
+)
 async def exch_slash(interaction: discord.Interaction, amount: str):
     """คำสั่งคำนวณอัตราแลกเปลี่ยน เรท 33.5"""
     try:
@@ -1327,7 +1373,12 @@ async def exch_slash(interaction: discord.Interaction, amount: str):
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {str(e)}", ephemeral=True)
 
-@bot.tree.command(name="exch_custom", description="คำนวณอัตราแลกเปลี่ยนแบบกำหนดเรทเอง")
+@bot.tree.command(
+    name="exch_custom", 
+    description="คำนวณอัตราแลกเปลี่ยนแบบกำหนดเรทเอง",
+    integration_types=[discord.IntegrationType.user_install],
+    contexts=[discord.AppCommandContext.guild, discord.AppCommandContext.bot_dm, discord.AppCommandContext.private_channel]
+)
 async def exch_custom_slash(interaction: discord.Interaction, amount: str, rate: str):
     """คำสั่งคำนวณอัตราแลกเปลี่ยนแบบกำหนดเรทเอง"""
     try:
@@ -1355,7 +1406,12 @@ async def exch_custom_slash(interaction: discord.Interaction, amount: str, rate:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {str(e)}", ephemeral=True)
 
 # เพิ่มคำสั่ง help สำหรับ slash command
-@bot.tree.command(name="help", description="แสดงคำสั่งทั้งหมดที่ใช้ได้")
+@bot.tree.command(
+    name="help", 
+    description="แสดงคำสั่งทั้งหมดที่ใช้ได้",
+    integration_types=[discord.IntegrationType.user_install],
+    contexts=[discord.AppCommandContext.guild, discord.AppCommandContext.bot_dm, discord.AppCommandContext.private_channel]
+)
 async def help_slash(interaction: discord.Interaction):
     """คำสั่งช่วยเหลือ - แสดงคำสั่งทั้งหมด"""
     try:
@@ -1441,6 +1497,11 @@ async def on_ready():
 async def gp(ctx, *, expression: str):
     """คำสั่งคำนวณราคา Gamepass (Text Command)"""
     try:
+        # ตรวจสอบว่าเป็น DM หรือไม่
+        if isinstance(ctx.channel, discord.DMChannel):
+            await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในเซิร์ฟเวอร์เท่านั้น ใช้ `/gamepass` แทน", delete_after=10)
+            return
+            
         expr = expression.replace(",", "").lower().replace("x", "*").replace("÷", "/")
 
         if not re.match(r"^[\d\s\+\-\*\/\(\)]+$", expr):
@@ -1460,6 +1521,11 @@ async def gp(ctx, *, expression: str):
 async def g(ctx, *, expression: str):
     """คำสั่งคำนวณราคา Group (Text Command)"""
     try:
+        # ตรวจสอบว่าเป็น DM หรือไม่
+        if isinstance(ctx.channel, discord.DMChannel):
+            await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในเซิร์ฟเวอร์เท่านั้น ใช้ `/group` แทน", delete_after=10)
+            return
+            
         expr = expression.replace(",", "").lower().replace("x", "*").replace("÷", "/")
 
         if not re.match(r"^[\d\s\+\-\*\/\(\)]+$", expr):
@@ -1485,6 +1551,11 @@ async def g(ctx, *, expression: str):
 async def gpb(ctx, *, expression: str):
     """คำสั่งคำนวณ Robux จากเงินบาท (Gamepass) (Text Command)"""
     try:
+        # ตรวจสอบว่าเป็น DM หรือไม่
+        if isinstance(ctx.channel, discord.DMChannel):
+            await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในเซิร์ฟเวอร์เท่านั้น ใช้ `/baht_gamepass` แทน", delete_after=10)
+            return
+            
         expr = expression.replace(",", "").replace(" ", "")
         baht = eval(expr)
 
@@ -1498,6 +1569,11 @@ async def gpb(ctx, *, expression: str):
 async def gb(ctx, *, expression: str):
     """คำสั่งคำนวณ Robux จากเงินบาท (Group) (Text Command)"""
     try:
+        # ตรวจสอบว่าเป็น DM หรือไม่
+        if isinstance(ctx.channel, discord.DMChannel):
+            await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในเซิร์ฟเวอร์เท่านั้น ใช้ `/baht_group` แทน", delete_after=10)
+            return
+            
         expr = expression.replace(",", "").replace(" ", "")
         baht = eval(expr)
 
@@ -1516,6 +1592,11 @@ async def gb(ctx, *, expression: str):
 async def tax(ctx, *, expression: str):
     """คำสั่งคำนวณ Robux หลังหักภาษี (Text Command)"""
     try:
+        # ตรวจสอบว่าเป็น DM หรือไม่
+        if isinstance(ctx.channel, discord.DMChannel):
+            await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในเซิร์ฟเวอร์เท่านั้น ใช้ `/tax` แทน", delete_after=10)
+            return
+            
         expr = expression.replace(" ", "")
         
         if re.match(r"^\d+$", expr):
@@ -1562,12 +1643,20 @@ async def on_ready():
     
     # Sync slash commands
     try:
-        print("🔄 กำลัง sync slash commands...")
+        print("🔄 กำลัง sync slash commands สำหรับ User Install...")
         
-        # ลอง sync แบบต่างๆ
+        # ตั้งค่า integration_types และ contexts สำหรับทุกคำสั่ง
+        for cmd in bot.tree.walk_commands():
+            cmd.integration_types = [discord.IntegrationType.user_install]
+            cmd.contexts = [
+                discord.AppCommandContext.guild, 
+                discord.AppCommandContext.bot_dm, 
+                discord.AppCommandContext.private_channel
+            ]
+        
         synced = await bot.tree.sync()
         
-        print(f"✅ Sync Global Commands เรียบร้อย: {len(synced)} commands")
+        print(f"✅ Sync User Install Commands เรียบร้อย: {len(synced)} commands")
         
         # แสดงคำสั่งทั้งหมด
         for cmd in synced:
