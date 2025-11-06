@@ -95,6 +95,8 @@ class MyBot(commands.Bot):
         except Exception as e:
             print(f"❌ Sync ล้มเหลว: {e}")
 
+bot = MyBot()
+
 # --------------------------------------------------------------------------------------------------
 # Decorator สำหรับตรวจสอบสิทธิ์แอดมิน
 def admin_only():
@@ -2398,13 +2400,13 @@ async def test_dm(ctx, user_id: str = None):
 # --------------------------------------------------------------------------------------------------
 # เริ่มต้นบอท
 # สร้าง instance ของบอท
-bot = MyBot()
 
 @bot.event
 async def on_ready():
     print(f"✅ บอทออนไลน์แล้ว: {bot.user}")
 
 bot.run(os.getenv("DISCORD_TOKEN"))
+
 
 
 
