@@ -41,6 +41,48 @@ ticket_activity = {}
 # ระบบเก็บเลเวลและ EXP
 user_data_file = "user_data.json"
 
+# =======================================================================================
+# ✅ คลาสหลักของบอท
+# =======================================================================================
+
+class MyBot(commands.Bot):
+    def __init__(self):
+        super().__init__(
+            command_prefix="!",
+            intents=intents,
+            help_command=None,
+            application_id=os.getenv("APPLICATION_ID")
+        )
+
+    async def setup_hook(self):
+        """ตั้งค่า contexts และ sync คำสั่ง global"""
+        # ตั้งค่า contexts สำหรับทุกคำสั่ง
+        for cmd in self.tree.walk_commands():
+            try:
+                cmd.contexts = [
+                    discord.AppCommandContext.guild,          # ใช้ในเซิร์ฟเวอร์
+                    discord.AppCommandContext.bot_dm,         # ใช้ใน DM กับบอท
+                    discord.AppCommandContext.private_channel # ใช้ใน DM ส่วนตัว
+                ]
+                cmd.dm_permission = True  # ✅ เปิดให้ใช้ใน DM ได้
+            except AttributeError:
+                print(f"⚠️ ไม่สามารถตั้งค่า contexts สำหรับ {cmd.name}")
+
+        # Sync commands ไปยัง global scope
+        print("🔄 กำลัง sync slash commands สำหรับ User Install...")
+        try:
+            synced = await self.tree.sync()
+            print(f"✅ Sync Global Commands เรียบร้อย: {len(synced)} commands")
+            for cmd in synced:
+                print(f"   - /{cmd.name} | {cmd.description}")
+        except Exception as e:
+            print(f"❌ เกิดข้อผิดพลาดในการ sync: {e}")
+
+# =======================================================================================
+# ✅ สร้าง instance ของบอท
+# =======================================================================================
+bot = MyBot()
+
 # โหลดข้อมูลผู้ใช้จากไฟล์
 def load_user_data():
     try:
@@ -2408,3 +2450,4 @@ try:
     bot.run(os.getenv("TOKEN"))
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
+
