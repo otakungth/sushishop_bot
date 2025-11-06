@@ -15,12 +15,8 @@ group_rate_high = 4.5
 # ตั้งค่าพื้นฐาน - แก้ไข Intents
 intents = discord.Intents.all()
 intents.message_content = True
-intents.guilds = True
-intents.members = True
-intents.messages = True
 intents.dm_messages = True
 intents.dm_reactions = True
-intents.presences = True
 
 shop_open = True
 group_ticket_enabled = True
@@ -79,32 +75,31 @@ class MyBot(commands.Bot):
             help_command=None,
             application_id=os.getenv("APPLICATION_ID")
         )
-    
-async def setup_hook(self):
-    # ตั้งค่า contexts สำหรับทุกคำสั่ง
-    for cmd in self.tree.walk_commands():
+
+    async def setup_hook(self):
+        """ตั้งค่าและซิงค์ global slash commands"""
+        print("🔄 เริ่ม sync global slash commands ...")
+
+        # ✅ กำหนดให้ทุกคำสั่งใช้ได้ใน DM
+        for cmd in self.tree.walk_commands():
+            try:
+                cmd.dm_permission = True
+                cmd.contexts = [
+                    discord.AppCommandContext.guild,
+                    discord.AppCommandContext.bot_dm,
+                    discord.AppCommandContext.private_channel
+                ]
+            except Exception as e:
+                print(f"⚠️ ไม่สามารถตั้งค่า contexts สำหรับ {cmd.name}: {e}")
+
         try:
-            # ตั้งค่าให้ใช้ได้ในทุก context
-            cmd.contexts = [
-                discord.AppCommandContext.guild,        # เซิร์ฟเวอร์
-                discord.AppCommandContext.bot_dm,       # DM กับบอท
-                discord.AppCommandContext.private_channel  # กลุ่มส่วนตัว
-            ]
-        except AttributeError:
-            # ถ้าเวอร์ชันเก่าไม่รองรับ contexts
-            print(f"⚠️ ไม่สามารถตั้งค่า contexts สำหรับ {cmd.name}")
-    
-    # Sync commands ไปยัง global scope
-    print("🔄 กำลัง sync slash commands สำหรับ User Install...")
-    try:
-        synced = await self.tree.sync()
-        print(f"✅ Sync Global Commands เรียบร้อย: {len(synced)} commands")
-        
-        # แสดงคำสั่งทั้งหมดและ contexts
-        for cmd in synced:
-            print(f"   - /{cmd.name} | {cmd.description}")
-    except Exception as e:
-        print(f"❌ เกิดข้อผิดพลาดในการ sync: {e}")
+            synced = await self.tree.sync()
+            print(f"✅ Sync Global Commands สำเร็จ ({len(synced)} commands)")
+            for c in synced:
+                print(f"   - /{c.name}: {c.description}")
+        except Exception as e:
+            print(f"❌ Sync ล้มเหลว: {e}")
+            
 
 # สร้างบอท
 bot = MyBot()
@@ -1181,143 +1176,49 @@ async def update_main_channel():
 # SLASH COMMANDS - สำหรับ User Install (ใช้ใน DM ได้)
 # --------------------------------------------------------------------------------------------------
 
-@bot.tree.command(name="gamepass", description="คำนวณราคา Gamepass")
-async def gamepass_slash(interaction: discord.Interaction, amount: str):
-    """คำสั่งคำนวณราคา Gamepass"""
-    try:
-        # ตรวจสอบว่าเป็น DM หรือไม่
-        is_dm = isinstance(interaction.channel, discord.DMChannel)
-        
-        expr = amount.replace(",", "").replace(" ", "").lower().replace("x", "*").replace("÷", "/")
+@bot.tree.command(name="gamepass", description="คำนวณราคา Gamepass", dm_permission=True)
+async def gamepass(interaction: discord.Interaction, amount: int):
+    rate = 6
+    price = amount / rate
+    await interaction.response.send_message(
+        f"🎮 {amount:,} Robux = **{price:,.0f} บาท** (เรท {rate})",
+        ephemeral=False
+    )
 
-        if not re.match(r"^[\d\s\+\-\*\/\(\)\.]+$", expr):
-            await interaction.response.send_message("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", ephemeral=not is_dm)
-            return
+@bot.tree.command(name="group", description="คำนวณราคา Group", dm_permission=True)
+async def group(interaction: discord.Interaction, amount: int):
+    rate = 4.5 if amount >= 1500 else 4
+    price = amount / rate
+    await interaction.response.send_message(
+        f"👥 {amount:,} Robux = **{price:,.0f} บาท** (เรท {rate})",
+        ephemeral=False
+    )
 
-        robux = int(eval(expr))
-        price = robux / gamepass_rate
-        price_str = f"{price:,.0f} บาท"
+@bot.tree.command(name="baht_gamepass", description="คำนวณ Robux จากเงินบาท (Gamepass)", dm_permission=True)
+async def baht_gamepass(interaction: discord.Interaction, baht: float):
+    rate = 6
+    robux = baht * rate
+    await interaction.response.send_message(
+        f"💰 {baht:,.0f} บาท = **{robux:,.0f} Robux** (Gamepass เรท {rate})",
+        ephemeral=False
+    )
 
-        response_msg = f"🎮 Gamepass {robux:,} Robux = **{price_str}** (เรท {gamepass_rate})"
-        await interaction.response.send_message(response_msg, ephemeral=not is_dm)
+@bot.tree.command(name="baht_group", description="คำนวณ Robux จากเงินบาท (Group)", dm_permission=True)
+async def baht_group(interaction: discord.Interaction, baht: float):
+    rate = 4.5 if baht >= 500 else 4
+    robux = baht * rate
+    await interaction.response.send_message(
+        f"💰 {baht:,.0f} บาท = **{robux:,.0f} Robux** (Group เรท {rate})",
+        ephemeral=False
+    )
 
-    except Exception as e:
-        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
-
-@bot.tree.command(name="group", description="คำนวณราคา Group")
-async def group_slash(interaction: discord.Interaction, amount: str):
-    """คำสั่งคำนวณราคา Group"""
-    try:
-        is_dm = isinstance(interaction.channel, discord.DMChannel)
-        
-        expr = amount.replace(",", "").replace(" ", "").lower().replace("x", "*").replace("÷", "/")
-
-        if not re.match(r"^[\d\s\+\-\*\/\(\)\.]+$", expr):
-            await interaction.response.send_message("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", ephemeral=not is_dm)
-            return
-
-        robux = int(eval(expr))
-
-        if robux < 1500:
-            rate = group_rate_low
-        else:
-            rate = group_rate_high
-
-        price = robux / rate
-        price_str = f"{price:,.0f} บาท"
-
-        response_msg = f"👥 Group {robux:,} Robux = **{price_str}** (เรท {rate})"
-        await interaction.response.send_message(response_msg, ephemeral=not is_dm)
-
-    except Exception as e:
-        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
-
-@bot.tree.command(name="baht_gamepass", description="คำนวณ Robux จากเงินบาท (Gamepass)")
-async def baht_gamepass_slash(interaction: discord.Interaction, amount: str):
-    """คำสั่งคำนวณ Robux จากเงินบาท (Gamepass)"""
-    try:
-        is_dm = isinstance(interaction.channel, discord.DMChannel)
-        
-        expr = amount.replace(",", "").replace(" ", "").lower().replace("x", "*").replace("÷", "/")
-
-        if not re.match(r"^[\d\s\+\-\*\/\(\)\.]+$", expr):
-            await interaction.response.send_message("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", ephemeral=not is_dm)
-            return
-
-        baht = eval(expr)
-        robux = baht * gamepass_rate
-
-        response_msg = f"🎮 {baht:,.0f} บาท = **{robux:,.0f} Robux** (Gamepass เรท {gamepass_rate})"
-        await interaction.response.send_message(response_msg, ephemeral=not is_dm)
-
-    except Exception as e:
-        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
-
-@bot.tree.command(name="baht_group", description="คำนวณ Robux จากเงินบาท (Group)")
-async def baht_group_slash(interaction: discord.Interaction, amount: str):
-    """คำสั่งคำนวณ Robux จากเงินบาท (Group)"""
-    try:
-        is_dm = isinstance(interaction.channel, discord.DMChannel)
-        
-        expr = amount.replace(",", "").replace(" ", "").lower().replace("x", "*").replace("÷", "/")
-
-        if not re.match(r"^[\d\s\+\-\*\/\(\)\.]+$", expr):
-            await interaction.response.send_message("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", ephemeral=not is_dm)
-            return
-
-        baht = eval(expr)
-
-        if baht < 500:
-            rate = group_rate_low
-        else:
-            rate = group_rate_high
-
-        robux = baht * rate
-
-        response_msg = f"👥 {baht:,.0f} บาท = **{robux:,.0f} Robux** (Group เรท {rate})"
-        await interaction.response.send_message(response_msg, ephemeral=not is_dm)
-
-    except Exception as e:
-        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
-
-@bot.tree.command(name="tax", description="คำนวณ Robux หลังหักภาษี")
-async def tax_slash(interaction: discord.Interaction, amount: str):
-    """คำสั่งคำนวณ Robux หลังหักภาษี"""
-    try:
-        is_dm = isinstance(interaction.channel, discord.DMChannel)
-        
-        expr = amount.replace(" ", "")
-        
-        if re.match(r"^\d+$", expr):
-            number = int(expr)
-            result = number * 0.7
-            response_msg = f"💰 {number:,} Robux หลังหัก 30% = **{result:,.0f} Robux**"
-            
-        elif re.match(r"^\d+-\d+%$", expr):
-            parts = expr.split('-')
-            number = int(parts[0])
-            percent = int(parts[1].replace('%', ''))
-            
-            if percent < 0 or percent > 100:
-                await interaction.response.send_message("❌ เปอร์เซ็นต์ต้องอยู่ระหว่าง 0-100%", ephemeral=not is_dm)
-                return
-            
-            result = number * (1 - percent/100)
-            response_msg = f"💰 {number:,} Robux หลังหัก {percent}% = **{result:,.0f} Robux**"
-            
-        else:
-            response_msg = (
-                "❌ รูปแบบไม่ถูกต้อง\n\n"
-                "**การใช้งาน:**\n"
-                "`/tax 100` - หัก 30% อัตโนมัติ\n"
-                "`/tax 100-30%` - หัก 30%\n"
-                "`/tax 100-50%` - หัก 50%"
-            )
-
-        await interaction.response.send_message(response_msg, ephemeral=not is_dm)
-
-    except Exception as e:
-        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
+@bot.tree.command(name="tax", description="คำนวณ Robux หลังหักภาษี", dm_permission=True)
+async def tax(interaction: discord.Interaction, robux: int):
+    after_tax = robux * 0.7
+    await interaction.response.send_message(
+        f"💸 {robux:,} Robux หลังหักภาษี 30% = **{after_tax:,.0f} Robux**",
+        ephemeral=False
+    )
 
 @bot.tree.command(name="exch", description="คำนวณอัตราแลกเปลี่ยน (เรท 34)")
 async def exch_slash(interaction: discord.Interaction, amount: str):
@@ -1373,40 +1274,21 @@ async def exch_custom_slash(interaction: discord.Interaction, amount: str, rate:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {str(e)}", ephemeral=True)
 
 # เพิ่มคำสั่ง help สำหรับ slash command
-@bot.tree.command(name="help", description="แสดงคำสั่งทั้งหมดที่ใช้ได้")
-async def help_slash(interaction: discord.Interaction):
-    """คำสั่งช่วยเหลือ - แสดงคำสั่งทั้งหมด"""
-    try:
-        is_dm = isinstance(interaction.channel, discord.DMChannel)
-        
-        help_embed = discord.Embed(
-            title="🍣 Sushi Shop - คำสั่งทั้งหมด",
-            description="**คำสั่ง Slash Commands (ใช้ /):**\n"
-                       "`/gamepass <จำนวน>` - คำนวณราคา Gamepass\n"
-                       "`/group <จำนวน>` - คำนวณราคา Group\n"
-                       "`/baht_gamepass <จำนวน>` - คำนวณ Robux จากเงิน (Gamepass)\n"
-                       "`/baht_group <จำนวน>` - คำนวณ Robux จากเงิน (Group)\n"
-                       "`/tax <จำนวน>` - คำนวณ Robux หลังหักภาษี\n"
-                       "`/exch <จำนวน>` - คำนวณอัตราแลกเปลี่ยน (เรท 33.5)\n"
-                       "`/exch_custom <จำนวน> <เรท>` - คำนวณอัตราแลกเปลี่ยนแบบกำหนดเรท\n"
-                       "`/help` - แสดงคำสั่งนี้\n\n"
-                       "**หมายเหตุ:**\n"
-                       "• คำสั่งเหล่านี้ใช้ได้ทั้งในเซิร์ฟเวอร์และ DM\n"
-                       "• ในการสั่งซื้อจริง ต้องเปิดตั๋วในเซิร์ฟเวอร์เท่านั้น",
-            color=0x00FF99
-        )
-        
-        if is_dm:
-            help_embed.add_field(
-                name="💡 วิธีการใช้ใน DM",
-                value="พิมพ์ `/` แล้วเลือกคำสั่งที่ต้องการ หรือพิมพ์ `/help` เพื่อดูคำสั่งทั้งหมด",
-                inline=False
-            )
-        
-        await interaction.response.send_message(embed=help_embed, ephemeral=not is_dm)
-        
-    except Exception as e:
-        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
+@bot.tree.command(name="help", description="แสดงคำสั่งทั้งหมดที่ใช้ได้", dm_permission=True)
+async def help_cmd(interaction: discord.Interaction):
+    embed = discord.Embed(
+        title="🍣 Sushi Shop - คำสั่งทั้งหมด",
+        description=(
+            "ใช้ได้ทั้งในเซิร์ฟเวอร์และ DM\n\n"
+            "`/gamepass <จำนวน>` - คำนวณราคา Gamepass\n"
+            "`/group <จำนวน>` - คำนวณราคา Group\n"
+            "`/baht_gamepass <จำนวน>` - คำนวณ Robux จากเงินบาท (Gamepass)\n"
+            "`/baht_group <จำนวน>` - คำนวณ Robux จากเงินบาท (Group)\n"
+            "`/tax <จำนวน>` - คำนวณ Robux หลังหักภาษี\n"
+        ),
+        color=0x00FF99
+    )
+    await interaction.response.send_message(embed=embed, ephemeral=False)
 
 # เพิ่มคำสั่งตรวจสอบการติดตั้ง
 @bot.tree.command(name="install_info", description="ตรวจสอบการติดตั้งบอท")
@@ -1448,54 +1330,20 @@ async def install_info(interaction: discord.Interaction):
 
 # --------------------------------------------------------------------------------------------------
 # Events
-@bot.event
 async def on_ready():
     print(f"✅ บอทออนไลน์แล้ว: {bot.user} (ID: {bot.user.id})")
     print(f"✅ Prefix: {bot.command_prefix}")
     print(f"✅ Guilds: {len(bot.guilds)}")
-    
-    # ตรวจสอบว่าเป็นบอทที่ถูกต้อง
-    print(f"✅ Bot Name: {bot.user.name}")
-    print(f"✅ Bot Discriminator: {bot.user.discriminator}")
-    
-    # Force global sync อีกครั้ง
-    try:
-        print("🔄 Force syncing global commands...")
-        await bot.tree.sync()
-        print("✅ Global commands synced!")
-    except Exception as e:
-        print(f"❌ Sync error: {e}")
-    
-    # ตั้งค่าสถานะ
+
     await bot.change_presence(
         activity=discord.Activity(
-            type=discord.ActivityType.watching, 
+            type=discord.ActivityType.watching,
             name="ร้าน Sushi Shop | พิมพ์ /help"
         )
     )
-    
+
     print("✅ ตั้งค่าสถานะเรียบร้อย")
-    
-    # ลงทะเบียน Views
-    bot.add_view(MainShopView())
-    bot.add_view(QRView())
-    print("✅ ลงทะเบียน Views เรียบร้อย")
-    
-    # อัพเดทช่องหลัก
-    await update_channel_name()
-    
-    # เริ่มระบบตรวจสอบตั๋ว
-    bot.loop.create_task(check_stale_tickets())
-    print("✅ เริ่มระบบตรวจสอบตั๋วค้างเรียบร้อย")
-    
-    # อัพเดทช่องหลัก
-    await update_main_channel()
-    
-    print("\n🎯 บอทพร้อมใช้งานเต็มที่!")
-    print("📨 ทดสอบใน DM โดย:")
-    print("   1. พิมพ์ '/' แล้วดูมีคำสั่งหรือไม่")
-    print("   2. พิมพ์ '/help' ตรงๆ")
-    print("   3. พิมพ์ 'help' เพื่อดูคำสั่งแบบด่วน")
+    print("🎯 บอทพร้อมใช้งานแล้ว! ทดสอบใน DM โดยพิมพ์ /help")
     
 # --------------------------------------------------------------------------------------------------
 # TEXT COMMANDS - ใช้ในเซิร์ฟเวอร์เท่านั้น
@@ -2570,7 +2418,7 @@ try:
         print("ℹ️ ไม่พบ server_on function, ข้ามไป...")
     
     # ดึง token จาก environment variable
-    token = os.getenv("TOKEN")
+    bot.run(os.getenv("DISCORD_TOKEN"))
     if not token:
         print("❌ ไม่พบ TOKEN ใน environment variables")
         exit(1)
@@ -2579,5 +2427,6 @@ try:
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
     
+
 
 
