@@ -66,7 +66,9 @@ LEVELS = {
     9: {"exp": 1000000, "role_id": 1406309272786047106, "role_name": "Level 9"}
 }
 
-# สร้างบอทด้วยการตั้งค่าเพิ่มเติมสำหรับ User Install
+# --- import และ class MyBot ทั้งหมดอยู่ตรงนี้ ---
+bot = MyBot()
+
 class MyBot(commands.Bot):
     def __init__(self):
         super().__init__(
@@ -77,25 +79,38 @@ class MyBot(commands.Bot):
         )
 
     async def setup_hook(self):
-        """ตั้งค่าและซิงค์ global slash commands"""
         print("🔄 เริ่ม sync global slash commands ...")
-
-        # ✅ เปิดให้ทุกคำสั่งใช้ได้ใน DM
         for cmd in self.tree.walk_commands():
             try:
                 cmd.dm_permission = True
             except Exception as e:
                 print(f"⚠️ ตั้งค่า DM permission ไม่ได้สำหรับ {cmd.name}: {e}")
-
         try:
             synced = await self.tree.sync()
             print(f"✅ Sync Global Commands สำเร็จ ({len(synced)} commands)")
-            for c in synced:
-                print(f"   - /{c.name}: {c.description}")
         except Exception as e:
             print(f"❌ Sync ล้มเหลว: {e}")
 
+# ✅ ต้องสร้าง instance ของ bot ก่อนประกาศคำสั่ง
 bot = MyBot()
+
+# ✅ จากนั้นค่อยประกาศคำสั่ง เช่น
+@bot.tree.command(name="ping", description="ทดสอบการตอบกลับ", dm_permission=True)
+async def ping(interaction: discord.Interaction):
+    await interaction.response.send_message("🏓 Pong!")
+
+# ✅ หรือ command แบบ prefix (เช่น !help)
+@bot.command()
+async def hello(ctx):
+    await ctx.send("สวัสดี! 👋")
+
+# ✅ on_ready
+@bot.event
+async def on_ready():
+    print(f"✅ บอทออนไลน์แล้ว: {bot.user}")
+
+# ✅ รันบอท
+bot.run(os.getenv("DISCORD_TOKEN"))
 
 # --------------------------------------------------------------------------------------------------
 # Decorator สำหรับตรวจสอบสิทธิ์แอดมิน
@@ -1166,6 +1181,8 @@ async def update_main_channel():
 # --------------------------------------------------------------------------------------------------
 # SLASH COMMANDS - สำหรับ User Install (ใช้ใน DM ได้)
 # --------------------------------------------------------------------------------------------------
+
+bot = MyBot()
 
 @bot.tree.command(name="gamepass", description="คำนวณราคา Gamepass", dm_permission=True)
 async def gamepass(interaction: discord.Interaction, amount: int):
@@ -2404,8 +2421,6 @@ async def test_dm(ctx, user_id: str = None):
 @bot.event
 async def on_ready():
     print(f"✅ บอทออนไลน์แล้ว: {bot.user}")
-
-bot.run(os.getenv("DISCORD_TOKEN"))
 
 
 
