@@ -80,13 +80,13 @@ class MyBot(commands.Bot):
         """ตั้งค่าและซิงค์ global slash commands"""
         print("🔄 เริ่ม sync global slash commands ...")
 
-        # ✅ เปิดให้ทุกคำสั่งใช้ใน DM ได้
+        # ✅ เปิดให้ทุกคำสั่งใช้ได้ใน DM
         for cmd in self.tree.walk_commands():
             try:
                 cmd.dm_permission = True
             except Exception as e:
                 print(f"⚠️ ตั้งค่า DM permission ไม่ได้สำหรับ {cmd.name}: {e}")
-                
+
         try:
             synced = await self.tree.sync()
             print(f"✅ Sync Global Commands สำเร็จ ({len(synced)} commands)")
@@ -94,8 +94,6 @@ class MyBot(commands.Bot):
                 print(f"   - /{c.name}: {c.description}")
         except Exception as e:
             print(f"❌ Sync ล้มเหลว: {e}")
-            
-bot = MyBot()
 
 # --------------------------------------------------------------------------------------------------
 # Decorator สำหรับตรวจสอบสิทธิ์แอดมิน
@@ -2399,26 +2397,17 @@ async def test_dm(ctx, user_id: str = None):
 
 # --------------------------------------------------------------------------------------------------
 # เริ่มต้นบอท
-print("🚀 กำลังเริ่มต้นบอท...")
-try:
-    # เรียกใช้ฟังก์ชัน server_on ถ้ามี
-    try:
-        from server import server_on
-        server_on()
-    except ImportError:
-        print("ℹ️ ไม่พบ server_on function, ข้ามไป...")
-    
-    # ดึง token จาก environment variable
-    bot.run(os.getenv("DISCORD_TOKEN"))
-    if not token:
-        print("❌ ไม่พบ TOKEN ใน environment variables")
-        exit(1)
-    
-    bot.run(token)
-except Exception as e:
-    print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
+# สร้าง instance ของบอท
+bot = MyBot()
+
+@bot.event
+async def on_ready():
+    print(f"✅ บอทออนไลน์แล้ว: {bot.user}")
+
+bot.run(os.getenv("DISCORD_TOKEN"))
 
 pip install --upgrade pip
+
 
 
 
