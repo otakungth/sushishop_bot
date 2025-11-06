@@ -86,7 +86,7 @@ class MyBot(commands.Bot):
                 cmd.dm_permission = True
             except Exception as e:
                 print(f"⚠️ ตั้งค่า DM permission ไม่ได้สำหรับ {cmd.name}: {e}")
-
+                
         try:
             synced = await self.tree.sync()
             print(f"✅ Sync Global Commands สำเร็จ ({len(synced)} commands)")
@@ -94,10 +94,8 @@ class MyBot(commands.Bot):
                 print(f"   - /{c.name}: {c.description}")
         except Exception as e:
             print(f"❌ Sync ล้มเหลว: {e}")
-
+            
 bot = MyBot()
-
-print("🔄 กำลังเริ่มต้นบอท...")
 
 # --------------------------------------------------------------------------------------------------
 # Decorator สำหรับตรวจสอบสิทธิ์แอดมิน
@@ -2419,7 +2417,9 @@ try:
     bot.run(token)
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
-    
+
+pip install --upgrade pip
+
 
 
 
