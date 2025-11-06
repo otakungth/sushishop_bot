@@ -77,15 +77,31 @@ class MyBot(commands.Bot):
             command_prefix="!",
             intents=intents,
             help_command=None,
-            application_id=os.getenv("1433065424857337896")
+            application_id=os.getenv("APPLICATION_ID")
         )
     
     async def setup_hook(self):
+        # ตั้งค่า contexts สำหรับทุกคำสั่ง (ถ้ารองรับ)
+        for cmd in self.tree.walk_commands():
+            try:
+                # สำหรับ discord.py เวอร์ชันที่รองรับ contexts
+                if hasattr(cmd, 'contexts'):
+                    # ตั้งค่าให้ใช้ได้ใน Guild, Bot DM, Private Channel
+                    cmd.contexts = [
+                        discord.AppCommandContext.guild,
+                        discord.AppCommandContext.bot_dm,
+                        discord.AppCommandContext.private_channel
+                    ]
+            except AttributeError:
+                # ถ้าเวอร์ชันเก่าไม่รองรับ contexts
+                pass
+        
         # Sync commands ไปยัง global scope สำหรับ User Install
         print("🔄 กำลัง sync slash commands สำหรับ User Install...")
         try:
+            # Sync global commands
             synced = await self.tree.sync()
-            print(f"✅ Sync User Install Commands เรียบร้อย: {len(synced)} commands")
+            print(f"✅ Sync Global Commands เรียบร้อย: {len(synced)} commands")
             
             # แสดงคำสั่งทั้งหมด
             for cmd in synced:
@@ -1396,6 +1412,44 @@ async def help_slash(interaction: discord.Interaction):
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
 
+# เพิ่มคำสั่งตรวจสอบการติดตั้ง
+@bot.tree.command(name="install_info", description="ตรวจสอบการติดตั้งบอท")
+async def install_info(interaction: discord.Interaction):
+    """ตรวจสอบว่าบอทติดตั้งแบบ User Install หรือไม่"""
+    is_dm = isinstance(interaction.channel, discord.DMChannel)
+    
+    embed = discord.Embed(
+        title="🔧 ข้อมูลการติดตั้งบอท",
+        color=0x00FF99
+    )
+    
+    embed.add_field(
+        name="ช่องทาง", 
+        value="DM" if is_dm else "เซิร์ฟเวอร์", 
+        inline=True
+    )
+    
+    embed.add_field(
+        name="ผู้ใช้", 
+        value=interaction.user.display_name, 
+        inline=True
+    )
+    
+    embed.add_field(
+        name="สถานะ", 
+        value="✅ User Install ทำงานได้" if is_dm else "🔄 Guild Install", 
+        inline=False
+    )
+    
+    if is_dm:
+        embed.add_field(
+            name="คำแนะนำ",
+            value="คุณสามารถใช้คำสั่ง slash (/) ทั้งหมดได้ใน DM นี้!",
+            inline=False
+        )
+    
+    await interaction.response.send_message(embed=embed, ephemeral=not is_dm)
+
 # --------------------------------------------------------------------------------------------------
 # Events
 @bot.event
@@ -1407,6 +1461,14 @@ async def on_ready():
     # ตรวจสอบว่าเป็นบอทที่ถูกต้อง
     print(f"✅ Bot Name: {bot.user.name}")
     print(f"✅ Bot Discriminator: {bot.user.discriminator}")
+    
+    # Force global sync อีกครั้ง
+    try:
+        print("🔄 Force syncing global commands...")
+        await bot.tree.sync()
+        print("✅ Global commands synced!")
+    except Exception as e:
+        print(f"❌ Sync error: {e}")
     
     # ตั้งค่าสถานะ
     await bot.change_presence(
@@ -1591,20 +1653,13 @@ async def on_ready():
     print(f"✅ Bot Name: {bot.user.name}")
     print(f"✅ Bot Discriminator: {bot.user.discriminator}")
     
-    # Sync slash commands
+    # Force global sync
     try:
-        print("🔄 กำลัง sync slash commands สำหรับ User Install...")
-        
-        synced = await bot.tree.sync()
-        
-        print(f"✅ Sync User Install Commands เรียบร้อย: {len(synced)} commands")
-        
-        # แสดงคำสั่งทั้งหมด
-        for cmd in synced:
-            print(f"   - /{cmd.name} | {cmd.description}")
-            
+        print("🔄 Force syncing global commands...")
+        await bot.tree.sync()
+        print("✅ Global commands synced!")
     except Exception as e:
-        print(f"❌ เกิดข้อผิดพลาดในการ sync: {e}")
+        print(f"❌ Sync error: {e}")
     
     # ตั้งค่าสถานะ
     await bot.change_presence(
@@ -1668,7 +1723,8 @@ async def help_command(ctx):
                    "`/baht_group <จำนวน>` - คำนวณ Robux จากเงิน (Group)\n"
                    "`/tax <จำนวน>` - คำนวณ Robux หลังหักภาษี\n"
                    "`/exch <จำนวน>` - คำนวณอัตราแลกเปลี่ยน (เรท 33.5)\n"
-                   "`/exch_custom <จำนวน> <เรท>` - คำนวณอัตราแลกเปลี่ยนแบบกำหนดเรท\n\n"
+                   "`/exch_custom <จำนวน> <เรท>` - คำนวณอัตราแลกเปลี่ยนแบบกำหนดเรท\n"
+                   "`/install_info` - ตรวจสอบการติดตั้งบอท\n\n"
                    "**คำสั่งทั่วไป:**\n"
                    "`!level` - เช็คเลเวลและ EXP ของคุณ\n"
                    "`!rate <rate>` - เปลี่ยนเรท Gamepass\n"
@@ -2448,6 +2504,19 @@ async def sync(ctx):
 
 @bot.command()
 @admin_only()
+async def resync(ctx):
+    """รี sync คำสั่งทั้งหมดใหม่"""
+    try:
+        # Sync ใหม่
+        await bot.tree.sync()
+        global_synced = await bot.tree.sync(guild=None)
+        
+        await ctx.send(f"✅ รี sync คำสั่งเรียบร้อย! Global: {len(global_synced)} commands")
+    except Exception as e:
+        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
+
+@bot.command()
+@admin_only()
 async def test(ctx):
     embed = discord.Embed(
         title="✅ บอททำงานปกติ!",
@@ -2513,4 +2582,4 @@ try:
     bot.run(token)
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
-
+    
