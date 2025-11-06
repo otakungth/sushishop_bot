@@ -1,0 +1,32 @@
+import aiohttp
+import os
+
+async def update_commands_contexts():
+    token = os.getenv("TOKEN")
+    app_id = os.getenv("APPLICATION_ID")
+    
+    headers = {
+        "Authorization": f"Bot {token}",
+        "Content-Type": "application/json"
+    }
+    
+    # ดึงคำสั่งปัจจุบัน
+    async with aiohttp.ClientSession() as session:
+        async with session.get(f"https://discord.com/api/v10/applications/{app_id}/commands", headers=headers) as resp:
+            commands = await resp.json()
+            
+        # อัพเดท contexts สำหรับแต่ละคำสั่ง
+        for cmd in commands:
+            update_data = {
+                "contexts": [0, 1, 2]  # [GUILD, BOT_DM, PRIVATE_CHANNEL]
+            }
+            
+            async with session.patch(
+                f"https://discord.com/api/v10/applications/{app_id}/commands/{cmd['id']}",
+                headers=headers,
+                json=update_data
+            ) as resp:
+                if resp.status == 200:
+                    print(f"✅ อัพเดท contexts สำหรับ {cmd['name']}")
+                else:
+                    print(f"❌ ไม่สามารถอัพเดท {cmd['name']}: {await resp.text()}")
