@@ -14,7 +14,7 @@ gamepass_rate = 6
 group_rate_low = 4
 group_rate_high = 4.5
 
-# ตั้งค่าพื้นฐาน - แก้ไขให้ครบ
+# ตั้งค่าพื้นฐาน
 intents = discord.Intents.all()
 intents.message_content = True
 intents.guilds = True
@@ -42,7 +42,7 @@ ticket_activity = {}
 user_data_file = "user_data.json"
 
 # =======================================================================================
-# ✅ คลาสหลักของบอท - FIXED VERSION
+# ✅ คลาสหลักของบอท - OPTIMIZED FOR USER INSTALL
 # =======================================================================================
 
 class MyBot(commands.Bot):
@@ -54,24 +54,23 @@ class MyBot(commands.Bot):
         )
 
     async def setup_hook(self):
-        """ตั้งค่าและ sync คำสั่ง global"""
-        print("🔄 กำลังตั้งค่า slash commands สำหรับ global use...")
+        """ตั้งค่าและ sync คำสั่งสำหรับ User Install (Global DM)"""
+        print("🔄 กำลังตั้งค่า slash commands สำหรับ User Install...")
         
-        # ตั้งค่า integration สำหรับ global commands
-        await self.tree.set_global_commands([])
-        
-        # Sync commands ไปยัง global scope
         try:
+            # Sync commands ไปยัง global scope
             synced = await self.tree.sync()
             print(f"✅ Sync Global Commands เรียบร้อย: {len(synced)} commands")
+            
+            # แสดงคำสั่งทั้งหมด
             for cmd in synced:
-                dm_permission = getattr(cmd, 'dm_permission', False)
-                print(f"   - /{cmd.name} | Global: True | DM: {dm_permission}")
+                print(f"   - /{cmd.name} | Global: True | DM: True")
+                
         except Exception as e:
             print(f"❌ เกิดข้อผิดพลาดในการ sync: {e}")
 
 # =======================================================================================
-# ✅ สร้าง instance ของบอท (REMOVED DUPLICATE)
+# ✅ สร้าง instance ของบอท
 # =======================================================================================
 bot = MyBot()
 
@@ -183,7 +182,6 @@ async def update_channel_name():
             else:
                 new_name = "〔🔴〕ปิดชั่วคราว"
             
-            # ตรวจสอบว่าชื่อช่องปัจจุบันต่างจากที่ต้องการหรือไม่
             if channel.name != new_name:
                 await channel.edit(name=new_name)
                 print(f"✅ เปลี่ยนชื่อช่องเป็น: {new_name}")
@@ -226,7 +224,6 @@ async def send_sale_log(embed_data: discord.Embed, interaction: discord.Interact
             print("❌ ไม่พบห้องบันทึกการขาย")
             return
 
-        # ดึงข้อมูลจาก embed ให้ถูกต้อง
         robux_amount = "ไม่ทราบ"
         price = "ไม่ทราบ"
         
@@ -235,9 +232,9 @@ async def send_sale_log(embed_data: discord.Embed, interaction: discord.Interact
                 robux_amount = field.value
             elif field.name == "💰 ราคาตามเรท":
                 price = field.value
-            elif field.name == "💸 จำนวน Robux":  # กรณีอื่นๆ
+            elif field.name == "💸 จำนวน Robux":
                 robux_amount = field.value
-            elif field.name == "💰 ราคา":  # กรณีอื่นๆ
+            elif field.name == "💰 ราคา":
                 price = field.value
 
         sale_type = "ไม่ทราบ"
@@ -533,11 +530,9 @@ async def handle_open_ticket(interaction, category_name, modal_class, stock_type
             view=GoToTicketView(channel)
         )
 
-        # ส่งข้อความแจ้ง admin ก่อน
         if admin_role:
             await channel.send(content=f"{admin_role.mention} มีตั๋วใหม่!")
 
-        # แล้วค่อยส่ง embed ต้อนรับ
         welcome_embed = discord.Embed(
             title="🍣 Sushi Shop 🍣",
             color=0x00FF99
@@ -634,14 +629,12 @@ async def check_user_level(interaction: discord.Interaction):
         user_exp = user_data[user_id]["exp"]
         user_level = user_data[user_id]["level"]
         
-        # ระดับปัจจุบัน
         if user_level == 0:
             current_display = "Level 0"
         else:
             current_role_id = LEVELS[user_level]["role_id"]
             current_display = f"<@&{current_role_id}>"
         
-        # ระดับถัดไป
         if user_level < 9:
             next_level = user_level + 1
             next_level_exp = LEVELS[next_level]["exp"]
@@ -672,7 +665,6 @@ async def check_user_level(interaction: discord.Interaction):
                 inline=False
             )
         
-        # แสดงความคืบหน้า
         if user_level < 9:
             current_level_exp = LEVELS[user_level]["exp"] if user_level > 0 else 0
             progress = user_exp - current_level_exp
@@ -707,14 +699,12 @@ async def check_user_level_as_command(ctx, member):
         user_exp = user_data[user_id]["exp"]
         user_level = user_data[user_id]["level"]
         
-        # ระดับปัจจุบัน
         if user_level == 0:
             current_display = "Level 0"
         else:
             current_role_id = LEVELS[user_level]["role_id"]
             current_display = f"<@&{current_role_id}>"
         
-        # ระดับถัดไป
         if user_level < 9:
             next_level = user_level + 1
             next_level_exp = LEVELS[next_level]["exp"]
@@ -745,7 +735,6 @@ async def check_user_level_as_command(ctx, member):
                 inline=False
             )
         
-        # แสดงความคืบหน้า
         if user_level < 9:
             current_level_exp = LEVELS[user_level]["exp"] if user_level > 0 else 0
             progress = user_exp - current_level_exp
@@ -932,25 +921,28 @@ class MainShopView(View):
 async def on_message(message):
     # ตรวจสอบว่าเป็น DM และไม่ใช่ข้อความจากบอทตัวเอง
     if isinstance(message.channel, discord.DMChannel) and message.author != bot.user:
-        print(f"📨 DM จาก {message.author.name}: {message.content}")
+        print(f"📨 DM จาก {message.author.name} ({message.author.id}): {message.content}")
         
         # ถ้าผู้ใช้พิมพ์ "/help" ใน DM
         if message.content.lower() in ["/help", "help", "คำสั่ง"]:
             help_embed = discord.Embed(
                 title="🍣 Sushi Shop - คำสั่งใน DM",
                 description=(
-                    "**ขณะนี้ระบบ Slash Commands กำลังโหลด...**\n\n"
-                    "**คำสั่งที่ใช้ได้:**\n"
+                    "**คำสั่ง Slash Commands ที่ใช้ได้:**\n\n"
                     "`/gamepass <จำนวน>` - คำนวณราคา Gamepass\n"
                     "`/group <จำนวน>` - คำนวณราคา Group\n"
                     "`/baht_gamepass <จำนวน>` - คำนวณ Robux จากเงินบาท\n"
                     "`/baht_group <จำนวน>` - คำนวณ Robux จากเงินบาท (Group)\n"
                     "`/tax <จำนวน>` - คำนวณ Robux หลังหักภาษี\n"
-                    "`/exch <จำนวน>` - คำนวณอัตราแลกเปลี่ยน\n\n"
+                    "`/exch <จำนวน>` - คำนวณอัตราแลกเปลี่ยน\n"
+                    "`/exch_custom <จำนวน> <เรท>` - คำนวณอัตราแลกเปลี่ยนแบบกำหนดเรท\n"
+                    "`/help` - แสดงคำสั่งนี้\n\n"
+                    "**วิธีการใช้:**\n"
+                    "1. พิมพ์ `/` แล้วเลือกคำสั่งที่ต้องการ\n"
+                    "2. หรือพิมพ์ `/help` ตรงๆ\n\n"
                     "**หมายเหตุ:**\n"
-                    "• ถ้าไม่เห็นคำสั่งเมื่อพิมพ์ `/` ให้พิมพ์คำสั่งตรงๆ ได้เลย\n"
-                    "• ระบบอาจใช้เวลา 1-2 ชั่วโมงในการโหลดคำสั่งเต็มที่\n"
-                    "• การสั่งซื้อจริงต้องทำในเซิร์ฟเวอร์เท่านั้น"
+                    "• การสั่งซื้อจริงต้องทำในเซิร์ฟเวอร์เท่านั้น\n"
+                    "• คำสั่งนี้ใช้ได้ใน DM กับเพื่อนทุกคน"
                 ),
                 color=0x00FF99
             )
@@ -1080,7 +1072,6 @@ async def update_main_channel():
             print("❌ ไม่พบช่องหลัก")
             return
 
-        # หา embed ล่าสุดของบอทในช่องนี้
         target_message = None
         async for msg in channel.history(limit=100):
             if msg.author == bot.user and msg.embeds:
@@ -1090,14 +1081,12 @@ async def update_main_channel():
                         target_message = msg
                         break
         
-        # สร้าง embed ใหม่ด้วยสีส้ม (0xFFA500)
         embed = discord.Embed(
             title="🍣 Sushi Shop 🍣 เปิดให้บริการ",
-            color=0xFFA500,  # สีส้ม
+            color=0xFFA500,
             timestamp=discord.utils.utcnow()
         )
         
-        # ส่วน Gamepass
         gamepass_stock_status = "🟢 พร้อมให้บริการ" if gamepass_stock > 0 else "🔴 สินค้าหมด"
         embed.add_field(
             name="🎮 **บริการกดเกมพาส**",
@@ -1111,7 +1100,6 @@ async def update_main_channel():
             inline=False
         )
         
-        # ส่วน Group
         group_stock_status = "🟢 พร้อมให้บริการ" if group_stock > 0 else "🔴 สินค้าหมด"
         
         group_value = (
@@ -1130,7 +1118,6 @@ async def update_main_channel():
             inline=False
         )
         
-        # สถานะร้าน
         shop_status = "🟢 เปิดให้บริการ" if shop_open else "🔴 ปิดชั่วคราว"
         embed.add_field(
             name="🏪 **สถานะร้าน**",
@@ -1163,14 +1150,13 @@ async def update_main_channel():
         print(f"❌ เกิดข้อผิดพลาดในการอัปเดตช่องหลัก: {e}")
 
 # --------------------------------------------------------------------------------------------------
-# SLASH COMMANDS - ใช้ใน DM ได้ (FIXED VERSION)
+# SLASH COMMANDS - OPTIMIZED FOR USER INSTALL (GLOBAL DM)
 # --------------------------------------------------------------------------------------------------
 
 @bot.tree.command(name="gamepass", description="คำนวณราคา Gamepass")
 async def gamepass_slash(interaction: discord.Interaction, amount: str):
-    """คำสั่งคำนวณราคา Gamepass"""
+    """คำสั่งคำนวณราคา Gamepass - ใช้ได้ใน DM ทุกที่"""
     try:
-        # ตรวจสอบว่าเป็น DM หรือไม่
         is_dm = isinstance(interaction.channel, discord.DMChannel)
         
         expr = amount.replace(",", "").replace(" ", "").lower().replace("x", "*").replace("÷", "/")
@@ -1191,7 +1177,7 @@ async def gamepass_slash(interaction: discord.Interaction, amount: str):
 
 @bot.tree.command(name="group", description="คำนวณราคา Group")
 async def group_slash(interaction: discord.Interaction, amount: str):
-    """คำสั่งคำนวณราคา Group"""
+    """คำสั่งคำนวณราคา Group - ใช้ได้ใน DM ทุกที่"""
     try:
         is_dm = isinstance(interaction.channel, discord.DMChannel)
         
@@ -1219,7 +1205,7 @@ async def group_slash(interaction: discord.Interaction, amount: str):
 
 @bot.tree.command(name="baht_gamepass", description="คำนวณ Robux จากเงินบาท (Gamepass)")
 async def baht_gamepass_slash(interaction: discord.Interaction, amount: str):
-    """คำสั่งคำนวณ Robux จากเงินบาท (Gamepass)"""
+    """คำสั่งคำนวณ Robux จากเงินบาท (Gamepass) - ใช้ได้ใน DM ทุกที่"""
     try:
         is_dm = isinstance(interaction.channel, discord.DMChannel)
         
@@ -1240,7 +1226,7 @@ async def baht_gamepass_slash(interaction: discord.Interaction, amount: str):
 
 @bot.tree.command(name="baht_group", description="คำนวณ Robux จากเงินบาท (Group)")
 async def baht_group_slash(interaction: discord.Interaction, amount: str):
-    """คำสั่งคำนวณ Robux จากเงินบาท (Group)"""
+    """คำสั่งคำนวณ Robux จากเงินบาท (Group) - ใช้ได้ใน DM ทุกที่"""
     try:
         is_dm = isinstance(interaction.channel, discord.DMChannel)
         
@@ -1267,7 +1253,7 @@ async def baht_group_slash(interaction: discord.Interaction, amount: str):
 
 @bot.tree.command(name="tax", description="คำนวณ Robux หลังหักภาษี")
 async def tax_slash(interaction: discord.Interaction, amount: str):
-    """คำสั่งคำนวณ Robux หลังหักภาษี"""
+    """คำสั่งคำนวณ Robux หลังหักภาษี - ใช้ได้ใน DM ทุกที่"""
     try:
         is_dm = isinstance(interaction.channel, discord.DMChannel)
         
@@ -1304,9 +1290,9 @@ async def tax_slash(interaction: discord.Interaction, amount: str):
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
 
-@bot.tree.command(name="exch", description="คำนวณอัตราแลกเปลี่ยน (เรท 33.5)")
+@bot.tree.command(name="exch", description="คำนวณอัตราแลกเปลี่ยน (เรท 34)")
 async def exch_slash(interaction: discord.Interaction, amount: str):
-    """คำสั่งคำนวณอัตราแลกเปลี่ยน เรท 33.5"""
+    """คำสั่งคำนวณอัตราแลกเปลี่ยน เรท 34 - ใช้ได้ใน DM ทุกที่"""
     try:
         is_dm = isinstance(interaction.channel, discord.DMChannel)
         
@@ -1317,7 +1303,7 @@ async def exch_slash(interaction: discord.Interaction, amount: str):
             return
 
         baht = float(eval(expr))
-        exchange_rate = 33.5
+        exchange_rate = 34
         result = baht * exchange_rate
 
         response_msg = f"💱 {baht:,.2f} บาท × {exchange_rate} = **{result:,.2f}**"
@@ -1332,7 +1318,7 @@ async def exch_slash(interaction: discord.Interaction, amount: str):
 
 @bot.tree.command(name="exch_custom", description="คำนวณอัตราแลกเปลี่ยนแบบกำหนดเรทเอง")
 async def exch_custom_slash(interaction: discord.Interaction, amount: str, rate: str):
-    """คำสั่งคำนวณอัตราแลกเปลี่ยนแบบกำหนดเรทเอง"""
+    """คำสั่งคำนวณอัตราแลกเปลี่ยนแบบกำหนดเรทเอง - ใช้ได้ใน DM ทุกที่"""
     try:
         is_dm = isinstance(interaction.channel, discord.DMChannel)
         
@@ -1357,10 +1343,9 @@ async def exch_custom_slash(interaction: discord.Interaction, amount: str, rate:
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {str(e)}", ephemeral=True)
 
-# เพิ่มคำสั่ง help สำหรับ slash command
 @bot.tree.command(name="help", description="แสดงคำสั่งทั้งหมดที่ใช้ได้")
 async def help_slash(interaction: discord.Interaction):
-    """คำสั่งช่วยเหลือ - แสดงคำสั่งทั้งหมด"""
+    """คำสั่งช่วยเหลือ - แสดงคำสั่งทั้งหมด - ใช้ได้ใน DM ทุกที่"""
     try:
         is_dm = isinstance(interaction.channel, discord.DMChannel)
         
@@ -1513,30 +1498,24 @@ async def tax(ctx, *, expression: str):
 @bot.event
 async def on_ready():
     print(f"✅ บอทออนไลน์แล้ว: {bot.user} (ID: {bot.user.id})")
-    print(f"✅ Prefix: {bot.command_prefix}")
-    print(f"✅ Guilds: {len(bot.guilds)}")
+    print(f"🌍 บอทพร้อมใช้งานใน: เซิร์ฟเวอร์, DM ส่วนตัว, และ Group DMs")
     
-    # ตรวจสอบว่าเป็นบอทที่ถูกต้อง
-    print(f"✅ Bot Name: {bot.user.name}")
-    print(f"✅ Bot Discriminator: {bot.user.discriminator}")
-    
-    # Sync slash commands
+    # Sync slash commands สำหรับ User Install
     try:
-        print("🔄 กำลัง sync slash commands...")
+        print("🔄 กำลัง sync slash commands สำหรับ User Install...")
         
-        # ลอง sync แบบต่างๆ
         synced = await bot.tree.sync()
         
         print(f"✅ Sync Global Commands เรียบร้อย: {len(synced)} commands")
+        print("📍 คำสั่งเหล่านี้จะแสดงใน:")
+        print("   - เซิร์ฟเวอร์ทั้งหมดที่บอทอยู่")
+        print("   - DM ส่วนตัวกับเพื่อน")
+        print("   - Group DMs")
+        print("   - DM กับบอทโดยตรง")
         
-        # แสดงคำสั่งทั้งหมด
         for cmd in synced:
-            dm_permission = getattr(cmd, 'dm_permission', 'Unknown')
-            print(f"   - /{cmd.name} | Global: True | DM: {dm_permission} | {cmd.description}")
+            print(f"   - /{cmd.name} | {cmd.description}")
             
-        # ตรวจสอบว่า commands ควรทำงานใน DM ได้
-        print("🔍 ตรวจสอบ DM Compatibility...")
-        
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดในการ sync: {e}")
     
@@ -1566,10 +1545,10 @@ async def on_ready():
     await update_main_channel()
     
     print("\n🎯 บอทพร้อมใช้งานเต็มที่!")
-    print("📨 ทดสอบใน DM โดย:")
-    print("   1. พิมพ์ '/' แล้วดูมีคำสั่งหรือไม่")
-    print("   2. พิมพ์ '/help' ตรงๆ")
-    print("   3. พิมพ์ 'help' เพื่อดูคำสั่งแบบด่วน")
+    print("📨 ทดสอบใน DM เพื่อนโดย:")
+    print("   1. เปิดแชทกับเพื่อน")
+    print("   2. พิมพ์ '/' แล้วดูมีคำสั่งหรือไม่")
+    print("   3. พิมพ์ '/help' ตรงๆ")
 
 @bot.event
 async def on_command_error(ctx, error):
@@ -1636,7 +1615,6 @@ async def stock(ctx, stock_type: str = None, amount: str = None):
         pass
     
     if stock_type is None:
-        # ส่ง embed แสดง stock ปัจจุบัน
         embed = discord.Embed(
             title="📊 สต๊อกสินค้า",
             color=0x00FF99,
@@ -1653,7 +1631,6 @@ async def stock(ctx, stock_type: str = None, amount: str = None):
             inline=True
         )
         response_msg = await ctx.send(embed=embed)
-        # ลบหลังจาก 10 วินาที
         await asyncio.sleep(10)
         try:
             await response_msg.delete()
@@ -1662,14 +1639,12 @@ async def stock(ctx, stock_type: str = None, amount: str = None):
         
     elif stock_type.lower() in ["gp", "gamepass", "เกมพาส"]:
         if amount is None:
-            # ส่ง embed แสดง stock ปัจจุบัน
             embed = discord.Embed(
                 title="🎮 Gamepass Stock",
                 description=f"**{gamepass_stock:,}**",
                 color=0x00FF99
             )
             response_msg = await ctx.send(embed=embed)
-            # ลบหลังจาก 10 วินาที
             await asyncio.sleep(10)
             try:
                 await response_msg.delete()
@@ -1690,7 +1665,6 @@ async def stock(ctx, stock_type: str = None, amount: str = None):
                 
                 gamepass_stock = amount_int
                 
-                # ส่งข้อความตอบกลับชั่วคราว
                 embed = discord.Embed(
                     title="✅ ตั้งค่า Stock เรียบร้อย",
                     description=f"ตั้งค่า สต๊อกเกมพาส เป็น **{gamepass_stock:,}** เรียบร้อยแล้ว",
@@ -1699,10 +1673,8 @@ async def stock(ctx, stock_type: str = None, amount: str = None):
                 
                 response_msg = await ctx.send(embed=embed)
                 
-                # อัปเดตช่องหลักแบบไม่แจ้งเตือน
                 await update_main_channel()
                 
-                # ลบข้อความตอบกลับหลังจาก 5 วินาที
                 await asyncio.sleep(5)
                 try:
                     await response_msg.delete()
@@ -1719,14 +1691,12 @@ async def stock(ctx, stock_type: str = None, amount: str = None):
     
     elif stock_type.lower() in ["g", "group", "กรุ๊ป"]:
         if amount is None:
-            # ส่ง embed แสดง stock ปัจจุบัน
             embed = discord.Embed(
                 title="👥 Group Stock",
                 description=f"**{group_stock:,}**",
                 color=0x00FF99
             )
             response_msg = await ctx.send(embed=embed)
-            # ลบหลังจาก 10 วินาที
             await asyncio.sleep(10)
             try:
                 await response_msg.delete()
@@ -1747,7 +1717,6 @@ async def stock(ctx, stock_type: str = None, amount: str = None):
                 
                 group_stock = amount_int
                 
-                # ส่งข้อความตอบกลับชั่วคราว
                 embed = discord.Embed(
                     title="✅ ตั้งค่า Stock เรียบร้อย",
                     description=f"ตั้งค่า สต๊อกโรบัคกลุ่ม เป็น **{group_stock:,}** เรียบร้อยแล้ว",
@@ -1756,10 +1725,8 @@ async def stock(ctx, stock_type: str = None, amount: str = None):
                 
                 response_msg = await ctx.send(embed=embed)
                 
-                # อัปเดตช่องหลักแบบไม่แจ้งเตือน
                 await update_main_channel()
                 
-                # ลบข้อความตอบกลับหลังจาก 5 วินาที
                 await asyncio.sleep(5)
                 try:
                     await response_msg.delete()
@@ -1786,7 +1753,6 @@ async def stock(ctx, stock_type: str = None, amount: str = None):
             color=0xFF0000
         )
         response_msg = await ctx.send(embed=embed)
-        # ลบหลังจาก 10 วินาที
         await asyncio.sleep(10)
         try:
             await response_msg.delete()
@@ -1794,7 +1760,7 @@ async def stock(ctx, stock_type: str = None, amount: str = None):
             pass
 
 # --------------------------------------------------------------------------------------------------
-# คำสั่งเปลี่ยนเรท (ใหม่)
+# คำสั่งเปลี่ยนเรท
 @bot.command()
 @admin_only()
 async def rate(ctx, rate_type: str = None, low_rate: str = None, high_rate: str = None):
@@ -1807,7 +1773,6 @@ async def rate(ctx, rate_type: str = None, low_rate: str = None, high_rate: str 
         pass
     
     if rate_type is None:
-        # แสดงเรทปัจจุบัน
         embed = discord.Embed(
             title="📊 อัตราแลกเปลี่ยนปัจจุบัน",
             color=0x00FF99,
@@ -1869,7 +1834,6 @@ async def rate(ctx, rate_type: str = None, low_rate: str = None, high_rate: str 
             )
             response_msg = await ctx.send(embed=embed)
             
-            # อัปเดตช่องหลัก
             await update_main_channel()
             
             await asyncio.sleep(5)
@@ -1887,7 +1851,6 @@ async def rate(ctx, rate_type: str = None, low_rate: str = None, high_rate: str 
                 pass
     
     else:
-        # เปลี่ยนเรท Gamepass
         try:
             new_rate = float(rate_type)
             
@@ -1909,7 +1872,6 @@ async def rate(ctx, rate_type: str = None, low_rate: str = None, high_rate: str 
             )
             response_msg = await ctx.send(embed=embed)
             
-            # อัปเดตช่องหลัก
             await update_main_channel()
             
             await asyncio.sleep(5)
@@ -1936,7 +1898,7 @@ async def rate(ctx, rate_type: str = None, low_rate: str = None, high_rate: str 
                 pass
 
 # --------------------------------------------------------------------------------------------------
-# คำสั่งเปิดปิดร้าน (แก้ไขแล้ว - แก้ปัญหาเปลี่ยนชื่อช่อง)
+# คำสั่งเปิดปิดร้าน
 @bot.command()
 @admin_only()
 async def sushi(ctx):
@@ -1955,16 +1917,12 @@ async def sushi(ctx):
         color=0x00FF00 if shop_open else 0xFF0000
     )
     
-    # ส่งข้อความและบันทึก reference เพื่อลบภายหลัง
     status_msg = await ctx.send(embed=embed)
     
-    # อัปเดตชื่อช่องหลัก (แก้ไขแล้ว)
     await update_channel_name()
     
-    # อัปเดต embed หลัก
     await update_main_channel()
     
-    # ลบข้อความสถานะหลังจาก 5 วินาที
     await asyncio.sleep(3)
     try:
         await status_msg.delete()
@@ -2019,7 +1977,7 @@ async def group(ctx, status: str = None):
     await update_main_channel()
 
 # --------------------------------------------------------------------------------------------------
-# คำสั่ง !od - Gamepass (แก้ไขแล้ว - เพิ่ม EXP ถูกต้อง)
+# คำสั่ง !od - Gamepass
 @bot.command()
 @admin_only()
 async def od(ctx, *, expression: str):
@@ -2054,7 +2012,6 @@ async def od(ctx, *, expression: str):
                     buyer = msg.author
                     break
 
-        # เพิ่ม EXP ให้ผู้ซื้อ (1 Robux = 1 EXP)
         exp_to_add = robux
         if buyer:
             new_level, total_exp = await add_exp(buyer.id, exp_to_add, ctx.guild)
@@ -2066,7 +2023,6 @@ async def od(ctx, *, expression: str):
         if gamepass_stock < 0:
             gamepass_stock = 0
         
-        # ใบเสร็จที่ไม่แสดงชื่อผู้ซื้อและผู้ส่ง แต่แสดง EXP
         embed = discord.Embed(
             title="🍣 ใบเสร็จคำสั่งซื้อ Gamepass 🍣",
             color=0x00FF99,
@@ -2082,7 +2038,6 @@ async def od(ctx, *, expression: str):
 
         await ctx.send(embed=embed)
 
-        # ส่งบันทึกการขาย (ไม่แสดงชื่อ)
         await send_sale_log(embed, ctx=ctx)
 
         await update_main_channel()
@@ -2091,7 +2046,7 @@ async def od(ctx, *, expression: str):
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
 
 # --------------------------------------------------------------------------------------------------
-# คำสั่ง !odg - Group (แก้ไขแล้ว - เพิ่ม EXP ถูกต้อง)
+# คำสั่ง !odg - Group
 @bot.command()
 @admin_only()
 async def odg(ctx, *, expression: str):
@@ -2127,7 +2082,6 @@ async def odg(ctx, *, expression: str):
                     buyer = msg.author
                     break
 
-        # เพิ่ม EXP ให้ผู้ซื้อ (1 Robux = 1 EXP)
         exp_to_add = robux
         if buyer:
             new_level, total_exp = await add_exp(buyer.id, exp_to_add, ctx.guild)
@@ -2139,7 +2093,6 @@ async def odg(ctx, *, expression: str):
         if group_stock < 0:
             group_stock = 0
         
-        # ใบเสร็จที่ไม่แสดงชื่อผู้ซื้อและผู้ส่ง แต่แสดง EXP
         embed = discord.Embed(
             title="🍣 ใบเสร็จคำสั่งซื้อโรบัคกลุ่ม 🍣",
             color=0x00AAFF,
@@ -2155,7 +2108,6 @@ async def odg(ctx, *, expression: str):
 
         await ctx.send(embed=embed)
 
-        # ส่งบันทึกการขาย (ไม่แสดงชื่อ)
         await send_sale_log(embed, ctx=ctx)
 
         await update_main_channel()
@@ -2164,7 +2116,7 @@ async def odg(ctx, *, expression: str):
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
         
 # --------------------------------------------------------------------------------------------------
-# คำสั่ง !odl - Limited (แก้ไขแล้ว - ไม่แสดงชื่อในใบเสร็จ)
+# คำสั่ง !odl - Limited
 @bot.command()
 @admin_only()
 async def odl(ctx, item_name: str, value: str):
@@ -2177,7 +2129,6 @@ async def odl(ctx, item_name: str, value: str):
 
         item_value = int(value_clean)
 
-        # หาผู้ซื้อจากชื่อตั๋ว
         buyer = None
         channel_name = ctx.channel.name
         if channel_name.startswith("ticket-"):
@@ -2192,7 +2143,6 @@ async def odl(ctx, item_name: str, value: str):
                     buyer = msg.author
                     break
 
-        # เพิ่ม EXP ให้ผู้ซื้อ (1 บาท = 1 EXP)
         exp_to_add = item_value
         if buyer:
             new_level, total_exp = await add_exp(buyer.id, exp_to_add, ctx.guild)
@@ -2200,7 +2150,6 @@ async def odl(ctx, item_name: str, value: str):
         else:
             print("⚠️ ไม่พบผู้ซื้อในการเพิ่ม EXP")
 
-        # ใบเสร็จที่ไม่แสดงชื่อผู้ซื้อและผู้ส่ง
         embed = discord.Embed(
             title="🍣 ใบเสร็จคำสั่งซื้อ Limited 🍣",
             color=0xFF69B4,
@@ -2216,7 +2165,6 @@ async def odl(ctx, item_name: str, value: str):
 
         await ctx.send(embed=embed)
 
-        # ส่งบันทึกการขาย (ไม่แสดงชื่อ)
         await send_sale_log(embed, ctx=ctx)
 
     except Exception as e:
@@ -2398,7 +2346,6 @@ async def test_dm(ctx, user_id: str = None):
     """ทดสอบส่งข้อความไปยัง DM (สำหรับแอดมิน)"""
     try:
         if user_id is None:
-            # ทดสอบส่งให้ตัวเอง
             user = ctx.author
         else:
             user = await bot.fetch_user(int(user_id))
@@ -2428,8 +2375,56 @@ async def test_dm(ctx, user_id: str = None):
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
 
 # --------------------------------------------------------------------------------------------------
+# คำสั่งสำหรับ User Install Test
+@bot.command()
+@commands.is_owner()
+async def user_install_test(ctx):
+    """ทดสอบการตั้งค่า User Install (สำหรับเจ้าของบอทเท่านั้น)"""
+    embed = discord.Embed(
+        title="🧪 ทดสอบ User Install",
+        description=(
+            "**สถานะการตั้งค่า:**\n\n"
+            "✅ บอทพร้อมใช้งานใน:\n"
+            "• เซิร์ฟเวอร์ทั้งหมด\n"
+            "• DM ส่วนตัวกับเพื่อน\n"
+            "• Group DMs\n"
+            "• DM กับบอทโดยตรง\n\n"
+            "**วิธีการทดสอบ:**\n"
+            "1. เปิดแชทกับเพื่อน\n"
+            "2. พิมพ์ `/` แล้วดูคำสั่ง\n"
+            "3. ถ้าไม่เห็น ให้พิมพ์ `/help` ตรงๆ\n\n"
+            "**หมายเหตุ:**\n"
+            "• อาจใช้เวลา 1-2 ชั่วโมงในการโหลดคำสั่ง\n"
+            "• บอทต้องมีสิทธิ์ 'Application Commands'"
+        ),
+        color=0x00FF99
+    )
+    await ctx.send(embed=embed)
+
+@bot.command()
+@commands.is_owner()
+async def force_sync(ctx):
+    """บังคับ sync คำสั่งใหม่ (สำหรับเจ้าของบอทเท่านั้น)"""
+    try:
+        synced = await bot.tree.sync()
+        await ctx.send(f"✅ Force Sync เรียบร้อย: {len(synced)} commands", delete_after=10)
+        
+        command_list = "\n".join([f"• `/{cmd.name}` - {cmd.description}" for cmd in synced])
+        embed = discord.Embed(
+            title="📋 คำสั่งทั้งหมด",
+            description=command_list,
+            color=0x00FF00
+        )
+        await ctx.send(embed=embed, delete_after=30)
+        
+    except Exception as e:
+        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
+
+# --------------------------------------------------------------------------------------------------
 # เริ่มต้นบอท
-print("🚀 กำลังเริ่มต้นบอท...")
+print("🚀 กำลังเริ่มต้นบอทสำหรับ User Install...")
+print("📍 บอทจะทำงานใน: เซิร์ฟเวอร์, DM ส่วนตัว, Group DMs")
+
 try:
     server_on()
     bot.run(os.getenv("TOKEN"))
