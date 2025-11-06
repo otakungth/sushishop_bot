@@ -80,35 +80,31 @@ class MyBot(commands.Bot):
             application_id=os.getenv("APPLICATION_ID")
         )
     
-    async def setup_hook(self):
-        # ตั้งค่า contexts สำหรับทุกคำสั่ง (ถ้ารองรับ)
-        for cmd in self.tree.walk_commands():
-            try:
-                # สำหรับ discord.py เวอร์ชันที่รองรับ contexts
-                if hasattr(cmd, 'contexts'):
-                    # ตั้งค่าให้ใช้ได้ใน Guild, Bot DM, Private Channel
-                    cmd.contexts = [
-                        discord.AppCommandContext.guild,
-                        discord.AppCommandContext.bot_dm,
-                        discord.AppCommandContext.private_channel
-                    ]
-            except AttributeError:
-                # ถ้าเวอร์ชันเก่าไม่รองรับ contexts
-                pass
-        
-        # Sync commands ไปยัง global scope สำหรับ User Install
-        print("🔄 กำลัง sync slash commands สำหรับ User Install...")
+async def setup_hook(self):
+    # ตั้งค่า contexts สำหรับทุกคำสั่ง
+    for cmd in self.tree.walk_commands():
         try:
-            # Sync global commands
-            synced = await self.tree.sync()
-            print(f"✅ Sync Global Commands เรียบร้อย: {len(synced)} commands")
-            
-            # แสดงคำสั่งทั้งหมด
-            for cmd in synced:
-                print(f"   - /{cmd.name} | {cmd.description}")
-                
-        except Exception as e:
-            print(f"❌ เกิดข้อผิดพลาดในการ sync: {e}")
+            # ตั้งค่าให้ใช้ได้ในทุก context
+            cmd.contexts = [
+                discord.AppCommandContext.guild,        # เซิร์ฟเวอร์
+                discord.AppCommandContext.bot_dm,       # DM กับบอท
+                discord.AppCommandContext.private_channel  # กลุ่มส่วนตัว
+            ]
+        except AttributeError:
+            # ถ้าเวอร์ชันเก่าไม่รองรับ contexts
+            print(f"⚠️ ไม่สามารถตั้งค่า contexts สำหรับ {cmd.name}")
+    
+    # Sync commands ไปยัง global scope
+    print("🔄 กำลัง sync slash commands สำหรับ User Install...")
+    try:
+        synced = await self.tree.sync()
+        print(f"✅ Sync Global Commands เรียบร้อย: {len(synced)} commands")
+        
+        # แสดงคำสั่งทั้งหมดและ contexts
+        for cmd in synced:
+            print(f"   - /{cmd.name} | {cmd.description}")
+    except Exception as e:
+        print(f"❌ เกิดข้อผิดพลาดในการ sync: {e}")
 
 # สร้างบอท
 bot = MyBot()
@@ -2583,4 +2579,5 @@ try:
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
     
+
 
