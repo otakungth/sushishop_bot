@@ -77,7 +77,7 @@ class MyBot(commands.Bot):
             command_prefix="!",
             intents=intents,
             help_command=None,
-            application_id=os.getenv("APPLICATION_ID")
+            application_id=os.getenv("1433065424857337896")
         )
     
     async def setup_hook(self):
@@ -2513,3 +2513,4 @@ try:
     bot.run(token)
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
+
