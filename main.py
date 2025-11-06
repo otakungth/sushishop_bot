@@ -81,16 +81,11 @@ class MyBot(commands.Bot):
         print("🔄 เริ่ม sync global slash commands ...")
 
         # ✅ กำหนดให้ทุกคำสั่งใช้ได้ใน DM
-        for cmd in self.tree.walk_commands():
-            try:
-                cmd.dm_permission = True
-                cmd.contexts = [
-                    discord.AppCommandContext.guild,
-                    discord.AppCommandContext.bot_dm,
-                    discord.AppCommandContext.private_channel
-                ]
-            except Exception as e:
-                print(f"⚠️ ไม่สามารถตั้งค่า contexts สำหรับ {cmd.name}: {e}")
+for cmd in self.tree.walk_commands():
+    try:
+        cmd.dm_permission = True  # ให้ใช้ได้ใน DM
+    except Exception as e:
+        print(f"⚠️ ตั้งค่า DM permission ไม่ได้สำหรับ {cmd.name}: {e}")
 
         try:
             synced = await self.tree.sync()
@@ -2427,6 +2422,7 @@ try:
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
     
+
 
 
 
