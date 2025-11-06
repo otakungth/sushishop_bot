@@ -80,12 +80,12 @@ class MyBot(commands.Bot):
         """ตั้งค่าและซิงค์ global slash commands"""
         print("🔄 เริ่ม sync global slash commands ...")
 
-        # ✅ กำหนดให้ทุกคำสั่งใช้ได้ใน DM
-for cmd in self.tree.walk_commands():
-    try:
-        cmd.dm_permission = True  # ให้ใช้ได้ใน DM
-    except Exception as e:
-        print(f"⚠️ ตั้งค่า DM permission ไม่ได้สำหรับ {cmd.name}: {e}")
+        # ✅ เปิดให้ทุกคำสั่งใช้ใน DM ได้
+        for cmd in self.tree.walk_commands():
+            try:
+                cmd.dm_permission = True
+            except Exception as e:
+                print(f"⚠️ ตั้งค่า DM permission ไม่ได้สำหรับ {cmd.name}: {e}")
 
         try:
             synced = await self.tree.sync()
@@ -94,9 +94,7 @@ for cmd in self.tree.walk_commands():
                 print(f"   - /{c.name}: {c.description}")
         except Exception as e:
             print(f"❌ Sync ล้มเหลว: {e}")
-            
 
-# สร้างบอท
 bot = MyBot()
 
 print("🔄 กำลังเริ่มต้นบอท...")
@@ -2422,6 +2420,7 @@ try:
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
     
+
 
 
 
