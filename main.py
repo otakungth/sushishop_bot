@@ -2406,7 +2406,6 @@ async def on_ready():
 
 bot.run(os.getenv("DISCORD_TOKEN"))
 
-pip install --upgrade pip
 
 
 
