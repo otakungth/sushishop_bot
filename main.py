@@ -1323,9 +1323,9 @@ async def tax_slash(interaction: discord.Interaction, amount: str):
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
 
-@bot.tree.command(name="exch", description="คำนวณอัตราแลกเปลี่ยน (เรท 33.5)")
+@bot.tree.command(name="exch", description="คำนวณอัตราแลกเปลี่ยน (เรท 34)")
 async def exch_slash(interaction: discord.Interaction, amount: str):
-    """คำสั่งคำนวณอัตราแลกเปลี่ยน เรท 33.5"""
+    """คำสั่งคำนวณอัตราแลกเปลี่ยน เรท 34"""
     try:
         is_dm = isinstance(interaction.channel, discord.DMChannel)
         
@@ -1336,7 +1336,7 @@ async def exch_slash(interaction: discord.Interaction, amount: str):
             return
 
         baht = float(eval(expr))
-        exchange_rate = 33.5
+        exchange_rate = 34
         result = baht * exchange_rate
 
         response_msg = f"💱 {baht:,.2f} บาท × {exchange_rate} = **{result:,.2f}**"
@@ -2583,3 +2583,4 @@ try:
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
     
+
