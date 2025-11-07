@@ -6,6 +6,7 @@ from discord.ui import View, Button, Modal, TextInput
 import re
 import asyncio
 import json
+import traceback
 
 from server import server_on
 
@@ -1306,7 +1307,7 @@ async def exch_slash(interaction: discord.Interaction, amount: str):
         exchange_rate = 34
         result = baht * exchange_rate
 
-        response_msg = f"💱 {baht:,.2f} บาท × {exchange_rate} = **{result:,.2f}**"
+        response_msg = f"💱 {baht:,.2f} $ × {exchange_rate} = **{result:,.2f}**"
         await interaction.response.send_message(response_msg, ephemeral=is_dm)
 
     except ZeroDivisionError:
@@ -1333,7 +1334,7 @@ async def exch_custom_slash(interaction: discord.Interaction, amount: str, rate:
         exchange_rate = float(eval(rate_expr))
         result = baht * exchange_rate
 
-        response_msg = f"💱 {baht:,.2f} บาท × {exchange_rate} = **{result:,.2f}**"
+        response_msg = f"💱 {baht:,.2f} $ × {exchange_rate} = **{result:,.2f}**"
         await interaction.response.send_message(response_msg, ephemeral=is_dm)
 
     except ZeroDivisionError:
