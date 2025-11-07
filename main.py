@@ -52,41 +52,45 @@ class MyBot(commands.Bot):
             command_prefix="!",
             intents=intents,
             help_command=None,
-            # Add this for better User Install support
             allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False)
         )
 
-async def setup_hook(self):
-    """ตั้งค่าและ sync คำสั่งสำหรับ User Install (Global DM)"""
-    print("🔄 กำลังตั้งค่า slash commands สำหรับ User Install...")
-    
-    try:
-        # Sync commands ไปยัง global scope
-        synced = await self.tree.sync()
-        print(f"✅ Sync Global Commands เรียบร้อย: {len(synced)} commands")
+    async def setup_hook(self):
+        """ตั้งค่าและ sync คำสั่งสำหรับ User Install (Global DM)"""
+        print("🔄 กำลังตั้งค่า slash commands สำหรับ User Install...")
         
-        # แสดงคำสั่งทั้งหมด
-        for cmd in synced:
-            print(f"   - /{cmd.name} | Global: True")
-            
-        # Set the integration context for User Install
         try:
-            # For newer versions that support integration types
-            await self.tree.set_global_integration_types(
-                integration_types=[discord.IntegrationType.guild_install, discord.IntegrationType.user_install],
-                contexts=[discord.InteractionContextType.guild, discord.InteractionContextType.bot_dm, discord.InteractionContextType.private_channel]
-            )
-            print("✅ ตั้งค่า User Install สำเร็จ")
-        except AttributeError:
-            print("ℹ️  Using legacy DM permission setup")
+            # Sync commands ไปยัง global scope
+            synced = await self.tree.sync()
+            print(f"✅ Sync Global Commands เรียบร้อย: {len(synced)} commands")
             
-    except Exception as e:
-        print(f"❌ เกิดข้อผิดพลาดในการ sync: {e}")
+            # แสดงคำสั่งทั้งหมด
+            for cmd in synced:
+                print(f"   - /{cmd.name} | Global: True")
+                
+        except Exception as e:
+            print(f"❌ เกิดข้อผิดพลาดในการ sync: {e}")
 
 # =======================================================================================
 # ✅ สร้าง instance ของบอท
 # =======================================================================================
 bot = MyBot()
+
+# Custom decorator for User Install commands
+def user_install_command(*args, **kwargs):
+    """Custom decorator for User Install commands"""
+    def decorator(func):
+        # Try to use dm_permission if available
+        try:
+            kwargs['dm_permission'] = True
+        except:
+            pass
+            
+        # Get the original command decorator
+        cmd = bot.tree.command(*args, **kwargs)(func)
+        
+        return cmd
+    return decorator
 
 # โหลดข้อมูลผู้ใช้จากไฟล์
 def load_user_data():
@@ -1222,12 +1226,12 @@ async def group_cmd(interaction: discord.Interaction, amount: str):
 
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
-        
+
 @user_install_command(
     name="baht_gamepass",
-    description="คำนวณ Robux จากเงินบาท",
+    description="คำนวณ Robux จากเงินบาท"
 )
-async def gamepass_slash(interaction: discord.Interaction, amount: str):
+async def baht_gamepass_cmd(interaction: discord.Interaction, amount: str):
     """คำสั่งคำนวณ Robux จากเงินบาท - ใช้ได้ใน DM ทุกที่"""
     try:
         is_dm = isinstance(interaction.channel, discord.DMChannel)
@@ -1249,9 +1253,9 @@ async def gamepass_slash(interaction: discord.Interaction, amount: str):
 
 @user_install_command(
     name="baht_group",
-    description="คำนวณเงินบาทเป็น Robux",
+    description="คำนวณเงินบาทเป็น Robux"
 )
-async def gamepass_slash(interaction: discord.Interaction, amount: str):
+async def baht_group_cmd(interaction: discord.Interaction, amount: str):
     """คำสั่งคำนวณเงินบาทเป็น Robux - ใช้ได้ใน DM ทุกที่"""
     try:
         is_dm = isinstance(interaction.channel, discord.DMChannel)
@@ -1279,9 +1283,9 @@ async def gamepass_slash(interaction: discord.Interaction, amount: str):
 
 @user_install_command(
     name="tax",
-    description="คำนวณ Robux หลังหัก 30%",
+    description="คำนวณ Robux หลังหัก 30%"
 )
-async def gamepass_slash(interaction: discord.Interaction, amount: str):
+async def tax_cmd(interaction: discord.Interaction, amount: str):
     """คำสั่งคำนวณ Robux หลังหัก 30% - ใช้ได้ใน DM ทุกที่"""
     try:
         is_dm = isinstance(interaction.channel, discord.DMChannel)
@@ -1321,9 +1325,9 @@ async def gamepass_slash(interaction: discord.Interaction, amount: str):
 
 @user_install_command(
     name="exch",
-    description="คำนวณอัตราแลกเปลี่ยน (เรท 34)",
+    description="คำนวณอัตราแลกเปลี่ยน (เรท 34)"
 )
-async def gamepass_slash(interaction: discord.Interaction, amount: str):
+async def exch_cmd(interaction: discord.Interaction, amount: str):
     """คำสั่งคำนวณอัตราแลกเปลี่ยน เรท 34 - ใช้ได้ใน DM ทุกที่"""
     try:
         is_dm = isinstance(interaction.channel, discord.DMChannel)
@@ -1350,9 +1354,9 @@ async def gamepass_slash(interaction: discord.Interaction, amount: str):
 
 @user_install_command(
     name="exch_custom",
-    description="คำนวณอัตราแลกเปลี่ยนแบบกำหนดเรทเอง",
+    description="คำนวณอัตราแลกเปลี่ยนแบบกำหนดเรทเอง"
 )
-async def gamepass_slash(interaction: discord.Interaction, amount: str):
+async def exch_custom_cmd(interaction: discord.Interaction, amount: str, rate: str):
     """คำสั่งคำนวณอัตราแลกเปลี่ยนแบบกำหนดเรทเอง - ใช้ได้ใน DM ทุกที่"""
     try:
         is_dm = isinstance(interaction.channel, discord.DMChannel)
@@ -1380,9 +1384,9 @@ async def gamepass_slash(interaction: discord.Interaction, amount: str):
 
 @user_install_command(
     name="help",
-    description="แสดงคำสั่งทั้งหมดที่ใช้ได้",
+    description="แสดงคำสั่งทั้งหมดที่ใช้ได้"
 )
-async def gamepass_slash(interaction: discord.Interaction):
+async def help_cmd(interaction: discord.Interaction):
     """คำสั่งช่วยเหลือ - แสดงคำสั่งทั้งหมด - ใช้ได้ใน DM ทุกที่"""
     try:
         is_dm = isinstance(interaction.channel, discord.DMChannel)
@@ -2468,6 +2472,3 @@ try:
     bot.run(os.getenv("TOKEN"))
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
-
-
-
