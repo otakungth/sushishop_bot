@@ -1,15 +1,17 @@
 from flask import Flask
-from threading import Thread
+import threading
 
-app = Flask('')
+app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Server is running"
+    return "Sushi Shop Bot is running!"
 
 def run():
-    app.run(host='0.0.0.0',port=8080)
+    app.run(host='0.0.0.0', port=8080)
 
 def server_on():
-    t = Thread(target=run)
+    t = threading.Thread(target=run)
+    t.daemon = True
     t.start()
+    print("✅ Server started on port 8080")
