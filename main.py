@@ -1154,7 +1154,11 @@ async def update_main_channel():
 # SLASH COMMANDS - OPTIMIZED FOR USER INSTALL (GLOBAL DM)
 # --------------------------------------------------------------------------------------------------
 
-@bot.tree.command(name="gamepass", description="คำนวณราคา Gamepass")
+@bot.tree.command(
+    name="gamepass",
+    description="คำนวณราคา Gamepass",
+    dm_permission=True  # ✅ REQUIRED for DMs
+)
 async def gamepass_slash(interaction: discord.Interaction, amount: str):
     """คำสั่งคำนวณราคา Gamepass - ใช้ได้ใน DM ทุกที่"""
     try:
@@ -1176,8 +1180,12 @@ async def gamepass_slash(interaction: discord.Interaction, amount: str):
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
 
-@bot.tree.command(name="group", description="คำนวณราคา Group")
-async def group_slash(interaction: discord.Interaction, amount: str):
+@bot.tree.command(
+    name="group",
+    description="คำนวณราคา Group",
+    dm_permission=True  # ✅ REQUIRED for DMs
+)
+async def gamepass_slash(interaction: discord.Interaction, amount: str):
     """คำสั่งคำนวณราคา Group - ใช้ได้ใน DM ทุกที่"""
     try:
         is_dm = isinstance(interaction.channel, discord.DMChannel)
@@ -1204,9 +1212,13 @@ async def group_slash(interaction: discord.Interaction, amount: str):
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
 
-@bot.tree.command(name="baht_gamepass", description="คำนวณ Robux จากเงินบาท (Gamepass)")
-async def baht_gamepass_slash(interaction: discord.Interaction, amount: str):
-    """คำสั่งคำนวณ Robux จากเงินบาท (Gamepass) - ใช้ได้ใน DM ทุกที่"""
+@bot.tree.command(
+    name="baht_gamepass",
+    description="คำนวณ Robux จากเงินบาท",
+    dm_permission=True  # ✅ REQUIRED for DMs
+)
+async def gamepass_slash(interaction: discord.Interaction, amount: str):
+    """คำสั่งคำนวณ Robux จากเงินบาท - ใช้ได้ใน DM ทุกที่"""
     try:
         is_dm = isinstance(interaction.channel, discord.DMChannel)
         
@@ -1225,9 +1237,13 @@ async def baht_gamepass_slash(interaction: discord.Interaction, amount: str):
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
 
-@bot.tree.command(name="baht_group", description="คำนวณ Robux จากเงินบาท (Group)")
-async def baht_group_slash(interaction: discord.Interaction, amount: str):
-    """คำสั่งคำนวณ Robux จากเงินบาท (Group) - ใช้ได้ใน DM ทุกที่"""
+@bot.tree.command(
+    name="baht_group",
+    description="คำนวณเงินบาทเป็น Robux",
+    dm_permission=True  # ✅ REQUIRED for DMs
+)
+async def gamepass_slash(interaction: discord.Interaction, amount: str):
+    """คำสั่งคำนวณเงินบาทเป็น Robux - ใช้ได้ใน DM ทุกที่"""
     try:
         is_dm = isinstance(interaction.channel, discord.DMChannel)
         
@@ -1254,7 +1270,7 @@ async def baht_group_slash(interaction: discord.Interaction, amount: str):
 
 @bot.tree.command(name="tax", description="คำนวณ Robux หลังหักภาษี")
 async def tax_slash(interaction: discord.Interaction, amount: str):
-    """คำสั่งคำนวณ Robux หลังหักภาษี - ใช้ได้ใน DM ทุกที่"""
+    """คำสั่งคำนวณ Robux หลังหัก 30% - ใช้ได้ใน DM ทุกที่"""
     try:
         is_dm = isinstance(interaction.channel, discord.DMChannel)
         
@@ -2431,3 +2447,4 @@ try:
     bot.run(os.getenv("TOKEN"))
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
+
