@@ -1268,8 +1268,12 @@ async def gamepass_slash(interaction: discord.Interaction, amount: str):
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
 
-@bot.tree.command(name="tax", description="คำนวณ Robux หลังหักภาษี")
-async def tax_slash(interaction: discord.Interaction, amount: str):
+@bot.tree.command(
+    name="tax",
+    description="คำนวณ Robux หลังหัก 30%",
+    dm_permission=True  # ✅ REQUIRED for DMs
+)
+async def gamepass_slash(interaction: discord.Interaction, amount: str):
     """คำสั่งคำนวณ Robux หลังหัก 30% - ใช้ได้ใน DM ทุกที่"""
     try:
         is_dm = isinstance(interaction.channel, discord.DMChannel)
@@ -1307,8 +1311,12 @@ async def tax_slash(interaction: discord.Interaction, amount: str):
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
 
-@bot.tree.command(name="exch", description="คำนวณอัตราแลกเปลี่ยน (เรท 34)")
-async def exch_slash(interaction: discord.Interaction, amount: str):
+@bot.tree.command(
+    name="exch",
+    description="คำนวณอัตราแลกเปลี่ยน (เรท 34)",
+    dm_permission=True  # ✅ REQUIRED for DMs
+)
+async def gamepass_slash(interaction: discord.Interaction, amount: str):
     """คำสั่งคำนวณอัตราแลกเปลี่ยน เรท 34 - ใช้ได้ใน DM ทุกที่"""
     try:
         is_dm = isinstance(interaction.channel, discord.DMChannel)
@@ -1333,8 +1341,12 @@ async def exch_slash(interaction: discord.Interaction, amount: str):
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {str(e)}", ephemeral=True)
 
-@bot.tree.command(name="exch_custom", description="คำนวณอัตราแลกเปลี่ยนแบบกำหนดเรทเอง")
-async def exch_custom_slash(interaction: discord.Interaction, amount: str, rate: str):
+@bot.tree.command(
+    name="exch_custom",
+    description="คำนวณอัตราแลกเปลี่ยนแบบกำหนดเรทเอง",
+    dm_permission=True  # ✅ REQUIRED for DMs
+)
+async def gamepass_slash(interaction: discord.Interaction, amount: str):
     """คำสั่งคำนวณอัตราแลกเปลี่ยนแบบกำหนดเรทเอง - ใช้ได้ใน DM ทุกที่"""
     try:
         is_dm = isinstance(interaction.channel, discord.DMChannel)
@@ -1360,8 +1372,12 @@ async def exch_custom_slash(interaction: discord.Interaction, amount: str, rate:
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {str(e)}", ephemeral=True)
 
-@bot.tree.command(name="help", description="แสดงคำสั่งทั้งหมดที่ใช้ได้")
-async def help_slash(interaction: discord.Interaction):
+@bot.tree.command(
+    name="help",
+    description="แสดงคำสั่งทั้งหมดที่ใช้ได้",
+    dm_permission=True  # ✅ REQUIRED for DMs
+)
+async def gamepass_slash(interaction: discord.Interaction):
     """คำสั่งช่วยเหลือ - แสดงคำสั่งทั้งหมด - ใช้ได้ใน DM ทุกที่"""
     try:
         is_dm = isinstance(interaction.channel, discord.DMChannel)
@@ -2447,4 +2463,5 @@ try:
     bot.run(os.getenv("TOKEN"))
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
+
 
