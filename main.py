@@ -51,24 +51,37 @@ class MyBot(commands.Bot):
         super().__init__(
             command_prefix="!",
             intents=intents,
-            help_command=None
+            help_command=None,
+            # Add this for better User Install support
+            allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False)
         )
 
-    async def setup_hook(self):
-        """ตั้งค่าและ sync คำสั่งสำหรับ User Install (Global DM)"""
-        print("🔄 กำลังตั้งค่า slash commands สำหรับ User Install...")
+async def setup_hook(self):
+    """ตั้งค่าและ sync คำสั่งสำหรับ User Install (Global DM)"""
+    print("🔄 กำลังตั้งค่า slash commands สำหรับ User Install...")
+    
+    try:
+        # Sync commands ไปยัง global scope
+        synced = await self.tree.sync()
+        print(f"✅ Sync Global Commands เรียบร้อย: {len(synced)} commands")
         
-        try:
-            # Sync commands ไปยัง global scope
-            synced = await self.tree.sync()
-            print(f"✅ Sync Global Commands เรียบร้อย: {len(synced)} commands")
+        # แสดงคำสั่งทั้งหมด
+        for cmd in synced:
+            print(f"   - /{cmd.name} | Global: True")
             
-            # แสดงคำสั่งทั้งหมด
-            for cmd in synced:
-                print(f"   - /{cmd.name} | Global: True | DM: True")
-                
-        except Exception as e:
-            print(f"❌ เกิดข้อผิดพลาดในการ sync: {e}")
+        # Set the integration context for User Install
+        try:
+            # For newer versions that support integration types
+            await self.tree.set_global_integration_types(
+                integration_types=[discord.IntegrationType.guild_install, discord.IntegrationType.user_install],
+                contexts=[discord.InteractionContextType.guild, discord.InteractionContextType.bot_dm, discord.InteractionContextType.private_channel]
+            )
+            print("✅ ตั้งค่า User Install สำเร็จ")
+        except AttributeError:
+            print("ℹ️  Using legacy DM permission setup")
+            
+    except Exception as e:
+        print(f"❌ เกิดข้อผิดพลาดในการ sync: {e}")
 
 # =======================================================================================
 # ✅ สร้าง instance ของบอท
@@ -1154,12 +1167,11 @@ async def update_main_channel():
 # SLASH COMMANDS - OPTIMIZED FOR USER INSTALL (GLOBAL DM)
 # --------------------------------------------------------------------------------------------------
 
-@bot.tree.command(
+@user_install_command(
     name="gamepass",
-    description="คำนวณราคา Gamepass",
-    dm_permission=True  # ✅ REQUIRED for DMs
+    description="คำนวณราคา Gamepass"
 )
-async def gamepass_slash(interaction: discord.Interaction, amount: str):
+async def gamepass_cmd(interaction: discord.Interaction, amount: str):
     """คำสั่งคำนวณราคา Gamepass - ใช้ได้ใน DM ทุกที่"""
     try:
         is_dm = isinstance(interaction.channel, discord.DMChannel)
@@ -1180,12 +1192,11 @@ async def gamepass_slash(interaction: discord.Interaction, amount: str):
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
 
-@bot.tree.command(
+@user_install_command(
     name="group",
-    description="คำนวณราคา Group",
-    dm_permission=True  # ✅ REQUIRED for DMs
+    description="คำนวณราคา Group"
 )
-async def gamepass_slash(interaction: discord.Interaction, amount: str):
+async def group_cmd(interaction: discord.Interaction, amount: str):
     """คำสั่งคำนวณราคา Group - ใช้ได้ใน DM ทุกที่"""
     try:
         is_dm = isinstance(interaction.channel, discord.DMChannel)
@@ -1211,11 +1222,10 @@ async def gamepass_slash(interaction: discord.Interaction, amount: str):
 
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
-
-@bot.tree.command(
+        
+@user_install_command(
     name="baht_gamepass",
     description="คำนวณ Robux จากเงินบาท",
-    dm_permission=True  # ✅ REQUIRED for DMs
 )
 async def gamepass_slash(interaction: discord.Interaction, amount: str):
     """คำสั่งคำนวณ Robux จากเงินบาท - ใช้ได้ใน DM ทุกที่"""
@@ -1237,10 +1247,9 @@ async def gamepass_slash(interaction: discord.Interaction, amount: str):
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
 
-@bot.tree.command(
+@user_install_command(
     name="baht_group",
     description="คำนวณเงินบาทเป็น Robux",
-    dm_permission=True  # ✅ REQUIRED for DMs
 )
 async def gamepass_slash(interaction: discord.Interaction, amount: str):
     """คำสั่งคำนวณเงินบาทเป็น Robux - ใช้ได้ใน DM ทุกที่"""
@@ -1268,10 +1277,9 @@ async def gamepass_slash(interaction: discord.Interaction, amount: str):
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
 
-@bot.tree.command(
+@user_install_command(
     name="tax",
     description="คำนวณ Robux หลังหัก 30%",
-    dm_permission=True  # ✅ REQUIRED for DMs
 )
 async def gamepass_slash(interaction: discord.Interaction, amount: str):
     """คำสั่งคำนวณ Robux หลังหัก 30% - ใช้ได้ใน DM ทุกที่"""
@@ -1311,10 +1319,9 @@ async def gamepass_slash(interaction: discord.Interaction, amount: str):
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
 
-@bot.tree.command(
+@user_install_command(
     name="exch",
     description="คำนวณอัตราแลกเปลี่ยน (เรท 34)",
-    dm_permission=True  # ✅ REQUIRED for DMs
 )
 async def gamepass_slash(interaction: discord.Interaction, amount: str):
     """คำสั่งคำนวณอัตราแลกเปลี่ยน เรท 34 - ใช้ได้ใน DM ทุกที่"""
@@ -1341,10 +1348,9 @@ async def gamepass_slash(interaction: discord.Interaction, amount: str):
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {str(e)}", ephemeral=True)
 
-@bot.tree.command(
+@user_install_command(
     name="exch_custom",
     description="คำนวณอัตราแลกเปลี่ยนแบบกำหนดเรทเอง",
-    dm_permission=True  # ✅ REQUIRED for DMs
 )
 async def gamepass_slash(interaction: discord.Interaction, amount: str):
     """คำสั่งคำนวณอัตราแลกเปลี่ยนแบบกำหนดเรทเอง - ใช้ได้ใน DM ทุกที่"""
@@ -1372,10 +1378,9 @@ async def gamepass_slash(interaction: discord.Interaction, amount: str):
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {str(e)}", ephemeral=True)
 
-@bot.tree.command(
+@user_install_command(
     name="help",
     description="แสดงคำสั่งทั้งหมดที่ใช้ได้",
-    dm_permission=True  # ✅ REQUIRED for DMs
 )
 async def gamepass_slash(interaction: discord.Interaction):
     """คำสั่งช่วยเหลือ - แสดงคำสั่งทั้งหมด - ใช้ได้ใน DM ทุกที่"""
@@ -2463,5 +2468,6 @@ try:
     bot.run(os.getenv("TOKEN"))
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
+
 
 
