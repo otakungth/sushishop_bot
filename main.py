@@ -1351,7 +1351,7 @@ async def help_cmd(interaction: discord.Interaction):
                 inline=False
             )
         
-        await interaction.response.send_message(embed=help_embed, ephemeral=is_dm)
+        await interaction.response.send_message(embed=help_embed, ephemeral=False)
         
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
@@ -2408,5 +2408,6 @@ try:
     bot.run(os.getenv("TOKEN"))
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
+
 
 
