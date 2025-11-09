@@ -80,9 +80,6 @@ bot = MyBot()
 def user_install_command(*args, **kwargs):
     """Custom decorator for User Install commands"""
     def decorator(func):
-        # ใช้ guild_only=False เพื่ออนุญาตให้ใช้ใน DM ได้
-        kwargs['guild_only'] = False
-            
         # Get the original command decorator
         cmd = bot.tree.command(*args, **kwargs)(func)
         
@@ -1166,10 +1163,7 @@ async def update_main_channel():
 # SLASH COMMANDS - OPTIMIZED FOR USER INSTALL (GLOBAL DM)
 # --------------------------------------------------------------------------------------------------
 
-@user_install_command(
-    name="gamepass",
-    description="คำนวณราคา Gamepass"
-)
+@bot.tree.command(name="gamepass", description="คำนวณราคา Gamepass")
 async def gamepass_cmd(interaction: discord.Interaction, amount: str):
     """คำสั่งคำนวณราคา Gamepass - ใช้ได้ใน DM ทุกที่"""
     try:
@@ -1189,10 +1183,7 @@ async def gamepass_cmd(interaction: discord.Interaction, amount: str):
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=False)
 
-@user_install_command(
-    name="group",
-    description="คำนวณราคา Group"
-)
+@bot.tree.command(name="group", description="คำนวณราคา Group")
 async def group_cmd(interaction: discord.Interaction, amount: str):
     """คำสั่งคำนวณราคา Group - ใช้ได้ใน DM ทุกที่"""
     try:
@@ -1204,7 +1195,7 @@ async def group_cmd(interaction: discord.Interaction, amount: str):
 
         robux = int(eval(expr))
 
-        if robux < 2250:
+        if robux < 1500:
             rate = group_rate_low
         else:
             rate = group_rate_high
@@ -1218,10 +1209,7 @@ async def group_cmd(interaction: discord.Interaction, amount: str):
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=False)
 
-@user_install_command(
-    name="baht_gamepass",
-    description="คำนวณ Robux จากเงินบาท"
-)
+@bot.tree.command(name="baht_gamepass", description="คำนวณ Robux จากเงินบาท")
 async def baht_gamepass_cmd(interaction: discord.Interaction, amount: str):
     """คำสั่งคำนวณ Robux จากเงินบาท - ใช้ได้ใน DM ทุกที่"""
     try:
@@ -1240,10 +1228,7 @@ async def baht_gamepass_cmd(interaction: discord.Interaction, amount: str):
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=False)
 
-@user_install_command(
-    name="baht_group",
-    description="คำนวณเงินบาทเป็น Robux"
-)
+@bot.tree.command(name="baht_group", description="คำนวณเงินบาทเป็น Robux")
 async def baht_group_cmd(interaction: discord.Interaction, amount: str):
     """คำสั่งคำนวณเงินบาทเป็น Robux - ใช้ได้ใน DM ทุกที่"""
     try:
@@ -1268,10 +1253,7 @@ async def baht_group_cmd(interaction: discord.Interaction, amount: str):
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=False)
 
-@user_install_command(
-    name="tax",
-    description="คำนวณ Robux หลังหัก 30%"
-)
+@bot.tree.command(name="tax", description="คำนวณ Robux หลังหัก 30%")
 async def tax_cmd(interaction: discord.Interaction, amount: str):
     """คำสั่งคำนวณ Robux หลังหัก 30% - ใช้ได้ใน DM ทุกที่"""
     try:
@@ -1308,10 +1290,7 @@ async def tax_cmd(interaction: discord.Interaction, amount: str):
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=False)
 
-@user_install_command(
-    name="help",
-    description="แสดงคำสั่งทั้งหมดที่ใช้ได้"
-)
+@bot.tree.command(name="help", description="แสดงคำสั่งทั้งหมดที่ใช้ได้")
 async def help_cmd(interaction: discord.Interaction):
     """คำสั่งช่วยเหลือ - แสดงคำสั่งทั้งหมด - ใช้ได้ใน DM ทุกที่"""
     try:
@@ -2385,3 +2364,4 @@ try:
     bot.run(os.getenv("TOKEN"))
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
+
