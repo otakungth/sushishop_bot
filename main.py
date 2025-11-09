@@ -1194,7 +1194,7 @@ async def gamepass_cmd(interaction: discord.Interaction, amount: str):
         await interaction.response.send_message(response_msg, ephemeral=is_dm)
 
     except Exception as e:
-        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
+        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=False)
 
 @user_install_command(
     name="group",
@@ -1225,7 +1225,7 @@ async def group_cmd(interaction: discord.Interaction, amount: str):
         await interaction.response.send_message(response_msg, ephemeral=is_dm)
 
     except Exception as e:
-        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
+        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=False)
 
 @user_install_command(
     name="baht_gamepass",
@@ -1249,7 +1249,7 @@ async def baht_gamepass_cmd(interaction: discord.Interaction, amount: str):
         await interaction.response.send_message(response_msg, ephemeral=is_dm)
 
     except Exception as e:
-        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
+        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=False)
 
 @user_install_command(
     name="baht_group",
@@ -1279,7 +1279,7 @@ async def baht_group_cmd(interaction: discord.Interaction, amount: str):
         await interaction.response.send_message(response_msg, ephemeral=is_dm)
 
     except Exception as e:
-        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
+        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=False)
 
 @user_install_command(
     name="tax",
@@ -1321,66 +1321,8 @@ async def tax_cmd(interaction: discord.Interaction, amount: str):
         await interaction.response.send_message(response_msg, ephemeral=is_dm)
 
     except Exception as e:
-        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
+        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=False)
 
-@user_install_command(
-    name="exch",
-    description="คำนวณอัตราแลกเปลี่ยน (เรท 34)"
-)
-async def exch_cmd(interaction: discord.Interaction, amount: str):
-    """คำสั่งคำนวณอัตราแลกเปลี่ยน เรท 34 - ใช้ได้ใน DM ทุกที่"""
-    try:
-        is_dm = isinstance(interaction.channel, discord.DMChannel)
-        
-        expr = amount.replace(",", "").replace(" ", "").lower().replace("x", "*").replace("÷", "/")
-
-        if not re.match(r"^[\d\s\+\-\*\/\(\)\.]+$", expr):
-            await interaction.response.send_message("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ () และจุดทศนิยม", ephemeral=is_dm)
-            return
-
-        baht = float(eval(expr))
-        exchange_rate = 34
-        result = baht * exchange_rate
-
-        response_msg = f"💱 {baht:,.2f} $ × {exchange_rate} = **{result:,.2f}**"
-        await interaction.response.send_message(response_msg, ephemeral=is_dm)
-
-    except ZeroDivisionError:
-        await interaction.response.send_message("❌ ไม่สามารถหารด้วยศูนย์ได้", ephemeral=True)
-    except ValueError:
-        await interaction.response.send_message("❌ กรุณากรอกตัวเลขที่ถูกต้อง", ephemeral=True)
-    except Exception as e:
-        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {str(e)}", ephemeral=True)
-
-@user_install_command(
-    name="exch_custom",
-    description="คำนวณอัตราแลกเปลี่ยนแบบกำหนดเรทเอง"
-)
-async def exch_custom_cmd(interaction: discord.Interaction, amount: str, rate: str):
-    """คำสั่งคำนวณอัตราแลกเปลี่ยนแบบกำหนดเรทเอง - ใช้ได้ใน DM ทุกที่"""
-    try:
-        is_dm = isinstance(interaction.channel, discord.DMChannel)
-        
-        amount_expr = amount.replace(",", "").replace(" ", "").lower().replace("x", "*").replace("÷", "/")
-        rate_expr = rate.replace(",", "").replace(" ", "").lower().replace("x", "*").replace("÷", "/")
-
-        if not re.match(r"^[\d\s\+\-\*\/\(\)\.]+$", amount_expr) or not re.match(r"^[\d\s\+\-\*\/\(\)\.]+$", rate_expr):
-            await interaction.response.send_message("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ () และจุดทศนิยม", ephemeral=is_dm)
-            return
-
-        baht = float(eval(amount_expr))
-        exchange_rate = float(eval(rate_expr))
-        result = baht * exchange_rate
-
-        response_msg = f"💱 {baht:,.2f} $ × {exchange_rate} = **{result:,.2f}**"
-        await interaction.response.send_message(response_msg, ephemeral=is_dm)
-
-    except ZeroDivisionError:
-        await interaction.response.send_message("❌ ไม่สามารถหารด้วยศูนย์ได้", ephemeral=True)
-    except ValueError:
-        await interaction.response.send_message("❌ กรุณากรอกตัวเลขที่ถูกต้อง", ephemeral=True)
-    except Exception as e:
-        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {str(e)}", ephemeral=True)
 
 @user_install_command(
     name="help",
@@ -1396,15 +1338,10 @@ async def help_cmd(interaction: discord.Interaction):
             description="**คำสั่ง Slash Commands (ใช้ /):**\n"
                        "`/gamepass <จำนวน>` - คำนวณราคา Gamepass\n"
                        "`/group <จำนวน>` - คำนวณราคา Group\n"
-                       "`/baht_gamepass <จำนวน>` - คำนวณ Robux จากเงิน (Gamepass)\n"
-                       "`/baht_group <จำนวน>` - คำนวณ Robux จากเงิน (Group)\n"
+                       "`/baht_gamepass <จำนวน>` - คำนวณ Robux จากจำนวนบาท\n"
+                       "`/baht_group <จำนวน>` - คำนวณ Robux จากจำนวนบาท\n"
                        "`/tax <จำนวน>` - คำนวณ Robux หลังหักภาษี\n"
-                       "`/exch <จำนวน>` - คำนวณอัตราแลกเปลี่ยน (เรท 33.5)\n"
-                       "`/exch_custom <จำนวน> <เรท>` - คำนวณอัตราแลกเปลี่ยนแบบกำหนดเรท\n"
-                       "`/help` - แสดงคำสั่งนี้\n\n"
-                       "**หมายเหตุ:**\n"
-                       "• คำสั่งเหล่านี้ใช้ได้ทั้งในเซิร์ฟเวอร์และ DM\n"
-                       "• ในการสั่งซื้อจริง ต้องเปิดตั๋วในเซิร์ฟเวอร์เท่านั้น",
+                       "`/help` - แสดงคำสั่งที่ใช้ได้\n\n",
             color=0x00FF99
         )
         
@@ -2472,3 +2409,4 @@ try:
     bot.run(os.getenv("TOKEN"))
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
+
