@@ -1178,7 +1178,6 @@ async def update_main_channel():
 async def gamepass_cmd(interaction: discord.Interaction, amount: str):
     """คำสั่งคำนวณราคา Gamepass - ใช้ได้ใน DM ทุกที่"""
     try:
-        # Removed is_dm check and always use ephemeral=False
         expr = amount.replace(",", "").replace(" ", "").lower().replace("x", "*").replace("÷", "/")
 
         if not re.match(r"^[\d\s\+\-\*\/\(\)\.]+$", expr):
@@ -1202,8 +1201,6 @@ async def gamepass_cmd(interaction: discord.Interaction, amount: str):
 async def group_cmd(interaction: discord.Interaction, amount: str):
     """คำสั่งคำนวณราคา Group - ใช้ได้ใน DM ทุกที่"""
     try:
-        is_dm = isinstance(interaction.channel, discord.DMChannel)
-        
         expr = amount.replace(",", "").replace(" ", "").lower().replace("x", "*").replace("÷", "/")
 
         if not re.match(r"^[\d\s\+\-\*\/\(\)\.]+$", expr):
@@ -1221,7 +1218,7 @@ async def group_cmd(interaction: discord.Interaction, amount: str):
         price_str = f"{price:,.0f} บาท"
 
         response_msg = f"👥 Group {robux:,} Robux = **{price_str}** (เรท {rate})"
-        await interaction.response.send_message(response_msg, ephemeral=is_dm)
+        await interaction.response.send_message(response_msg, ephemeral=False)
 
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=False)
@@ -1233,8 +1230,6 @@ async def group_cmd(interaction: discord.Interaction, amount: str):
 async def baht_gamepass_cmd(interaction: discord.Interaction, amount: str):
     """คำสั่งคำนวณ Robux จากเงินบาท - ใช้ได้ใน DM ทุกที่"""
     try:
-        is_dm = isinstance(interaction.channel, discord.DMChannel)
-        
         expr = amount.replace(",", "").replace(" ", "").lower().replace("x", "*").replace("÷", "/")
 
         if not re.match(r"^[\d\s\+\-\*\/\(\)\.]+$", expr):
@@ -1245,7 +1240,7 @@ async def baht_gamepass_cmd(interaction: discord.Interaction, amount: str):
         robux = baht * gamepass_rate
 
         response_msg = f"🎮 {baht:,.0f} บาท = **{robux:,.0f} Robux** (Gamepass เรท {gamepass_rate})"
-        await interaction.response.send_message(response_msg, ephemeral=is_dm)
+        await interaction.response.send_message(response_msg, ephemeral=False)
 
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=False)
@@ -1257,8 +1252,6 @@ async def baht_gamepass_cmd(interaction: discord.Interaction, amount: str):
 async def baht_group_cmd(interaction: discord.Interaction, amount: str):
     """คำสั่งคำนวณเงินบาทเป็น Robux - ใช้ได้ใน DM ทุกที่"""
     try:
-        is_dm = isinstance(interaction.channel, discord.DMChannel)
-        
         expr = amount.replace(",", "").replace(" ", "").lower().replace("x", "*").replace("÷", "/")
 
         if not re.match(r"^[\d\s\+\-\*\/\(\)\.]+$", expr):
@@ -1275,7 +1268,7 @@ async def baht_group_cmd(interaction: discord.Interaction, amount: str):
         robux = baht * rate
 
         response_msg = f"👥 {baht:,.0f} บาท = **{robux:,.0f} Robux** (Group เรท {rate})"
-        await interaction.response.send_message(response_msg, ephemeral=is_dm)
+        await interaction.response.send_message(response_msg, ephemeral=False)
 
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=False)
@@ -1287,8 +1280,6 @@ async def baht_group_cmd(interaction: discord.Interaction, amount: str):
 async def tax_cmd(interaction: discord.Interaction, amount: str):
     """คำสั่งคำนวณ Robux หลังหัก 30% - ใช้ได้ใน DM ทุกที่"""
     try:
-        is_dm = isinstance(interaction.channel, discord.DMChannel)
-        
         expr = amount.replace(" ", "")
         
         if re.match(r"^\d+$", expr):
@@ -1322,7 +1313,6 @@ async def tax_cmd(interaction: discord.Interaction, amount: str):
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=False)
 
-
 @user_install_command(
     name="help",
     description="แสดงคำสั่งทั้งหมดที่ใช้ได้"
@@ -1330,8 +1320,6 @@ async def tax_cmd(interaction: discord.Interaction, amount: str):
 async def help_cmd(interaction: discord.Interaction):
     """คำสั่งช่วยเหลือ - แสดงคำสั่งทั้งหมด - ใช้ได้ใน DM ทุกที่"""
     try:
-        is_dm = isinstance(interaction.channel, discord.DMChannel)
-        
         help_embed = discord.Embed(
             title="🍣 Sushi Shop - คำสั่งทั้งหมด",
             description="**คำสั่ง Slash Commands (ใช้ /):**\n"
@@ -1340,21 +1328,17 @@ async def help_cmd(interaction: discord.Interaction):
                        "`/baht_gamepass <จำนวน>` - คำนวณ Robux จากจำนวนบาท\n"
                        "`/baht_group <จำนวน>` - คำนวณ Robux จากจำนวนบาท\n"
                        "`/tax <จำนวน>` - คำนวณ Robux หลังหักภาษี\n"
-                       "`/help` - แสดงคำสั่งที่ใช้ได้\n\n",
+                       "`/help` - แสดงคำสั่งที่ใช้ได้\n\n"
+                       "**หมายเหตุ:**\n"
+                       "• คำสั่งเหล่านี้ใช้ได้ทั้งในเซิร์ฟเวอร์และ DM\n"
+                       "• ในการสั่งซื้อจริง ต้องเปิดตั๋วในเซิร์ฟเวอร์เท่านั้น",
             color=0x00FF99
         )
-        
-        if is_dm:
-            help_embed.add_field(
-                name="💡 วิธีการใช้ใน DM",
-                value="พิมพ์ `/` แล้วเลือกคำสั่งที่ต้องการ หรือพิมพ์ `/help` เพื่อดูคำสั่งทั้งหมด",
-                inline=False
-            )
         
         await interaction.response.send_message(embed=help_embed, ephemeral=False)
         
     except Exception as e:
-        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
+        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=False)
 
 # --------------------------------------------------------------------------------------------------
 # TEXT COMMANDS - ใช้ในเซิร์ฟเวอร์เท่านั้น
@@ -1558,8 +1542,6 @@ async def help_command(ctx):
                    "`/baht_gamepass <จำนวน>` - คำนวณ Robux จากเงิน (Gamepass)\n"
                    "`/baht_group <จำนวน>` - คำนวณ Robux จากเงิน (Group)\n"
                    "`/tax <จำนวน>` - คำนวณ Robux หลังหักภาษี\n"
-                   "`/exch <จำนวน>` - คำนวณอัตราแลกเปลี่ยน (เรท 33.5)\n"
-                   "`/exch_custom <จำนวน> <เรท>` - คำนวณอัตราแลกเปลี่ยนแบบกำหนดเรท\n\n"
                    "**คำสั่งทั่วไป:**\n"
                    "`!level` - เช็คเลเวลและ EXP ของคุณ\n"
                    "`!rate <rate>` - เปลี่ยนเรท Gamepass\n"
@@ -2408,6 +2390,7 @@ try:
     bot.run(os.getenv("TOKEN"))
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
+
 
 
 
