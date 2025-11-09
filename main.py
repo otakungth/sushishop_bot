@@ -1195,7 +1195,7 @@ async def group_cmd(interaction: discord.Interaction, amount: str):
 
         robux = int(eval(expr))
 
-        if robux < 1500:
+        if robux < 2250:
             rate = group_rate_low
         else:
             rate = group_rate_high
@@ -2364,4 +2364,5 @@ try:
     bot.run(os.getenv("TOKEN"))
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
+
 
