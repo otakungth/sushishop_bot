@@ -1178,12 +1178,11 @@ async def update_main_channel():
 async def gamepass_cmd(interaction: discord.Interaction, amount: str):
     """คำสั่งคำนวณราคา Gamepass - ใช้ได้ใน DM ทุกที่"""
     try:
-        is_dm = isinstance(interaction.channel, discord.DMChannel)
-        
+        # Removed is_dm check and always use ephemeral=False
         expr = amount.replace(",", "").replace(" ", "").lower().replace("x", "*").replace("÷", "/")
 
         if not re.match(r"^[\d\s\+\-\*\/\(\)\.]+$", expr):
-            await interaction.response.send_message("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", ephemeral=is_dm)
+            await interaction.response.send_message("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", ephemeral=False)
             return
 
         robux = int(eval(expr))
@@ -1191,7 +1190,7 @@ async def gamepass_cmd(interaction: discord.Interaction, amount: str):
         price_str = f"{price:,.0f} บาท"
 
         response_msg = f"🎮 Gamepass {robux:,} Robux = **{price_str}** (เรท {gamepass_rate})"
-        await interaction.response.send_message(response_msg, ephemeral=is_dm)
+        await interaction.response.send_message(response_msg, ephemeral=False)
 
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=False)
@@ -1208,7 +1207,7 @@ async def group_cmd(interaction: discord.Interaction, amount: str):
         expr = amount.replace(",", "").replace(" ", "").lower().replace("x", "*").replace("÷", "/")
 
         if not re.match(r"^[\d\s\+\-\*\/\(\)\.]+$", expr):
-            await interaction.response.send_message("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", ephemeral=is_dm)
+            await interaction.response.send_message("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", ephemeral=False)
             return
 
         robux = int(eval(expr))
@@ -1239,7 +1238,7 @@ async def baht_gamepass_cmd(interaction: discord.Interaction, amount: str):
         expr = amount.replace(",", "").replace(" ", "").lower().replace("x", "*").replace("÷", "/")
 
         if not re.match(r"^[\d\s\+\-\*\/\(\)\.]+$", expr):
-            await interaction.response.send_message("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", ephemeral=is_dm)
+            await interaction.response.send_message("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", ephemeral=False)
             return
 
         baht = eval(expr)
@@ -1263,7 +1262,7 @@ async def baht_group_cmd(interaction: discord.Interaction, amount: str):
         expr = amount.replace(",", "").replace(" ", "").lower().replace("x", "*").replace("÷", "/")
 
         if not re.match(r"^[\d\s\+\-\*\/\(\)\.]+$", expr):
-            await interaction.response.send_message("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", ephemeral=is_dm)
+            await interaction.response.send_message("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", ephemeral=False)
             return
 
         baht = eval(expr)
@@ -1303,7 +1302,7 @@ async def tax_cmd(interaction: discord.Interaction, amount: str):
             percent = int(parts[1].replace('%', ''))
             
             if percent < 0 or percent > 100:
-                await interaction.response.send_message("❌ เปอร์เซ็นต์ต้องอยู่ระหว่าง 0-100%", ephemeral=is_dm)
+                await interaction.response.send_message("❌ เปอร์เซ็นต์ต้องอยู่ระหว่าง 0-100%", ephemeral=False)
                 return
             
             result = number * (1 - percent/100)
@@ -1318,7 +1317,7 @@ async def tax_cmd(interaction: discord.Interaction, amount: str):
                 "`/tax 100-50%` - หัก 50%"
             )
 
-        await interaction.response.send_message(response_msg, ephemeral=is_dm)
+        await interaction.response.send_message(response_msg, ephemeral=False)
 
     except Exception as e:
         await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=False)
@@ -2409,4 +2408,5 @@ try:
     bot.run(os.getenv("TOKEN"))
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
+
 
