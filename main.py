@@ -80,11 +80,8 @@ bot = MyBot()
 def user_install_command(*args, **kwargs):
     """Custom decorator for User Install commands"""
     def decorator(func):
-        # Try to use dm_permission if available
-        try:
-            kwargs['dm_permission'] = True
-        except:
-            pass
+        # ใช้ guild_only=False เพื่ออนุญาตให้ใช้ใน DM ได้
+        kwargs['guild_only'] = False
             
         # Get the original command decorator
         cmd = bot.tree.command(*args, **kwargs)(func)
@@ -1207,7 +1204,7 @@ async def group_cmd(interaction: discord.Interaction, amount: str):
 
         robux = int(eval(expr))
 
-        if robux < 1500:
+        if robux < 2250:
             rate = group_rate_low
         else:
             rate = group_rate_high
@@ -1373,7 +1370,7 @@ async def g(ctx, *, expression: str):
 
         robux = int(eval(expr))
 
-        if robux < 1500:
+        if robux < 2250:
             rate = group_rate_low
         else:
             rate = group_rate_high
