@@ -451,7 +451,7 @@ class QRView(View):
     async def copy_bank_account(self, interaction: discord.Interaction, button: Button):
         """ปุ่มคัดลอกเลขบัญชี SCB"""
         try:
-            bank_info = "120-239181-3 :ธนาคาร SCB
+            bank_info = "120-239181-3 :SCB"
             await interaction.response.send_message(bank_info, ephemeral=True)
         except Exception as e:
             await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
@@ -2663,5 +2663,6 @@ try:
     bot.run(os.getenv("TOKEN"))
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
+
 
 
