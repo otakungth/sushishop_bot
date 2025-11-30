@@ -30,7 +30,7 @@ group_ticket_enabled = True
 MAIN_CHANNEL_ID = 1361044752975532152
 SALES_LOG_CHANNEL_ID = 1402993077643120720
 CREDIT_CHANNEL_ID = 1363250076549382246
-gamepass_stock = 30000
+gamepass_stock = 0
 group_stock = 0
 
 # เก็บข้อมูลโน้ตส่วนตัว
@@ -59,8 +59,21 @@ def load_user_data():
         return {}
 
 def save_user_data():
-    """บันทึกข้อมูลผู้ใช้ลงไฟล์"""
+    """บันทึกข้อมูลผู้ใช้ลงไฟล์ (เวอร์ชันปลอดภัย)"""
     try:
+        # สร้าง backup ก่อนบันทึก
+        if os.path.exists(user_data_file):
+            backup_file = f"{user_data_file}.backup"
+            try:
+                with open(user_data_file, 'r', encoding='utf-8') as original:
+                    backup_data = original.read()
+                with open(backup_file, 'w', encoding='utf-8') as backup:
+                    backup.write(backup_data)
+                print(f"💾 สร้าง backup: {backup_file}")
+            except Exception as backup_error:
+                print(f"⚠️ ไม่สามารถสร้าง backup: {backup_error}")
+        
+        # บันทึกข้อมูลใหม่
         with open(user_data_file, 'w', encoding='utf-8') as f:
             json.dump(user_data, f, ensure_ascii=False, indent=2)
         print("💾 บันทึกข้อมูลผู้ใช้เรียบร้อยแล้ว")
@@ -79,8 +92,21 @@ def load_ticket_transcripts():
         return {}
 
 def save_ticket_transcripts():
-    """บันทึกประวัติตั๋วลงไฟล์"""
+    """บันทึกประวัติตั๋วลงไฟล์ (เวอร์ชันปลอดภัย)"""
     try:
+        # สร้าง backup ก่อนบันทึก
+        if os.path.exists(ticket_transcripts_file):
+            backup_file = f"{ticket_transcripts_file}.backup"
+            try:
+                with open(ticket_transcripts_file, 'r', encoding='utf-8') as original:
+                    backup_data = original.read()
+                with open(backup_file, 'w', encoding='utf-8') as backup:
+                    backup.write(backup_data)
+                print(f"💾 สร้าง backup: {backup_file}")
+            except Exception as backup_error:
+                print(f"⚠️ ไม่สามารถสร้าง backup: {backup_error}")
+        
+        # บันทึกข้อมูลใหม่
         with open(ticket_transcripts_file, 'w', encoding='utf-8') as f:
             json.dump(ticket_transcripts, f, ensure_ascii=False, indent=2)
         print("💾 บันทึกประวัติตั๋วเรียบร้อยแล้ว")
@@ -187,51 +213,6 @@ async def update_credit_channel():
 # ✅ ฟังก์ชันบันทึกประวัติแชทในตั๋ว (ข้อ 4, 5)
 # =======================================================================================
 
-async def save_ticket_transcript(channel, action_by=None):
-    """บันทึกประวัติแชทในตั๋วและส่งไปยัง DM เจ้าของบอท"""
-    try:
-        # เก็บข้อมูลตั๋ว
-        transcript_data = {
-            "channel_name": channel.name,
-            "channel_id": channel.id,
-            "category": channel.category.name if channel.category else "ไม่มีหมวดหมู่",
-            "created_at": datetime.datetime.now().isoformat(),
-            "closed_by": str(action_by) if action_by else "ระบบอัตโนมัติ",
-            "messages": []
-        }
-        
-        # เก็บข้อความทั้งหมดในตั๋ว
-        messages = []
-        async for message in channel.history(limit=None, oldest_first=True):
-            message_data = {
-                "timestamp": message.created_at.isoformat(),
-                "author": str(message.author),
-                "author_id": message.author.id,
-                "content": message.content,
-                "embeds": [embed.to_dict() for embed in message.embeds],
-                "attachments": [att.url for att in message.attachments]
-            }
-            messages.append(message_data)
-        
-        transcript_data["messages"] = messages
-        
-        # บันทึกลงไฟล์
-        ticket_transcripts[str(channel.id)] = transcript_data
-        save_ticket_transcripts()
-        
-        # สร้างไฟล์ transcript
-        transcript_text = await create_transcript_file(transcript_data)
-        
-        # ✅ ส่งไปยัง DM เจ้าของบอท (ข้อ 2)
-        await send_transcript_to_owner(transcript_data, transcript_text, channel)
-        
-        print(f"✅ บันทึกประวัติตั๋วเรียบร้อย: {channel.name}")
-        return transcript_text
-        
-    except Exception as e:
-        print(f"❌ เกิดข้อผิดพลาดในการบันทึกประวัติตั๋ว: {e}")
-        return None
-
 async def create_transcript_file(transcript_data):
     """สร้างไฟล์ transcript ในรูปแบบข้อความ"""
     try:
@@ -265,15 +246,15 @@ async def create_transcript_file(transcript_data):
         print(f"❌ เกิดข้อผิดพลาดในการสร้างไฟล์ transcript: {e}")
         return f"❌ เกิดข้อผิดพลาดในการสร้าง transcript: {e}"
 
-async def send_transcript_to_owner(transcript_data, transcript_text, channel):
-    """ส่งประวัติตั๋วไปยัง DM เจ้าของบอท"""
+async def send_transcript_to_channel(transcript_data, transcript_text, channel):
+    """ส่งประวัติตั๋วไปยังห้องที่กำหนด"""
     try:
-        # ✅ หา owner (คุณ) - แก้ไข ID ให้ถูกต้อง (ข้อ 2)
-        owner_id = 1360990259311018077  # แทนที่ด้วย ID Discord ของคุณ
-        owner = await bot.fetch_user(owner_id)
+        # ✅ ห้องที่ต้องการส่งประวัติ (ข้อ 2)
+        target_channel_id = 1444700057885474846
+        target_channel = bot.get_channel(target_channel_id)
         
-        if not owner:
-            print("❌ ไม่พบเจ้าของบอท")
+        if not target_channel:
+            print(f"❌ ไม่พบห้องเป้าหมาย ID: {target_channel_id}")
             return
         
         # สร้าง embed สรุป
@@ -295,11 +276,57 @@ async def send_transcript_to_owner(transcript_data, transcript_text, channel):
             file=file_content
         )
         
-        await owner.send(embed=embed, file=transcript_file)
-        print(f"✅ ส่งประวัติตั๋วไปยัง DM เจ้าของบอทแล้ว: {transcript_data['channel_name']}")
+        await target_channel.send(embed=embed, file=transcript_file)
+        print(f"✅ ส่งประวัติตั๋วไปยังห้อง #{target_channel.name} แล้ว: {transcript_data['channel_name']}")
         
     except Exception as e:
-        print(f"❌ เกิดข้อผิดพลาดในการส่ง transcript ไปยัง owner: {e}")
+        print(f"❌ เกิดข้อผิดพลาดในการส่ง transcript ไปยังห้อง: {e}")
+
+async def save_ticket_transcript(channel, action_by=None):
+    """บันทึกประวัติแชทในตั๋วและส่งไปยังห้องที่กำหนด"""
+    try:
+        # เก็บข้อมูลตั๋ว
+        transcript_data = {
+            "channel_name": channel.name,
+            "channel_id": channel.id,
+            "category": channel.category.name if channel.category else "ไม่มีหมวดหมู่",
+            "created_at": datetime.datetime.now().isoformat(),
+            "closed_by": str(action_by) if action_by else "ระบบอัตโนมัติ",
+            "messages": []
+        }
+        
+        # เก็บข้อความทั้งหมดในตั๋ว
+        messages = []
+        async for message in channel.history(limit=None, oldest_first=True):
+            message_data = {
+                "timestamp": message.created_at.isoformat(),
+                "author": str(message.author),
+                "author_id": message.author.id,
+                "content": message.content,
+                "embeds": [embed.to_dict() for embed in message.embeds],
+                "attachments": [att.url for att in message.attachments],
+                "message_id": message.id
+            }
+            messages.append(message_data)
+        
+        transcript_data["messages"] = messages
+        
+        # บันทึกลงไฟล์
+        ticket_transcripts[str(channel.id)] = transcript_data
+        save_ticket_transcripts()
+        
+        # สร้างไฟล์ transcript
+        transcript_text = await create_transcript_file(transcript_data)
+        
+        # ✅ ส่งไปยังห้องที่กำหนด (ข้อ 2) - ห้อง 1444700057885474846
+        await send_transcript_to_channel(transcript_data, transcript_text, channel)
+        
+        print(f"✅ บันทึกประวัติตั๋วเรียบร้อย: {channel.name}")
+        return transcript_text
+        
+    except Exception as e:
+        print(f"❌ เกิดข้อผิดพลาดในการบันทึกประวัติตั๋ว: {e}")
+        return None
 
 # =======================================================================================
 # ✅ View สำหรับส่งสินค้า (ข้อ 5)
@@ -414,11 +441,11 @@ class ConfirmDeliveryView(View):
             # ส่งข้อความในตั๋ว
             await self.channel.send(embed=receipt_embed)
             
-            # ✅ บันทึกประวัติตั๋วและส่งไปยัง DM (ข้อ 2)
+            # ✅ บันทึกประวัติตั๋วและส่งไปยังห้องที่กำหนด (ข้อ 2)
             await save_ticket_transcript(self.channel, interaction.user)
             
             await interaction.response.edit_message(
-                content="✅ บันทึกการส่งสินค้าเรียบร้อยและส่งประวัติตั๋วไปยัง DM แล้ว",
+                content="✅ บันทึกการส่งสินค้าเรียบร้อยและส่งประวัติตั๋วไปยังห้องที่กำหนดแล้ว",
                 embed=None,
                 view=None
             )
@@ -451,8 +478,8 @@ class QRView(View):
     async def copy_bank_account(self, interaction: discord.Interaction, button: Button):
         """ปุ่มคัดลอกเลขบัญชี SCB"""
         try:
-            bank_info = "120-239181-3 :SCB"
-            await interaction.response.send_message(bank_info, ephemeral=True)
+            bank_info = "120-239181-3 : ธนาคาร SCB"
+            await interaction.response.send_message(f"```{bank_info}```", ephemeral=True)
         except Exception as e:
             await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
 
@@ -562,7 +589,9 @@ async def add_exp(user_id, exp_amount, guild):
             break
     
     user_data[user_id_str]["level"] = new_level
-    save_user_data()  # บันทึกข้อมูล
+    
+    # ✅ บันทึกข้อมูลทันทีเมื่อมีการเปลี่ยนแปลง
+    save_user_data()
     
     if new_level != old_level:
         await update_user_roles(user_id, guild, old_level, new_level)
@@ -1115,7 +1144,7 @@ async def qr(ctx):
     except:
         pass
     
-    # ✅ แก้ไขตามข้อ 3
+    # ✅ แก้ไขตามข้อ 3 - ใช้รูปภาพจาก ID ที่ให้มา
     embed = discord.Embed(
         title="⚠️โน๊ตใต้สลิประบุชื่อสินค้าที่ซื้อด้วย⚠️ ช่องทางการโอนเงิน",
         color=0x00CCFF
@@ -1133,13 +1162,12 @@ async def qr(ctx):
         inline=False
     )
     
-    # ✅ ใช้ลิงก์รูปภาพใหม่ตามที่ต้องการ (ข้อ 3)
-    embed.set_image(url="https://discord.com/channels/@me/1434946668482007091/1444689330911051907/noFilter.png")
+    embed.set_image(url="https://cdn.discordapp.com/attachments/1360990259311018077/1444373113616728204/qr_code.png")
     
     # ✅ ส่ง embed พร้อมปุ่มคัดลอกเลขบัญชี
     qr_view = QRView()
     await ctx.send(embed=embed, view=qr_view)
-
+    
 # =======================================================================================
 # ✅ อัพเดทช่องหลัก (แก้ไขข้อ 4, 5)
 # =======================================================================================
@@ -1477,6 +1505,25 @@ async def on_command_error(ctx, error):
         await ctx.send("❌ เกิดข้อผิดพลาดในการดำเนินการ", delete_after=5)
 
 # =======================================================================================
+# ✅ Events สำหรับบันทึกข้อมูลเมื่อบอทปิด
+# =======================================================================================
+
+@bot.event
+async def on_disconnect():
+    """บันทึกข้อมูลเมื่อบอทตัดการเชื่อมต่อ"""
+    print("💾 กำลังบันทึกข้อมูลก่อนปิดบอท...")
+    save_user_data()
+    save_ticket_transcripts()
+
+@bot.event
+async def close():
+    """บันทึกข้อมูลเมื่อบอทปิด"""
+    print("💾 บันทึกข้อมูลสุดท้าย...")
+    save_user_data()
+    save_ticket_transcripts()
+    await super().close()
+    
+# =======================================================================================
 # ✅ ฟังก์ชันเช็คเลเวลผู้ใช้
 # =======================================================================================
 
@@ -1688,6 +1735,114 @@ async def check_stale_tickets():
                 del ticket_activity[channel_id]
 
 # =======================================================================================
+# ✅ คำสั่งจัดการข้อมูล
+# =======================================================================================
+
+@bot.command()
+@admin_only()
+async def backup_data(ctx):
+    """สร้าง backup ข้อมูล"""
+    try:
+        save_user_data()
+        save_ticket_transcripts()
+        
+        # ตรวจสอบว่าไฟล์มีอยู่จริง
+        user_file_exists = os.path.exists(user_data_file)
+        ticket_file_exists = os.path.exists(ticket_transcripts_file)
+        
+        embed = discord.Embed(
+            title="✅ สร้าง backup ข้อมูลเรียบร้อยแล้ว",
+            color=0x00FF00
+        )
+        embed.add_field(name="👥 ข้อมูลผู้ใช้", value="✅ บันทึกแล้ว" if user_file_exists else "❌ ไม่พบไฟล์", inline=True)
+        embed.add_field(name="📝 ประวัติตั๋ว", value="✅ บันทึกแล้ว" if ticket_file_exists else "❌ ไม่พบไฟล์", inline=True)
+        embed.add_field(name="📁 ไฟล์ backup", value="สร้างไฟล์ .backup แล้ว", inline=False)
+        
+        await ctx.send(embed=embed, delete_after=15)
+    except Exception as e:
+        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
+
+@bot.command()
+@admin_only()
+async def data_status(ctx):
+    """ตรวจสอบสถานะข้อมูล"""
+    try:
+        user_count = len(user_data)
+        ticket_count = len(ticket_transcripts)
+        
+        # ตรวจสอบขนาดไฟล์
+        user_file_size = os.path.getsize(user_data_file) if os.path.exists(user_data_file) else 0
+        ticket_file_size = os.path.getsize(ticket_transcripts_file) if os.path.exists(ticket_transcripts_file) else 0
+        
+        user_file_exists = os.path.exists(user_data_file)
+        ticket_file_exists = os.path.exists(ticket_transcripts_file)
+        
+        embed = discord.Embed(
+            title="📊 สถานะข้อมูล",
+            color=0x00FF99
+        )
+        embed.add_field(name="👥 จำนวนผู้ใช้", value=f"{user_count} users", inline=True)
+        embed.add_field(name="📝 จำนวนตั๋วที่บันทึก", value=f"{ticket_count} tickets", inline=True)
+        embed.add_field(name="💾 ไฟล์ข้อมูลผู้ใช้", 
+                       value=f"✅ {user_file_size:,} bytes" if user_file_exists else "❌ ไม่พบไฟล์", 
+                       inline=False)
+        embed.add_field(name="📋 ไฟล์ประวัติตั๋ว", 
+                       value=f"✅ {ticket_file_size:,} bytes" if ticket_file_exists else "❌ ไม่พบไฟล์", 
+                       inline=False)
+        embed.add_field(name="🕒 อัพเดทล่าสุด", 
+                       value=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
+                       inline=False)
+        
+        await ctx.send(embed=embed)
+    except Exception as e:
+        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
+
+@bot.command()
+@admin_only()
+async def restore_backup(ctx, data_type: str = "all"):
+    """กู้คืนข้อมูลจาก backup (all, user, ticket)"""
+    try:
+        user_msg = ""
+        ticket_msg = ""
+        
+        if data_type.lower() in ["all", "user"]:
+            backup_file = f"{user_data_file}.backup"
+            if os.path.exists(backup_file):
+                with open(backup_file, 'r', encoding='utf-8') as f:
+                    global user_data
+                    user_data = json.load(f)
+                save_user_data()
+                user_msg = "✅ กู้คืนข้อมูลผู้ใช้เรียบร้อย"
+            else:
+                user_msg = "❌ ไม่พบไฟล์ backup ข้อมูลผู้ใช้"
+        
+        if data_type.lower() in ["all", "ticket"]:
+            backup_file = f"{ticket_transcripts_file}.backup"
+            if os.path.exists(backup_file):
+                with open(backup_file, 'r', encoding='utf-8') as f:
+                    global ticket_transcripts
+                    ticket_transcripts = json.load(f)
+                save_ticket_transcripts()
+                ticket_msg = "✅ กู้คืนประวัติตั๋วเรียบร้อย"
+            else:
+                ticket_msg = "❌ ไม่พบไฟล์ backup ประวัติตั๋ว"
+        
+        embed = discord.Embed(
+            title="🔄 ผลการกู้คืนข้อมูล",
+            color=0x00FF00
+        )
+        
+        if data_type.lower() in ["all", "user"]:
+            embed.add_field(name="👥 ข้อมูลผู้ใช้", value=user_msg, inline=False)
+        if data_type.lower() in ["all", "ticket"]:
+            embed.add_field(name="📝 ประวัติตั๋ว", value=ticket_msg, inline=False)
+            
+        await ctx.send(embed=embed, delete_after=15)
+        
+    except Exception as e:
+        await ctx.send(f"❌ เกิดข้อผิดพลาดในการกู้คืน: {e}", delete_after=10)
+
+# =======================================================================================
 # ✅ คำสั่งอื่นๆ ที่เหลือ (ให้คงเดิม)
 # =======================================================================================
 
@@ -1817,6 +1972,7 @@ async def reset_exp(ctx, member: discord.Member = None):
 
 # --------------------------------------------------------------------------------------------------
 # คำสั่งพื้นฐาน
+
 @bot.command(name='help')
 async def help_command(ctx):
     help_embed = discord.Embed(
@@ -1832,11 +1988,15 @@ async def help_command(ctx):
                    "`/group <จำนวน>` - คำนวณราคา Group\n"
                    "`/baht_gamepass <จำนวน>` - คำนวณ Robux จากเงิน (Gamepass)\n"
                    "`/baht_group <จำนวน>` - คำนวณ Robux จากเงิน (Group)\n"
-                   "`/tax <จำนวน>` - คำนวณ Robux หลังหักภาษี\n"
+                   "`/tax <จำนวน>` - คำนวณ Robux หลังหักภาษี\n\n"
                    "**คำสั่งทั่วไป:**\n"
                    "`!level` - เช็คเลเวลและ EXP ของคุณ\n"
                    "`!rate <rate>` - เปลี่ยนเรท Gamepass\n"
-                   "`!rate group <low> <high>` - เปลี่ยนเรท Group\n"
+                   "`!rate group <low> <high>` - เปลี่ยนเรท Group\n\n"
+                   "**คำสั่งจัดการข้อมูล:**\n"
+                   "`!backup_data` - สร้าง backup ข้อมูล\n"
+                   "`!data_status` - ตรวจสอบสถานะข้อมูล\n"
+                   "`!restore_backup <all/user/ticket>` - กู้คืนข้อมูลจาก backup\n\n"
                    "**คำสั่งผู้ดูแลระบบเท่านั้น:**\n"
                    "`!stock` - ตรวจสอบ stock\n"
                    "`!sushi` - เปิด/ปิดร้าน\n"
@@ -2301,6 +2461,7 @@ async def test(ctx):
 
 # --------------------------------------------------------------------------------------------------
 # คำสั่งสำหรับตรวจสอบ DM
+    
 @bot.command()
 @admin_only()
 async def test_dm(ctx, user_id: str = None):
@@ -2663,6 +2824,3 @@ try:
     bot.run(os.getenv("TOKEN"))
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
-
-
-
