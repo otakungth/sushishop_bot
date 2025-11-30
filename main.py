@@ -30,7 +30,7 @@ group_ticket_enabled = True
 MAIN_CHANNEL_ID = 1361044752975532152
 SALES_LOG_CHANNEL_ID = 1402993077643120720
 CREDIT_CHANNEL_ID = 1363250076549382246
-gamepass_stock = 0
+gamepass_stock = 30000
 group_stock = 0
 
 # เก็บข้อมูลโน้ตส่วนตัว
@@ -130,7 +130,7 @@ class MyBot(commands.Bot):
         """ตั้งค่าและ sync คำสั่งสำหรับ User Install (Global DM)"""
         print("🔄 กำลังตั้งค่า slash commands สำหรับ User Install...")
         
-        # ✅ โหลดข้อมูลทั้งหมดเมื่อบอทเริ่มทำงาน (ข้อ 1)
+        # ✅ โหลดข้อมูลทั้งหมดเมื่อบอทเริ่มทำงาน
         global user_data, ticket_transcripts
         user_data = load_user_data()
         ticket_transcripts = load_ticket_transcripts()
@@ -184,7 +184,7 @@ LEVELS = {
 print("🔄 กำลังเริ่มต้นบอท...")
 
 # =======================================================================================
-# ✅ ระบบนับเครดิต (ข้อ 2)
+# ✅ ระบบนับเครดิต
 # =======================================================================================
 
 async def update_credit_channel():
@@ -210,7 +210,7 @@ async def update_credit_channel():
         print(f"❌ เกิดข้อผิดพลาดในการอัพเดทช่องเครดิต: {e}")
 
 # =======================================================================================
-# ✅ ฟังก์ชันบันทึกประวัติแชทในตั๋ว (ข้อ 4, 5)
+# ✅ ฟังก์ชันบันทึกประวัติแชทในตั๋ว
 # =======================================================================================
 
 async def create_transcript_file(transcript_data):
@@ -249,7 +249,7 @@ async def create_transcript_file(transcript_data):
 async def send_transcript_to_channel(transcript_data, transcript_text, channel):
     """ส่งประวัติตั๋วไปยังห้องที่กำหนด"""
     try:
-        # ✅ ห้องที่ต้องการส่งประวัติ (ข้อ 2)
+        # ✅ ห้องที่ต้องการส่งประวัติ
         target_channel_id = 1444700057885474846
         target_channel = bot.get_channel(target_channel_id)
         
@@ -260,14 +260,13 @@ async def send_transcript_to_channel(transcript_data, transcript_text, channel):
         # สร้าง embed สรุป
         embed = discord.Embed(
             title=f"📝 ประวัติตั๋ว: {transcript_data['channel_name']}",
-            color=0x00FF99,
-            timestamp=datetime.datetime.now()
+            color=0x00FF99
         )
         embed.add_field(name="📂 หมวดหมู่", value=transcript_data['category'], inline=True)
         embed.add_field(name="🆔 ID ตั๋ว", value=transcript_data['channel_id'], inline=True)
         embed.add_field(name="👤 ปิดโดย", value=transcript_data['closed_by'], inline=True)
         embed.add_field(name="💬 จำนวนข้อความ", value=len(transcript_data['messages']), inline=True)
-        embed.add_field(name="⏰ วันที่บันทึก", value=transcript_data['created_at'][:19], inline=True)
+        embed.add_field(name="⏰ วันที่บันทึก", value=transcript_data['created_at'][:19].replace('T', ' '), inline=True)
         
         # ส่ง embed และไฟล์ transcript
         file_content = transcript_text.encode('utf-8')
@@ -318,7 +317,7 @@ async def save_ticket_transcript(channel, action_by=None):
         # สร้างไฟล์ transcript
         transcript_text = await create_transcript_file(transcript_data)
         
-        # ✅ ส่งไปยังห้องที่กำหนด (ข้อ 2) - ห้อง 1444700057885474846
+        # ✅ ส่งไปยังห้องที่กำหนด
         await send_transcript_to_channel(transcript_data, transcript_text, channel)
         
         print(f"✅ บันทึกประวัติตั๋วเรียบร้อย: {channel.name}")
@@ -329,7 +328,7 @@ async def save_ticket_transcript(channel, action_by=None):
         return None
 
 # =======================================================================================
-# ✅ View สำหรับส่งสินค้า (ข้อ 5)
+# ✅ View สำหรับส่งสินค้า
 # =======================================================================================
 
 class DeliveryView(View):
@@ -345,7 +344,7 @@ class DeliveryView(View):
     async def deliver_product(self, interaction: discord.Interaction, button: Button):
         """ปุ่มส่งสินค้า (เฉพาะแอดมิน)"""
         try:
-            # ✅ ตรวจสอบสิทธิ์แอดมิน - แก้ไขให้แอดมินกดได้
+            # ✅ ตรวจสอบสิทธิ์แอดมิน
             admin_role = interaction.guild.get_role(1361016912259055896)
             if not admin_role or admin_role not in interaction.user.roles:
                 await interaction.response.send_message("❌ คุณไม่มีสิทธิ์ใช้ปุ่มนี้", ephemeral=True)
@@ -410,17 +409,19 @@ class ConfirmDeliveryView(View):
     async def confirm_delivery(self, interaction: discord.Interaction, button: Button):
         """ยืนยันการส่งสินค้า"""
         try:
-            # สร้าง embed ใบเสร็จการสั่งซื้อ (ข้อ 4)
+            # สร้าง embed ใบเสร็จการสั่งซื้อ
             receipt_color = 0xFFA500  # สีส้มสำหรับ Gamepass
             if self.product_type == "Group":
                 receipt_color = 0x00FFFF  # สีฟ้าแบบ Cyan
             elif self.product_type == "Limited":
                 receipt_color = 0x00FF00  # สีเขียว
             
+            # ✅ แก้ไขเวลาให้แสดงครั้งเดียว
+            current_time = datetime.datetime.now()
+            
             receipt_embed = discord.Embed(
                 title=f"🍣 ใบเสร็จการสั่งซื้อ ({self.product_type}) 🍣",
-                color=receipt_color,
-                timestamp=datetime.datetime.now()
+                color=receipt_color
             )
             
             receipt_embed.add_field(name="😊 ผู้ซื้อ", value=self.buyer.mention if self.buyer else "ไม่ทราบ", inline=False)
@@ -430,7 +431,7 @@ class ConfirmDeliveryView(View):
             if self.delivery_image:
                 receipt_embed.set_image(url=self.delivery_image)
             
-            receipt_embed.set_footer(text=f"จัดส่งสินค้าสำเร็จ 🤗 • {datetime.datetime.now().strftime('%d/%m/%y, %H:%M')}")
+            receipt_embed.set_footer(text=f"จัดส่งสินค้าสำเร็จ 🤗 • {current_time.strftime('%d/%m/%y, %H:%M')}")
             
             # ส่งไปยังห้องบันทึกการขาย
             log_channel = bot.get_channel(SALES_LOG_CHANNEL_ID)
@@ -441,7 +442,7 @@ class ConfirmDeliveryView(View):
             # ส่งข้อความในตั๋ว
             await self.channel.send(embed=receipt_embed)
             
-            # ✅ บันทึกประวัติตั๋วและส่งไปยังห้องที่กำหนด (ข้อ 2)
+            # ✅ บันทึกประวัติตั๋วและส่งไปยังห้องที่กำหนด
             await save_ticket_transcript(self.channel, interaction.user)
             
             await interaction.response.edit_message(
@@ -469,7 +470,7 @@ class ConfirmDeliveryView(View):
 # =======================================================================================
 
 # --------------------------------------------------------------------------------------------------
-# ✅ View สำหรับ QR Code (แก้ไขข้อ 3)
+# ✅ View สำหรับ QR Code (แก้ไขข้อ 1)
 class QRView(View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -484,7 +485,7 @@ class QRView(View):
             await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
 
 # --------------------------------------------------------------------------------------------------
-# View สำหรับการดำเนินการในตั๋ว (แก้ไขข้อ 3 - ปุ่มปิดตั๋วเฉพาะแอดมิน)
+# View สำหรับการดำเนินการในตั๋ว
 class TicketActionView(View):
     def __init__(self, channel, user, modal_class):
         super().__init__(timeout=None)
@@ -503,7 +504,7 @@ class TicketActionView(View):
     @discord.ui.button(label="🔒 ปิดตั๋ว", style=discord.ButtonStyle.danger, emoji="🔒")
     async def close_ticket(self, interaction: discord.Interaction, button: Button):
         try:
-            # ✅ ตรวจสอบสิทธิ์เฉพาะแอดมิน (ข้อ 3)
+            # ✅ ตรวจสอบสิทธิ์เฉพาะแอดมิน
             admin_role = interaction.guild.get_role(1361016912259055896)
             if admin_role and admin_role in interaction.user.roles:
                 await interaction.response.send_message("📪 กำลังปิดตั๋ว...")
@@ -515,7 +516,7 @@ class TicketActionView(View):
             await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการปิดตั๋ว", ephemeral=True)
 
 # --------------------------------------------------------------------------------------------------
-# View สำหรับให้เครดิต (แก้ไขข้อ 5 - บันทึกประวัติเมื่อผู้ใช้กดปิดตั๋ว)
+# View สำหรับให้เครดิต (แก้ไขข้อ 2)
 class GiveCreditView(discord.ui.View):
     def __init__(self, channel):
         super().__init__(timeout=None)
@@ -531,7 +532,7 @@ class GiveCreditView(discord.ui.View):
             )
         )
         
-        # ✅ เพิ่มปุ่มปิดตั๋วที่ผู้ใช้ทั่วไปกดได้ (ข้อ 5)
+        # ✅ เพิ่มปุ่มปิดตั๋วที่ผู้ใช้ทั่วไปกดได้
         close_button = Button(
             label="🔒 ปิดตั๋ว", 
             style=discord.ButtonStyle.danger, 
@@ -542,9 +543,9 @@ class GiveCreditView(discord.ui.View):
         self.add_item(close_button)
 
     async def user_close_ticket(self, interaction: discord.Interaction):
-        """ฟังก์ชันปิดตั๋วที่ผู้ใช้ทั่วไปกดได้ (ข้อ 5)"""
+        """ฟังก์ชันปิดตั๋วที่ผู้ใช้ทั่วไปกดได้"""
         try:
-            # ✅ บันทึกประวัติตั๋วก่อนปิด (ข้อ 5)
+            # ✅ บันทึกประวัติตั๋วก่อนปิด
             await save_ticket_transcript(self.channel, interaction.user)
             
             await interaction.response.send_message("📪 กำลังปิดตั๋ว... ขอบคุณที่ใช้บริการ!")
@@ -570,7 +571,7 @@ def admin_only():
     return commands.check(predicate)
 
 # --------------------------------------------------------------------------------------------------
-# ฟังก์ชันจัดการเลเวลและ EXP (แก้ไขข้อ 2 - บันทึกข้อมูล)
+# ฟังก์ชันจัดการเลเวลและ EXP
 async def add_exp(user_id, exp_amount, guild):
     """เพิ่ม EXP ให้ผู้ใช้และอัพเดทเลเวล"""
     user_id_str = str(user_id)
@@ -723,8 +724,7 @@ class GamepassTicketModal(Modal, title="📋 แบบฟอร์มกดเ�
 
             customer_embed = discord.Embed(
                 title="📨 รายละเอียดการสั่งซื้อ", 
-                color=0x00FF99,
-                timestamp=discord.utils.utcnow()
+                color=0x00FF99
             )
             customer_embed.add_field(name="🗺️ แมพ", value=self.map_name.value, inline=False)
             customer_embed.add_field(name="🎟 เกมพาส", value=self.gamepass_name.value, inline=False)
@@ -770,8 +770,7 @@ class GroupTicketModal(Modal, title="📋 แบบฟอร์มสั่ง�
 
             customer_embed = discord.Embed(
                 title="📨 รายละเอียดคำสั่งซื้อโรบัคกลุ่ม", 
-                color=0x00FF99,
-                timestamp=discord.utils.utcnow()
+                color=0x00FF99
             )
             customer_embed.add_field(name="🪪 ชื่อในเกม", value=self.user_name.value, inline=False)
             customer_embed.add_field(name="💸 จำนวนโรบัค", value=f"{robux:,}", inline=True)
@@ -941,7 +940,7 @@ async def handle_open_ticket(interaction, category_name, modal_class, stock_type
                 pass
 
 # =======================================================================================
-# ✅ คำสั่ง !od, !odg, !odl (แก้ไขข้อ 6)
+# ✅ คำสั่ง !od, !odg, !odl
 # =======================================================================================
 
 @bot.command()
@@ -989,22 +988,23 @@ async def od(ctx, *, expression: str):
         if gamepass_stock < 0:
             gamepass_stock = 0
         
-        # ✅ สร้าง Embed คำสั่งซื้อสินค้าใหม่ (ข้อ 6)
+        # ✅ สร้าง Embed คำสั่งซื้อสินค้าใหม่
+        current_time = datetime.datetime.now()
+        
         order_embed = discord.Embed(
             title="🍣คำสั่งซื้อสินค้า🍣",
-            color=0xFFA500,
-            timestamp=datetime.datetime.now()
+            color=0xFFA500
         )
         order_embed.add_field(name="📦 ประเภทสินค้า", value="Gamepass", inline=False)
         order_embed.add_field(name="💸 จำนวน Robux", value=f"{robux:,}", inline=True)
         order_embed.add_field(name="💰 ราคาตามเรท", value=f"{price:,.0f} บาท", inline=True)
-        order_embed.set_footer(text=f"รับออร์เดอร์แล้ว 🤗 • {datetime.datetime.now().strftime('%d/%m/%y, %H:%M')}")
+        order_embed.set_footer(text=f"รับออร์เดอร์แล้ว 🤗 • {current_time.strftime('%d/%m/%y, %H:%M')}")
         
         # ✅ ส่ง Embed พร้อมปุ่ม DeliveryView
         delivery_view = DeliveryView(ctx.channel, "Gamepass", robux, price, buyer)
         await ctx.send(embed=order_embed, view=delivery_view)
 
-        # ✅ อัพเดทช่องหลัก (ข้อ 4)
+        # ✅ อัพเดทช่องหลัก
         await update_main_channel()
 
     except Exception as e:
@@ -1056,22 +1056,23 @@ async def odg(ctx, *, expression: str):
         if group_stock < 0:
             group_stock = 0
         
-        # ✅ สร้าง Embed คำสั่งซื้อสินค้าใหม่ (ข้อ 6)
+        # ✅ สร้าง Embed คำสั่งซื้อสินค้าใหม่
+        current_time = datetime.datetime.now()
+        
         order_embed = discord.Embed(
             title="🍣คำสั่งซื้อสินค้า🍣",
-            color=0x00FFFF,  # สีฟ้าแบบ Cyan
-            timestamp=datetime.datetime.now()
+            color=0x00FFFF  # สีฟ้าแบบ Cyan
         )
         order_embed.add_field(name="📦 ประเภทสินค้า", value="Group", inline=False)
         order_embed.add_field(name="💸 จำนวน Robux", value=f"{robux:,}", inline=True)
         order_embed.add_field(name="💰 ราคาตามเรท", value=f"{price:,.0f} บาท", inline=True)
-        order_embed.set_footer(text=f"รับออร์เดอร์แล้ว 🤗 • {datetime.datetime.now().strftime('%d/%m/%y, %H:%M')}")
+        order_embed.set_footer(text=f"รับออร์เดอร์แล้ว 🤗 • {current_time.strftime('%d/%m/%y, %H:%M')}")
         
         # ✅ ส่ง Embed พร้อมปุ่ม DeliveryView
         delivery_view = DeliveryView(ctx.channel, "Group", robux, price, buyer)
         await ctx.send(embed=order_embed, view=delivery_view)
 
-        # ✅ อัพเดทช่องหลัก (ข้อ 4)
+        # ✅ อัพเดทช่องหลัก
         await update_main_channel()
 
     except Exception as e:
@@ -1114,16 +1115,17 @@ async def odl(ctx, item_name: str, value: str):
         else:
             print("⚠️ ไม่พบผู้ซื้อในการเพิ่ม EXP")
 
-        # ✅ สร้าง Embed คำสั่งซื้อสินค้าใหม่ (ข้อ 6)
+        # ✅ สร้าง Embed คำสั่งซื้อสินค้าใหม่
+        current_time = datetime.datetime.now()
+        
         order_embed = discord.Embed(
             title="🍣คำสั่งซื้อสินค้า🍣",
-            color=0x00FF00,  # สีเขียว
-            timestamp=datetime.datetime.now()
+            color=0x00FF00  # สีเขียว
         )
         order_embed.add_field(name="📦 ประเภทสินค้า", value="Limited", inline=False)
         order_embed.add_field(name="🎁 ชื่อไอเทม", value=item_name, inline=True)
         order_embed.add_field(name="💰 ราคา", value=f"{item_value:,} บาท", inline=True)
-        order_embed.set_footer(text=f"รับออร์เดอร์แล้ว 🤗 • {datetime.datetime.now().strftime('%d/%m/%y, %H:%M')}")
+        order_embed.set_footer(text=f"รับออร์เดอร์แล้ว 🤗 • {current_time.strftime('%d/%m/%y, %H:%M')}")
         
         # ✅ ส่ง Embed พร้อมปุ่ม DeliveryView
         delivery_view = DeliveryView(ctx.channel, "Limited", 0, item_value, buyer)
@@ -1133,7 +1135,7 @@ async def odl(ctx, item_name: str, value: str):
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
 
 # =======================================================================================
-# ✅ คำสั่ง !qr (แก้ไขข้อ 3)
+# ✅ คำสั่ง !qr (แก้ไขข้อ 1)
 # =======================================================================================
 
 @bot.command()
@@ -1144,7 +1146,7 @@ async def qr(ctx):
     except:
         pass
     
-    # ✅ แก้ไขตามข้อ 3 - ใช้รูปภาพจาก ID ที่ให้มา
+    # ✅ แก้ไขตามข้อ 1 - ใช้ URL ที่ให้มา
     embed = discord.Embed(
         title="⚠️โน๊ตใต้สลิประบุชื่อสินค้าที่ซื้อด้วย⚠️ ช่องทางการโอนเงิน",
         color=0x00CCFF
@@ -1162,14 +1164,16 @@ async def qr(ctx):
         inline=False
     )
     
-    embed.set_image(url="https://cdn.discordapp.com/attachments/1360990259311018077/1444373113616728204/qr_code.png")
+    # ✅ ใช้ URL รูปภาพที่ให้มา (ข้อ 1)
+    qr_url = "https://media.discordapp.net/attachments/1361004239043821610/1444373113319198840/160-1-43871-9_1.png?ex=692d2189&is=692bd009&hm=dd539f3a1acd87cb62430c3b7e13fe44c03cec7b86087ad84397a874b5ee0c8b&=&format=webp&quality=lossless&width=1161&height=1058"
+    embed.set_image(url=qr_url)
     
     # ✅ ส่ง embed พร้อมปุ่มคัดลอกเลขบัญชี
     qr_view = QRView()
     await ctx.send(embed=embed, view=qr_view)
     
 # =======================================================================================
-# ✅ อัพเดทช่องหลัก (แก้ไขข้อ 4, 5)
+# ✅ อัพเดทช่องหลัก
 # =======================================================================================
 
 async def update_main_channel():
@@ -1191,11 +1195,10 @@ async def update_main_channel():
         
         embed = discord.Embed(
             title="🍣 Sushi Shop 🍣 เปิดให้บริการ",
-            color=0xFFA500,
-            timestamp=discord.utils.utcnow()
+            color=0xFFA500
         )
         
-        # ✅ แก้ไขรูปแบบตามข้อ 3, 4, 5
+        # ✅ แก้ไขรูปแบบ
         gamepass_status = "🟢" if gamepass_stock > 0 else "🔴"
         group_status = "🟢" if group_stock > 0 else "🔴"
         shop_status = "🟢 เปิด" if shop_open else "🔴 ปิดชั่วคราว"
@@ -1222,7 +1225,7 @@ async def update_main_channel():
             inline=False
         )
         
-        # ✅ แก้ไขตามข้อ 5 - รวมสถานะร้านในบรรทัดเดียว
+        # ✅ รวมสถานะร้านในบรรทัดเดียว
         embed.add_field(
             name="🏪 สถานะร้าน",
             value=f"```\n{shop_status}\n```",
@@ -1362,12 +1365,12 @@ class MainShopView(View):
         await check_user_level(interaction)
 
 # =======================================================================================
-# ✅ Events (เพิ่มระบบนับเครดิต - ข้อ 2)
+# ✅ Events
 # =======================================================================================
 
 @bot.event
 async def on_message(message):
-    # ✅ ระบบนับเครดิต (ข้อ 2)
+    # ✅ ระบบนับเครดิต
     if message.channel.id == CREDIT_CHANNEL_ID and not message.author.bot:
         await update_credit_channel()
     
@@ -1432,7 +1435,7 @@ async def on_ready():
     print(f"✅ บอทออนไลน์แล้ว: {bot.user} (ID: {bot.user.id})")
     print(f"🌍 บอทพร้อมใช้งานใน: เซิร์ฟเวอร์, DM ส่วนตัว, และ Group DMs")
     
-    # ✅ โหลดข้อมูลผู้ใช้เมื่อบอทเริ่มทำงาน (ข้อ 1)
+    # ✅ โหลดข้อมูลผู้ใช้เมื่อบอทเริ่มทำงาน
     global user_data, ticket_transcripts
     user_data = load_user_data()
     ticket_transcripts = load_ticket_transcripts()
@@ -1483,7 +1486,7 @@ async def on_ready():
     # อัพเดทช่องหลัก
     await update_main_channel()
     
-    # ✅ อัพเดทช่องเครดิตเมื่อบอทเริ่มทำงาน (ข้อ 2)
+    # ✅ อัพเดทช่องเครดิตเมื่อบอทเริ่มทำงาน
     await update_credit_channel()
     
     print("\n🎯 บอทพร้อมใช้งานเต็มที่!")
@@ -1596,7 +1599,7 @@ async def check_user_level(interaction: discord.Interaction):
         await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการเช็คเลเวล", ephemeral=True)
 
 # =======================================================================================
-# ✅ คำสั่ง !ty (แก้ไขให้ใช้ GiveCreditView ใหม่)
+# ✅ คำสั่ง !ty (แก้ไขข้อ 2)
 # =======================================================================================
 
 @bot.command()
@@ -1621,6 +1624,9 @@ async def ty(ctx):
                 await ctx.channel.edit(category=delivered_category)
             except Exception as e:
                 print(f"❌ ไม่สามารถย้ายหมวดหมู่: {e}")
+
+        # ✅ บันทึกประวัติตั๋วก่อนส่งข้อความ (แก้ไขข้อ 2)
+        await save_ticket_transcript(ctx.channel, ctx.author)
 
         # ✅ ใช้ GiveCreditView ใหม่ที่มีปุ่มปิดตั๋วสำหรับผู้ใช้
         credit_view = GiveCreditView(ctx.channel)
@@ -1648,7 +1654,7 @@ async def ty(ctx):
         await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
 
 # =======================================================================================
-# ✅ ระบบติดตามกิจกรรมในตั๋ว (โค้ดเดิม)
+# ✅ ระบบติดตามกิจกรรมในตั๋ว
 # =======================================================================================
 
 async def start_auto_close_countdown(channel):
@@ -1843,7 +1849,7 @@ async def restore_backup(ctx, data_type: str = "all"):
         await ctx.send(f"❌ เกิดข้อผิดพลาดในการกู้คืน: {e}", delete_after=10)
 
 # =======================================================================================
-# ✅ คำสั่งอื่นๆ ที่เหลือ (ให้คงเดิม)
+# ✅ คำสั่งอื่นๆ ที่เหลือ
 # =======================================================================================
 
 # --------------------------------------------------------------------------------------------------
@@ -2014,7 +2020,7 @@ async def help_command(ctx):
     await ctx.send(embed=help_embed, delete_after=30)
 
 # --------------------------------------------------------------------------------------------------
-# คำสั่งจัดการ Stock (แก้ไขข้อ 4)
+# คำสั่งจัดการ Stock
 @bot.command()
 @admin_only()
 async def stock(ctx, stock_type: str = None, amount: str = None):
@@ -2028,8 +2034,7 @@ async def stock(ctx, stock_type: str = None, amount: str = None):
     if stock_type is None:
         embed = discord.Embed(
             title="📊 สต๊อกสินค้า",
-            color=0x00FF99,
-            timestamp=discord.utils.utcnow()
+            color=0x00FF99
         )
         embed.add_field(
             name="🎮 Gamepass Stock", 
@@ -2084,7 +2089,7 @@ async def stock(ctx, stock_type: str = None, amount: str = None):
                 
                 response_msg = await ctx.send(embed=embed)
                 
-                # ✅ อัพเดทช่องหลัก (ข้อ 4)
+                # ✅ อัพเดทช่องหลัก
                 await update_main_channel()
                 
                 await asyncio.sleep(5)
@@ -2137,7 +2142,7 @@ async def stock(ctx, stock_type: str = None, amount: str = None):
                 
                 response_msg = await ctx.send(embed=embed)
                 
-                # ✅ อัพเดทช่องหลัก (ข้อ 4)
+                # ✅ อัพเดทช่องหลัก
                 await update_main_channel()
                 
                 await asyncio.sleep(5)
@@ -2188,8 +2193,7 @@ async def rate(ctx, rate_type: str = None, low_rate: str = None, high_rate: str 
     if rate_type is None:
         embed = discord.Embed(
             title="📊 อัตราแลกเปลี่ยนปัจจุบัน",
-            color=0x00FF99,
-            timestamp=discord.utils.utcnow()
+            color=0x00FF99
         )
         embed.add_field(
             name="🎮 Gamepass Rate", 
