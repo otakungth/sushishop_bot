@@ -30,7 +30,8 @@ group_ticket_enabled = True
 MAIN_CHANNEL_ID = 1361044752975532152
 SALES_LOG_CHANNEL_ID = 1402993077643120720
 CREDIT_CHANNEL_ID = 1363250076549382246
-gamepass_stock = 30000
+TRANSCRIPT_CHANNEL_ID = 1444700057885474846  # ✅ กำหนด ID ห้อง transcript
+gamepass_stock = 0
 group_stock = 0
 
 # เก็บข้อมูลโน้ตส่วนตัว
@@ -210,7 +211,7 @@ async def update_credit_channel():
         print(f"❌ เกิดข้อผิดพลาดในการอัพเดทช่องเครดิต: {e}")
 
 # =======================================================================================
-# ✅ ฟังก์ชันบันทึกประวัติแชทในตั๋ว
+# ✅ ฟังก์ชันบันทึกประวัติแชทในตั๋ว - FIXED VERSION
 # =======================================================================================
 
 async def create_transcript_file(transcript_data):
@@ -246,15 +247,14 @@ async def create_transcript_file(transcript_data):
         print(f"❌ เกิดข้อผิดพลาดในการสร้างไฟล์ transcript: {e}")
         return f"❌ เกิดข้อผิดพลาดในการสร้าง transcript: {e}"
 
-async def send_transcript_to_channel(transcript_data, transcript_text, channel):
+async def send_transcript_to_channel(transcript_data, transcript_text):
     """ส่งประวัติตั๋วไปยังห้องที่กำหนด"""
     try:
         # ✅ ห้องที่ต้องการส่งประวัติ
-        target_channel_id = 1444700057885474846
-        target_channel = bot.get_channel(target_channel_id)
+        target_channel = bot.get_channel(TRANSCRIPT_CHANNEL_ID)
         
         if not target_channel:
-            print(f"❌ ไม่พบห้องเป้าหมาย ID: {target_channel_id}")
+            print(f"❌ ไม่พบห้องเป้าหมาย ID: {TRANSCRIPT_CHANNEL_ID}")
             return
         
         # สร้าง embed สรุป
@@ -318,7 +318,7 @@ async def save_ticket_transcript(channel, action_by=None):
         transcript_text = await create_transcript_file(transcript_data)
         
         # ✅ ส่งไปยังห้องที่กำหนด
-        await send_transcript_to_channel(transcript_data, transcript_text, channel)
+        await send_transcript_to_channel(transcript_data, transcript_text)
         
         print(f"✅ บันทึกประวัติตั๋วเรียบร้อย: {channel.name}")
         return transcript_text
@@ -328,7 +328,7 @@ async def save_ticket_transcript(channel, action_by=None):
         return None
 
 # =======================================================================================
-# ✅ View สำหรับส่งสินค้า
+# ✅ View สำหรับส่งสินค้า - FIXED VERSION
 # =======================================================================================
 
 class DeliveryView(View):
@@ -409,6 +409,16 @@ class ConfirmDeliveryView(View):
     async def confirm_delivery(self, interaction: discord.Interaction, button: Button):
         """ยืนยันการส่งสินค้า"""
         try:
+            # ✅ บันทึกประวัติตั๋วก่อนส่งสินค้า
+            transcript_result = await save_ticket_transcript(self.channel, interaction.user)
+            
+            if not transcript_result:
+                await interaction.response.send_message(
+                    "❌ เกิดข้อผิดพลาดในการบันทึกประวัติตั๋ว กรุณาลองใหม่อีกครั้ง",
+                    ephemeral=True
+                )
+                return
+
             # สร้าง embed ใบเสร็จการสั่งซื้อ
             receipt_color = 0xFFA500  # สีส้มสำหรับ Gamepass
             if self.product_type == "Group":
@@ -442,14 +452,19 @@ class ConfirmDeliveryView(View):
             # ส่งข้อความในตั๋ว
             await self.channel.send(embed=receipt_embed)
             
-            # ✅ บันทึกประวัติตั๋วและส่งไปยังห้องที่กำหนด
-            await save_ticket_transcript(self.channel, interaction.user)
-            
             await interaction.response.edit_message(
                 content="✅ บันทึกการส่งสินค้าเรียบร้อยและส่งประวัติตั๋วไปยังห้องที่กำหนดแล้ว",
                 embed=None,
                 view=None
             )
+            
+            # ✅ ส่งข้อความยืนยันในตั๋ว
+            success_embed = discord.Embed(
+                title="✅ บันทึกการส่งสินค้าเรียบร้อย",
+                description="ประวัติตั๋วถูกส่งไปยังห้อง transcript แล้ว",
+                color=0x00FF00
+            )
+            await self.channel.send(embed=success_embed)
             
         except Exception as e:
             await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
@@ -507,6 +522,9 @@ class TicketActionView(View):
             # ✅ ตรวจสอบสิทธิ์เฉพาะแอดมิน
             admin_role = interaction.guild.get_role(1361016912259055896)
             if admin_role and admin_role in interaction.user.roles:
+                # ✅ บันทึกประวัติตั๋วก่อนปิด
+                await save_ticket_transcript(self.channel, interaction.user)
+                
                 await interaction.response.send_message("📪 กำลังปิดตั๋ว...")
                 await asyncio.sleep(2)
                 await self.channel.delete()
@@ -1599,7 +1617,7 @@ async def check_user_level(interaction: discord.Interaction):
         await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการเช็คเลเวล", ephemeral=True)
 
 # =======================================================================================
-# ✅ คำสั่ง !ty (แก้ไขข้อ 2)
+# ✅ คำสั่ง !ty (แก้ไขข้อ 2) - FIXED VERSION
 # =======================================================================================
 
 @bot.command()
@@ -1626,7 +1644,11 @@ async def ty(ctx):
                 print(f"❌ ไม่สามารถย้ายหมวดหมู่: {e}")
 
         # ✅ บันทึกประวัติตั๋วก่อนส่งข้อความ (แก้ไขข้อ 2)
-        await save_ticket_transcript(ctx.channel, ctx.author)
+        transcript_result = await save_ticket_transcript(ctx.channel, ctx.author)
+        
+        if not transcript_result:
+            await ctx.send("❌ เกิดข้อผิดพลาดในการบันทึกประวัติตั๋ว กรุณาลองใหม่อีกครั้ง")
+            return
 
         # ✅ ใช้ GiveCreditView ใหม่ที่มีปุ่มปิดตั๋วสำหรับผู้ใช้
         credit_view = GiveCreditView(ctx.channel)
