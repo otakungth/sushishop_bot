@@ -7,6 +7,7 @@ import re
 import asyncio
 import json
 import traceback
+import time
 
 from server import server_on
 
@@ -30,10 +31,10 @@ group_ticket_enabled = True
 MAIN_CHANNEL_ID = 1361044752975532152
 SALES_LOG_CHANNEL_ID = 1402993077643120720
 CREDIT_CHANNEL_ID = 1363250076549382246
-TRANSCRIPT_CHANNEL_ID = 1444700057885474846  # ห้อง transcript
+# ลบ TRANSCRIPT_CHANNEL_ID ออกเพราะลบห้องแล้ว
 ARCHIVED_CATEGORY_ID = 1445086228113264650  # ✅ Category สำหรับย้ายตั๋วหลัง !ty
-gamepass_stock = 0
-group_stock = 0
+gamepass_stock = 100  # ตั้งค่าเริ่มต้น
+group_stock = 100     # ตั้งค่าเริ่มต้น
 
 # เก็บข้อมูลโน้ตส่วนตัว
 user_notes = {}
@@ -109,6 +110,7 @@ class MyBot(commands.Bot):
             help_command=None,
             allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False)
         )
+        self.last_update_time = 0  # สำหรับป้องกัน rate limit
 
     async def setup_hook(self):
         """ตั้งค่าและ sync คำสั่งสำหรับ User Install (Global DM)"""
@@ -185,152 +187,51 @@ async def update_credit_channel():
         print(f"❌ เกิดข้อผิดพลาดในการอัพเดทช่องเครดิต: {e}")
 
 # =======================================================================================
-# ✅ ฟังก์ชันบันทึกประวัติแชทในตั๋ว - FIXED VERSION
+# ✅ ฟังก์ชันบันทึกประวัติแชทในตั๋ว - SIMPLIFIED VERSION
 # =======================================================================================
 
-async def create_transcript_file(transcript_data):
-    """สร้างไฟล์ transcript ในรูปแบบข้อความ"""
-    try:
-        transcript_lines = []
-        transcript_lines.append(f"📝 ประวัติแชทตั๋ว: {transcript_data['channel_name']}")
-        transcript_lines.append(f"📂 หมวดหมู่: {transcript_data['category']}")
-        transcript_lines.append(f"🆔 ID ตั๋ว: {transcript_data['channel_id']}")
-        transcript_lines.append(f"⏰ วันที่บันทึก: {transcript_data['created_at']}")
-        transcript_lines.append(f"👤 ปิดโดย: {transcript_data['closed_by']}")
-        transcript_lines.append("=" * 50)
-        transcript_lines.append("")
-        
-        for msg in transcript_data["messages"]:
-            timestamp = datetime.datetime.fromisoformat(msg["timestamp"]).strftime("%Y-%m-%d %H:%M:%S")
-            transcript_lines.append(f"[{timestamp}] {msg['author']}: {msg['content']}")
-            
-            # เพิ่มข้อมูล embed ถ้ามี
-            for embed in msg["embeds"]:
-                if "title" in embed:
-                    transcript_lines.append(f"   [EMBED] {embed['title']}")
-                if "description" in embed:
-                    transcript_lines.append(f"   [DESC] {embed['description']}")
-            
-            # เพิ่มข้อมูลไฟล์แนบ
-            for att in msg["attachments"]:
-                transcript_lines.append(f"   [ATTACHMENT] {att}")
-        
-        return "\n".join(transcript_lines)
-        
-    except Exception as e:
-        print(f"❌ เกิดข้อผิดพลาดในการสร้างไฟล์ transcript: {e}")
-        return f"❌ เกิดข้อผิดพลาดในการสร้าง transcript: {e}"
-
-async def send_transcript_to_channel(transcript_data, transcript_text):
-    """ส่งประวัติตั๋วไปยังห้องที่กำหนด"""
-    try:
-        # ✅ ห้องที่ต้องการส่งประวัติ
-        target_channel = bot.get_channel(TRANSCRIPT_CHANNEL_ID)
-        
-        if not target_channel:
-            print(f"❌ ไม่พบห้องเป้าหมาย ID: {TRANSCRIPT_CHANNEL_ID}")
-            return False
-        
-        # สร้าง embed สรุป
-        embed = discord.Embed(
-            title=f"📝 ประวัติตั๋ว: {transcript_data['channel_name']}",
-            color=0x00FF99
-        )
-        embed.add_field(name="📂 หมวดหมู่", value=transcript_data['category'], inline=True)
-        embed.add_field(name="🆔 ID ตั๋ว", value=transcript_data['channel_id'], inline=True)
-        embed.add_field(name="👤 ปิดโดย", value=transcript_data['closed_by'], inline=True)
-        embed.add_field(name="💬 จำนวนข้อความ", value=len(transcript_data['messages']), inline=True)
-        embed.add_field(name="⏰ วันที่บันทึก", value=transcript_data['created_at'][:19].replace('T', ' '), inline=True)
-        
-        # ส่ง embed และไฟล์ transcript
-        file_content = transcript_text.encode('utf-8')
-        transcript_file = discord.File(
-            filename=f"transcript_{transcript_data['channel_name']}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
-            file=file_content
-        )
-        
-        await target_channel.send(embed=embed, file=transcript_file)
-        print(f"✅ ส่งประวัติตั๋วไปยังห้อง #{target_channel.name} แล้ว: {transcript_data['channel_name']}")
-        
-        return True
-        
-    except Exception as e:
-        print(f"❌ เกิดข้อผิดพลาดในการส่ง transcript ไปยังห้อง: {e}")
-        return False
-
 async def save_ticket_transcript(channel, action_by=None):
-    """บันทึกประวัติแชทในตั๋วและส่งไปยังห้องที่กำหนด - FIXED VERSION"""
+    """บันทึกประวัติแชทในตั๋วแบบง่ายๆ"""
     try:
-        # เก็บข้อมูลตั๋ว
+        print(f"📝 กำลังบันทึกประวัติตั๋ว: {channel.name}")
+        
+        # เก็บข้อมูลตั๋วแบบง่ายๆ
         transcript_data = {
             "channel_name": channel.name,
             "channel_id": channel.id,
             "category": channel.category.name if channel.category else "ไม่มีหมวดหมู่",
             "created_at": datetime.datetime.now().isoformat(),
             "closed_by": str(action_by) if action_by else "ระบบอัตโนมัติ",
-            "messages": []
+            "messages_count": 0
         }
         
-        # เก็บข้อความทั้งหมดในตั๋ว
-        messages = []
+        # นับข้อความแบบง่ายๆ (ไม่เก็บเนื้อหาเพื่อลดภาระ)
+        message_count = 0
         try:
-            async for message in channel.history(limit=None, oldest_first=True):
-                message_data = {
-                    "timestamp": message.created_at.isoformat(),
-                    "author": str(message.author),
-                    "author_id": message.author.id,
-                    "content": message.content,
-                    "embeds": [embed.to_dict() for embed in message.embeds],
-                    "attachments": [att.url for att in message.attachments],
-                    "message_id": message.id
-                }
-                messages.append(message_data)
-        except Exception as e:
-            print(f"⚠️ ไม่สามารถดึงประวัติข้อความทั้งหมด: {e}")
-            # ดึงเฉพาะข้อความล่าสุด
-            try:
-                async for message in channel.history(limit=100, oldest_first=True):
-                    message_data = {
-                        "timestamp": message.created_at.isoformat(),
-                        "author": str(message.author),
-                        "author_id": message.author.id,
-                        "content": message.content,
-                        "embeds": [embed.to_dict() for embed in message.embeds],
-                        "attachments": [att.url for att in message.attachments],
-                        "message_id": message.id
-                    }
-                    messages.append(message_data)
-            except:
-                pass
+            async for message in channel.history(limit=None):
+                message_count += 1
+        except:
+            pass
         
-        transcript_data["messages"] = messages
+        transcript_data["messages_count"] = message_count
         
         # บันทึกลงไฟล์
         ticket_transcripts[str(channel.id)] = transcript_data
         
         # บันทึกไฟล์
-        if not save_ticket_transcripts():
-            print("⚠️ ไม่สามารถบันทึกไฟล์ transcripts ได้")
-        
-        # สร้างไฟล์ transcript
-        transcript_text = await create_transcript_file(transcript_data)
-        
-        # ✅ ส่งไปยังห้องที่กำหนด
-        sent_success = await send_transcript_to_channel(transcript_data, transcript_text)
-        
-        if sent_success:
-            print(f"✅ บันทึกและส่งประวัติตั๋วเรียบร้อย: {channel.name}")
-            return True, transcript_text
+        if save_ticket_transcripts():
+            print(f"✅ บันทึกประวัติตั๋วเรียบร้อย: {channel.name} (มี {message_count} ข้อความ)")
+            return True, "บันทึกเรียบร้อย"
         else:
-            print(f"⚠️ บันทึกประวัติตั๋วเรียบร้อย แต่ส่งไปห้องไม่สำเร็จ: {channel.name}")
-            return False, transcript_text
+            print(f"⚠️ บันทึกประวัติตั๋วไม่สำเร็จ: {channel.name}")
+            return False, "บันทึกไม่สำเร็จ"
         
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดในการบันทึกประวัติตั๋ว: {e}")
-        return False, None
+        return False, str(e)
 
 # =======================================================================================
-# ✅ ฟังก์ชันจัดการตั๋วหลัง !ty
+# ✅ ฟังก์ชันจัดการตั๋วหลัง !ty - UPDATED VERSION
 # =======================================================================================
 
 async def archive_ticket_after_ty(channel, user):
@@ -359,14 +260,13 @@ async def archive_ticket_after_ty(channel, user):
         
         # ✅ ดึงข้อมูลจากชื่อตั๋วเดิม
         original_name = channel.name
-        parts = original_name.split('-')
         
         # ✅ หาจำนวน robux จากประวัติข้อความ (ค้นหา !od, !odg)
         robux_amount = "unknown"
         
         # ค้นหาในข้อความล่าสุดเพื่อหา !od หรือ !odg
         try:
-            async for message in channel.history(limit=50, oldest_first=False):
+            async for message in channel.history(limit=20, oldest_first=False):
                 if message.content.startswith('!od ') or message.content.startswith('!odg '):
                     try:
                         # แยกคำสั่งและจำนวน
@@ -496,18 +396,19 @@ class ConfirmDeliveryView(View):
 
     @discord.ui.button(label="ยืนยัน ✅", style=discord.ButtonStyle.success, emoji="✅", custom_id="confirm_delivery_btn")
     async def confirm_delivery(self, interaction: discord.Interaction, button: Button):
-        """ยืนยันการส่งสินค้า - FIXED VERSION"""
+        """ยืนยันการส่งสินค้า - SIMPLIFIED VERSION"""
         try:
-            # ✅ บันทึกประวัติตั๋วก่อนส่งสินค้า
-            save_success, transcript_text = await save_ticket_transcript(self.channel, interaction.user)
+            # ✅ บันทึกประวัติตั๋วก่อนส่งสินค้า (แบบง่ายๆ)
+            save_success, _ = await save_ticket_transcript(self.channel, interaction.user)
             
             if not save_success:
                 await interaction.response.edit_message(
-                    content="❌ เกิดข้อผิดพลาดในการบันทึกประวัติตั๋ว กรุณาลองใหม่อีกครั้ง",
+                    content="⚠️ บันทึกประวัติตั๋วไม่สมบูรณ์ แต่ดำเนินการส่งสินค้าต่อ",
                     embed=None,
                     view=None
                 )
-                return
+                # ดำเนินการต่อแม้บันทึกไม่สำเร็จ
+                pass
 
             # สร้าง embed ใบเสร็จการสั่งซื้อ
             receipt_color = 0xFFA500  # สีส้มสำหรับ Gamepass
@@ -536,21 +437,36 @@ class ConfirmDeliveryView(View):
             # ส่งไปยังห้องบันทึกการขาย
             log_channel = bot.get_channel(SALES_LOG_CHANNEL_ID)
             if log_channel:
-                await log_channel.send(embed=receipt_embed)
-                print(f"✅ บันทึกใบเสร็จการสั่งซื้อในห้องบันทึกการขาย: {self.product_type}")
+                try:
+                    await log_channel.send(embed=receipt_embed)
+                    print(f"✅ บันทึกใบเสร็จการสั่งซื้อในห้องบันทึกการขาย: {self.product_type}")
+                except:
+                    print(f"⚠️ ไม่สามารถส่งใบเสร็จไปยังห้องบันทึกการขาย")
             
             # ส่งข้อความในตั๋ว
             await self.channel.send(embed=receipt_embed)
             
             await interaction.response.edit_message(
-                content="✅ บันทึกการส่งสินค้าและประวัติแชทในตั๋วเรียบร้อยแล้ว",
+                content="✅ บันทึกการส่งสินค้าเรียบร้อยแล้ว",
                 embed=None,
                 view=None
             )
             
+            # ✅ เริ่มนับถอยหลังย้ายตั๋ว 10 นาที
+            ticket_activity[self.channel.id] = {
+                'last_activity': datetime.datetime.now(),
+                'ty_used': True,
+                'ty_time': datetime.datetime.now()
+            }
+            
+            await start_auto_archive_countdown(self.channel)
+            
         except Exception as e:
             print(f"❌ เกิดข้อผิดพลาดในการยืนยันการส่งสินค้า: {e}")
-            await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {str(e)[:100]}", ephemeral=True)
+            try:
+                await interaction.response.send_message("✅ ส่งสินค้าเรียบร้อยแล้ว (บันทึกบางส่วนไม่สมบูรณ์)", ephemeral=True)
+            except:
+                pass
 
     @discord.ui.button(label="แก้ไข", style=discord.ButtonStyle.secondary, emoji="✏️", custom_id="edit_delivery_btn")
     async def edit_delivery(self, interaction: discord.Interaction, button: Button):
@@ -613,7 +529,9 @@ class TicketActionView(View):
                     await asyncio.sleep(2)
                     await self.channel.delete()
                 else:
-                    await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการบันทึกประวัติตั๋ว", ephemeral=True)
+                    await interaction.response.send_message("⚠️ บันทึกประวัติตั๋วไม่สมบูรณ์ แต่จะปิดตั๋วต่อไป", ephemeral=True)
+                    await asyncio.sleep(2)
+                    await self.channel.delete()
             else:
                 await interaction.response.send_message("❌ คุณไม่มีสิทธิ์ปิดตั๋วนี้", ephemeral=True)
         except Exception as e:
@@ -657,7 +575,9 @@ class GiveCreditView(discord.ui.View):
                 await asyncio.sleep(3)
                 await self.channel.delete()
             else:
-                await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการบันทึกประวัติตั๋ว", ephemeral=True)
+                await interaction.response.send_message("⚠️ บันทึกประวัติตั๋วไม่สมบูรณ์ แต่จะปิดตั๋วต่อไป", ephemeral=True)
+                await asyncio.sleep(3)
+                await self.channel.delete()
             
         except Exception as e:
             await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการปิดตั๋ว", ephemeral=True)
@@ -730,10 +650,16 @@ async def update_user_roles(user_id, guild, old_level, new_level):
         print(f"❌ เกิดข้อผิดพลาดในการอัพเดทยศ: {e}")
 
 # --------------------------------------------------------------------------------------------------
-# ฟังก์ชันเปลี่ยนชื่อช่องหลัก
+# ฟังก์ชันเปลี่ยนชื่อช่องหลัก - UPDATED (ป้องกัน rate limit)
 async def update_channel_name():
     """เปลี่ยนชื่อช่องหลักตามสถานะร้าน"""
     try:
+        current_time = time.time()
+        # ตรวจสอบ rate limit - อย่าแก้ไขถ้าเร็วเกินไป
+        if current_time - bot.last_update_time < 60:  # รอ 60 วินาที
+            print(f"⏳ รอเพื่อป้องกัน rate limit... (เหลืออีก {60 - (current_time - bot.last_update_time):.0f} วินาที)")
+            return
+            
         channel = bot.get_channel(MAIN_CHANNEL_ID)
         if channel:
             if shop_open:
@@ -742,8 +668,17 @@ async def update_channel_name():
                 new_name = "〔🔴〕ปิดชั่วคราว"
             
             if channel.name != new_name:
-                await channel.edit(name=new_name)
-                print(f"✅ เปลี่ยนชื่อช่องเป็น: {new_name}")
+                try:
+                    await channel.edit(name=new_name)
+                    bot.last_update_time = current_time
+                    print(f"✅ เปลี่ยนชื่อช่องเป็น: {new_name}")
+                except discord.HTTPException as e:
+                    if e.status == 429:  # Rate limited
+                        print(f"⏳ Discord rate limit: {e}")
+                        bot.last_update_time = current_time
+                        return
+                    else:
+                        raise
             else:
                 print(f"ℹ️ ชื่อช่องเป็นปัจจุบันอยู่แล้ว: {new_name}")
     except discord.Forbidden:
@@ -929,6 +864,10 @@ async def handle_open_ticket(interaction, category_name, modal_class, stock_type
             return
         elif stock_type == "group" and group_stock <= 0:
             await interaction.response.send_message("❌ ขออภัย สินค้าหมดชั่วคราว", ephemeral=True)
+            return
+            
+        if not shop_open:
+            await interaction.response.send_message("❌ ร้านปิดชั่วคราว กรุณารอให้ร้านเปิด", ephemeral=True)
             return
             
         guild = interaction.guild
@@ -1280,12 +1219,18 @@ async def qr(ctx):
     await ctx.send(embed=embed, view=qr_view)
     
 # =======================================================================================
-# ✅ อัพเดทช่องหลัก
+# ✅ อัพเดทช่องหลัก - UPDATED (ป้องกัน rate limit)
 # =======================================================================================
 
 async def update_main_channel():
     """อัพเดทข้อความในช่องหลักโดยการ edit ข้อความเดิม"""
     try:
+        current_time = time.time()
+        # ตรวจสอบ rate limit - อย่าแก้ไขถ้าเร็วเกินไป
+        if current_time - bot.last_update_time < 30:  # รอ 30 วินาที
+            print(f"⏳ รอเพื่อป้องกัน rate limit ใน update_main_channel...")
+            return
+            
         channel = bot.get_channel(MAIN_CHANNEL_ID)
         if not channel:
             print("❌ ไม่พบช่องหลัก")
@@ -1349,16 +1294,40 @@ async def update_main_channel():
         if target_message:
             try:
                 await target_message.edit(embed=embed, view=MainShopView())
+                bot.last_update_time = current_time
                 print(f"✅ อัพเดท embed หลักเรียบร้อยแล้ว (แก้ไขข้อความ ID: {target_message.id})")
             except discord.NotFound:
                 print("❌ ไม่พบข้อความเดิม ส่งข้อความใหม่")
-                await channel.send(embed=embed, view=MainShopView())
+                try:
+                    await channel.send(embed=embed, view=MainShopView())
+                    bot.last_update_time = current_time
+                except Exception as e:
+                    print(f"❌ ไม่สามารถส่งข้อความใหม่: {e}")
+            except discord.HTTPException as e:
+                if e.status == 429:  # Rate limited
+                    print(f"⏳ Discord rate limit ใน edit: {e}")
+                    bot.last_update_time = current_time
+                else:
+                    print(f"❌ ไม่สามารถ edit ข้อความ: {e}")
+                    try:
+                        await channel.send(embed=embed, view=MainShopView())
+                        bot.last_update_time = current_time
+                    except:
+                        pass
             except Exception as e:
                 print(f"❌ ไม่สามารถ edit ข้อความ: {e}")
-                await channel.send(embed=embed, view=MainShopView())
+                try:
+                    await channel.send(embed=embed, view=MainShopView())
+                    bot.last_update_time = current_time
+                except:
+                    pass
         else:
-            await channel.send(embed=embed, view=MainShopView())
-            print("✅ สร้าง embed หลักใหม่เรียบร้อยแล้ว")
+            try:
+                await channel.send(embed=embed, view=MainShopView())
+                bot.last_update_time = current_time
+                print("✅ สร้าง embed หลักใหม่เรียบร้อยแล้ว")
+            except Exception as e:
+                print(f"❌ ไม่สามารถส่ง embed หลักใหม่: {e}")
         
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดในการอัปเดตช่องหลัก: {e}")
@@ -1371,34 +1340,50 @@ class MainShopView(View):
     def __init__(self):
         super().__init__(timeout=None)
         
+        # ปุ่ม Gamepass
+        if shop_open and gamepass_stock > 0:
+            gamepass_label = "เปิดตั๋วกดเกมพาส"
+            gamepass_style = discord.ButtonStyle.success
+            gamepass_disabled = False
+        else:
+            if not shop_open:
+                gamepass_label = "ร้านปิดชั่วคราว"
+            else:
+                gamepass_label = "สินค้าหมด"
+            gamepass_style = discord.ButtonStyle.danger
+            gamepass_disabled = True
+            
         gamepass_button = Button(
-            label="เปิดตั๋วกดเกมพาส" if shop_open and gamepass_stock > 0 else "สินค้าหมด",
-            style=discord.ButtonStyle.success if shop_open and gamepass_stock > 0 else discord.ButtonStyle.danger,
+            label=gamepass_label,
+            style=gamepass_style,
             custom_id="open_gamepass_ticket",
             emoji="🎮",
-            disabled=not shop_open or gamepass_stock <= 0
+            disabled=gamepass_disabled
         )
         gamepass_button.callback = self.gamepass_ticket
         self.add_item(gamepass_button)
         
-        group_button_label = "เปิดตั๋ว Group"
-        if not group_ticket_enabled:
-            group_button_label = "บริการปิดชั่วคราว"
-        elif group_stock <= 0:
-            group_button_label = "สินค้าหมด"
-            
-        group_button_style = discord.ButtonStyle.success
-        if not group_ticket_enabled:
-            group_button_style = discord.ButtonStyle.secondary
-        elif group_stock <= 0:
-            group_button_style = discord.ButtonStyle.danger
+        # ปุ่ม Group
+        if shop_open and group_ticket_enabled and group_stock > 0:
+            group_label = "เปิดตั๋ว Group"
+            group_style = discord.ButtonStyle.success
+            group_disabled = False
+        else:
+            if not shop_open:
+                group_label = "ร้านปิดชั่วคราว"
+            elif not group_ticket_enabled:
+                group_label = "บริการปิดชั่วคราว"
+            else:
+                group_label = "สินค้าหมด"
+            group_style = discord.ButtonStyle.danger
+            group_disabled = True
             
         group_button = Button(
-            label=group_button_label,
-            style=group_button_style,
+            label=group_label,
+            style=group_style,
             custom_id="open_group_ticket", 
             emoji="👥",
-            disabled=not group_ticket_enabled or group_stock <= 0
+            disabled=group_disabled
         )
         group_button.callback = self.group_ticket
         self.add_item(group_button)
@@ -1534,7 +1519,7 @@ async def on_command_completion(ctx):
             'ty_time': datetime.datetime.now()
         }
         
-        await start_auto_close_countdown(ctx.channel)
+        await start_auto_archive_countdown(ctx.channel)
 
 @bot.event
 async def on_ready():
@@ -1711,7 +1696,7 @@ async def check_user_level(interaction: discord.Interaction):
         await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการเช็คเลเวล", ephemeral=True)
 
 # =======================================================================================
-# ✅ คำสั่ง !ty (แก้ไขข้อ 2) - FIXED VERSION
+# ✅ คำสั่ง !ty (แก้ไขข้อ 2) - UPDATED VERSION
 # =======================================================================================
 
 @bot.command()
@@ -1734,8 +1719,8 @@ async def ty(ctx):
         save_success, _ = await save_ticket_transcript(ctx.channel, ctx.author)
         
         if not save_success:
-            await ctx.send("❌ เกิดข้อผิดพลาดในการบันทึกประวัติตั๋ว กรุณาลองใหม่อีกครั้ง")
-            return
+            await ctx.send("⚠️ บันทึกประวัติตั๋วไม่สมบูรณ์ แต่ดำเนินการต่อไป")
+            # ดำเนินการต่อแม้บันทึกไม่สำเร็จ
 
         # ✅ ย้ายตั๋วไปยัง archive category และเปลี่ยนชื่อ
         archive_success = await archive_ticket_after_ty(ctx.channel, ctx.author)
@@ -1745,7 +1730,7 @@ async def ty(ctx):
             return
 
         # ✅ ส่งข้อความยืนยัน
-        await ctx.send("✅ บันทึกการส่งสินค้าและประวัติแชทในตั๋วเรียบร้อยแล้ว")
+        await ctx.send("✅ บันทึกการส่งสินค้าเรียบร้อยแล้ว ตั๋วจะถูกย้ายไปเก็บใน 10 นาที")
 
         ticket_activity[ctx.channel.id] = {
             'last_activity': datetime.datetime.now(),
@@ -1753,19 +1738,20 @@ async def ty(ctx):
             'ty_time': datetime.datetime.now()
         }
         
-        await start_auto_close_countdown(ctx.channel)
+        await start_auto_archive_countdown(ctx.channel)
         
     else:
         await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
 
 # =======================================================================================
-# ✅ ระบบติดตามกิจกรรมในตั๋ว
+# ✅ ระบบติดตามกิจกรรมในตั๋ว - UPDATED VERSION
 # =======================================================================================
 
-async def start_auto_close_countdown(channel):
-    print(f"🕐 เริ่มนับถอยหลังปิดตั๋วอัตโนมัติสำหรับ {channel.name} ใน 10 นาที")
+async def start_auto_archive_countdown(channel):
+    """เริ่มนับถอยหลังย้ายตั๋ว 10 นาที"""
+    print(f"🕐 เริ่มนับถอยหลังย้ายตั๋วสำหรับ {channel.name} ใน 10 นาที")
     
-    await asyncio.sleep(600)
+    await asyncio.sleep(600)  # 10 นาที
     
     if (channel.id in ticket_activity and 
         ticket_activity[channel.id].get('ty_used', False)):
@@ -1774,57 +1760,65 @@ async def start_auto_close_countdown(channel):
         time_since_activity = datetime.datetime.now() - last_activity
         
         if time_since_activity.total_seconds() >= 600:
-            print(f"⏰ ถึงเวลาปิดตั๋วอัตโนมัติ: {channel.name}")
-            await close_ticket_automatically(channel)
+            print(f"⏰ ถึงเวลาย้ายตั๋วอัตโนมัติ: {channel.name}")
+            await archive_ticket_automatically(channel)
         else:
-            print(f"✅ ตั๋ว {channel.name} มีกิจกรรมใหม่ ไม่ปิดอัตโนมัติ")
+            print(f"✅ ตั๋ว {channel.name} มีกิจกรรมใหม่ ไม่ย้ายอัตโนมัติ")
     else:
         print(f"❌ ตั๋ว {channel.name} ไม่ได้ใช้ !ty หรือถูกลบไปแล้ว")
 
-async def close_ticket_automatically(channel):
+async def archive_ticket_automatically(channel):
+    """ย้ายตั๋วไปยัง archive category อัตโนมัติ"""
     try:
-        global gamepass_stock, group_stock
-        
         if not channel or channel not in channel.guild.channels:
             print(f"❌ ตั๋ว {channel.name} ไม่มีอยู่แล้ว")
             return
         
-        if channel.category and "gamepass" in channel.category.name.lower():
-            gamepass_stock += 1
-            print(f"📦 คืน Gamepass stock: {gamepass_stock}")
-        elif channel.category and "group" in channel.category.name.lower():
-            group_stock += 1
-            print(f"📦 คืน Group stock: {group_stock}")
-        
-        embed = discord.Embed(
-            title="⏰ ปิดตั๋วอัตโนมัติ",
-            description="ตั๋วถูกปิดอัตโนมัติเนื่องจากไม่มีการตอบกลับ 10 นาทีหลังจากส่งสินค้าเรียบร้อย",
-            color=0xFFA500
-        )
-        await channel.send(embed=embed)
-        
-        print(f"🔔 ส่งข้อความแจ้งปิดตั๋วอัตโนมัติใน {channel.name}")
-        
-        await asyncio.sleep(5)
-        
+        # หา user จากชื่อตั๋ว
+        user = None
         try:
-            await channel.delete()
-            print(f"✅ ลบตั๋วอัตโนมัติเรียบร้อย: {channel.name}")
-        except discord.NotFound:
-            print(f"❌ ตั๋ว {channel.name} ถูกลบไปแล้ว")
-        except Exception as e:
-            print(f"❌ เกิดข้อผิดพลาดในการลบตั๋ว: {e}")
+            channel_name = channel.name
+            if channel_name.startswith("ticket-"):
+                parts = channel_name.split('-')
+                if len(parts) >= 3:
+                    try:
+                        user_id = int(parts[-1])
+                        user = channel.guild.get_member(user_id)
+                    except:
+                        pass
+        except:
+            pass
+        
+        # ย้ายตั๋วไปยัง archive category
+        archive_success = await archive_ticket_after_ty(channel, user if user else channel.guild.me)
+        
+        if archive_success:
+            print(f"✅ ย้ายตั๋วอัตโนมัติเรียบร้อย: {channel.name}")
+            
+            # ส่งข้อความแจ้ง
+            try:
+                embed = discord.Embed(
+                    title="📁 ตั๋วถูกย้ายไปเก็บแล้ว",
+                    description="ตั๋วนี้ถูกย้ายไปยังหมวดหมู่เก็บข้อมูลเรียบร้อยแล้ว",
+                    color=0xFFA500
+                )
+                await channel.send(embed=embed)
+            except:
+                pass
+        else:
+            print(f"❌ ไม่สามารถย้ายตั๋วอัตโนมัติ: {channel.name}")
         
         if channel.id in ticket_activity:
             del ticket_activity[channel.id]
             print(f"🗑️ ลบ {channel.name} ออกจาก tracking")
             
     except Exception as e:
-        print(f"❌ เกิดข้อผิดพลาดในการปิดตั๋วอัตโนมัติ: {e}")
+        print(f"❌ เกิดข้อผิดพลาดในการย้ายตั๋วอัตโนมัติ: {e}")
 
 async def check_stale_tickets():
+    """ตรวจสอบตั๋วค้างที่ต้องย้าย"""
     while True:
-        await asyncio.sleep(300)
+        await asyncio.sleep(300)  # ตรวจสอบทุก 5 นาที
         
         current_time = datetime.datetime.now()
         channels_to_remove = []
@@ -1834,11 +1828,11 @@ async def check_stale_tickets():
                 last_activity = activity_data['last_activity']
                 time_since_activity = current_time - last_activity
                 
-                if time_since_activity.total_seconds() >= 600:
+                if time_since_activity.total_seconds() >= 600:  # 10 นาที
                     channel = bot.get_channel(channel_id)
                     if channel:
-                        print(f"🔍 พบตั๋วค้าง: {channel.name} (ผ่านไป {time_since_activity.total_seconds()/60:.1f} นาที)")
-                        await close_ticket_automatically(channel)
+                        print(f"🔍 พบตั๋วค้างต้องย้าย: {channel.name} (ผ่านไป {time_since_activity.total_seconds()/60:.1f} นาที)")
+                        await archive_ticket_automatically(channel)
                     channels_to_remove.append(channel_id)
         
         for channel_id in channels_to_remove:
@@ -1954,7 +1948,7 @@ async def restore_backup(ctx, data_type: str = "all"):
         await ctx.send(f"❌ เกิดข้อผิดพลาดในการกู้คืน: {e}", delete_after=10)
 
 # =======================================================================================
-# ✅ คำสั่งอื่นๆ ที่เหลือ
+# ✅ คำสั่งอื่นๆ ที่เหลือ - FIXED
 # =======================================================================================
 
 # --------------------------------------------------------------------------------------------------
@@ -2125,7 +2119,7 @@ async def help_command(ctx):
     await ctx.send(embed=help_embed, delete_after=30)
 
 # --------------------------------------------------------------------------------------------------
-# คำสั่งจัดการ Stock - FIXED SYNTAX ERROR
+# คำสั่งจัดการ Stock - FIXED
 @bot.command()
 @admin_only()
 async def stock(ctx, stock_type: str = None, amount: str = None):
@@ -2420,7 +2414,7 @@ async def rate(ctx, rate_type: str = None, low_rate: str = None, high_rate: str 
                 pass
 
 # --------------------------------------------------------------------------------------------------
-# คำสั่งเปิดปิดร้าน
+# คำสั่งเปิดปิดร้าน - FIXED
 @bot.command()
 @admin_only()
 async def sushi(ctx):
@@ -2441,8 +2435,10 @@ async def sushi(ctx):
     
     status_msg = await ctx.send(embed=embed)
     
+    # อัพเดทชื่อช่อง
     await update_channel_name()
     
+    # อัพเดท embed หลัก
     await update_main_channel()
     
     await asyncio.sleep(3)
