@@ -2482,8 +2482,20 @@ async def sushi(ctx):
     
     status_msg = await ctx.send(embed=embed)
     
-    # อัพเดทชื่อช่อง
-    await update_channel_name()
+    # ✅ แก้ไขตรงนี้: เปลี่ยนชื่อช่องทันทีโดยไม่เรียกฟังก์ชัน update_channel_name()
+    try:
+        channel = bot.get_channel(MAIN_CHANNEL_ID)
+        if channel:
+            if shop_open:
+                new_name = "〔🟢เปิด〕กดสั่งซื้อที่นี่"
+            else:
+                new_name = "〔🔴〕ปิดชั่วคราว"
+            
+            if channel.name != new_name:
+                await channel.edit(name=new_name)
+                print(f"✅ เปลี่ยนชื่อช่องเป็น: {new_name}")
+    except Exception as e:
+        print(f"⚠️ ไม่สามารถเปลี่ยนชื่อช่อง: {e}")
     
     # อัพเดท embed หลัก
     await update_main_channel()
@@ -2976,3 +2988,4 @@ try:
     bot.run(os.getenv("TOKEN"))
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
+
