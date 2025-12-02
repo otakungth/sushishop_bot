@@ -2125,7 +2125,7 @@ async def help_command(ctx):
     await ctx.send(embed=help_embed, delete_after=30)
 
 # --------------------------------------------------------------------------------------------------
-# คำสั่งจัดการ Stock
+# คำสั่งจัดการ Stock - FIXED SYNTAX ERROR
 @bot.command()
 @admin_only()
 async def stock(ctx, stock_type: str = None, amount: str = None):
@@ -2219,11 +2219,11 @@ async def stock(ctx, stock_type: str = None, amount: str = None):
                 color=0x00FF99
             )
             response_msg = await ctx.send(embed=embed)
-            await asyncio.sleep(10):
-                try:
-                    await response_msg.delete()
-                except:
-                    pass
+            await asyncio.sleep(10)
+            try:
+                await response_msg.delete()
+            except:
+                pass
         else:
             amount_clean = amount.replace(",", "")
             try:
