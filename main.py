@@ -46,15 +46,17 @@ user_data_file = "user_data.json"
 ticket_transcripts_file = "ticket_transcripts.json"
 
 # =======================================================================================
-# ✅ ฟังก์ชันจัดการไฟล์ข้อมูล
+# ✅ ฟังก์ชันจัดการไฟล์ข้อมูล - FIXED VERSION
 # =======================================================================================
 
 def load_user_data():
     """โหลดข้อมูลผู้ใช้จากไฟล์"""
     try:
-        with open(user_data_file, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except FileNotFoundError:
+        if os.path.exists(user_data_file):
+            with open(user_data_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                print(f"✅ โหลดข้อมูลผู้ใช้: {len(data)} users")
+                return data
         return {}
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดในการโหลด user_data: {e}")
@@ -63,57 +65,37 @@ def load_user_data():
 def save_user_data():
     """บันทึกข้อมูลผู้ใช้ลงไฟล์ (เวอร์ชันปลอดภัย)"""
     try:
-        # สร้าง backup ก่อนบันทึก
-        if os.path.exists(user_data_file):
-            backup_file = f"{user_data_file}.backup"
-            try:
-                with open(user_data_file, 'r', encoding='utf-8') as original:
-                    backup_data = original.read()
-                with open(backup_file, 'w', encoding='utf-8') as backup:
-                    backup.write(backup_data)
-                print(f"💾 สร้าง backup: {backup_file}")
-            except Exception as backup_error:
-                print(f"⚠️ ไม่สามารถสร้าง backup: {backup_error}")
-        
-        # บันทึกข้อมูลใหม่
         with open(user_data_file, 'w', encoding='utf-8') as f:
             json.dump(user_data, f, ensure_ascii=False, indent=2)
         print("💾 บันทึกข้อมูลผู้ใช้เรียบร้อยแล้ว")
+        return True
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดในการบันทึก user_data: {e}")
+        return False
 
 def load_ticket_transcripts():
     """โหลดประวัติตั๋วจากไฟล์"""
     try:
-        with open(ticket_transcripts_file, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except FileNotFoundError:
+        if os.path.exists(ticket_transcripts_file):
+            with open(ticket_transcripts_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                print(f"✅ โหลดประวัติตั๋ว: {len(data)} tickets")
+                return data
         return {}
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดในการโหลด ticket_transcripts: {e}")
         return {}
 
 def save_ticket_transcripts():
-    """บันทึกประวัติตั๋วลงไฟล์ (เวอร์ชันปลอดภัย)"""
+    """บันทึกประวัติตั๋วลงไฟล์"""
     try:
-        # สร้าง backup ก่อนบันทึก
-        if os.path.exists(ticket_transcripts_file):
-            backup_file = f"{ticket_transcripts_file}.backup"
-            try:
-                with open(ticket_transcripts_file, 'r', encoding='utf-8') as original:
-                    backup_data = original.read()
-                with open(backup_file, 'w', encoding='utf-8') as backup:
-                    backup.write(backup_data)
-                print(f"💾 สร้าง backup: {backup_file}")
-            except Exception as backup_error:
-                print(f"⚠️ ไม่สามารถสร้าง backup: {backup_error}")
-        
-        # บันทึกข้อมูลใหม่
         with open(ticket_transcripts_file, 'w', encoding='utf-8') as f:
             json.dump(ticket_transcripts, f, ensure_ascii=False, indent=2)
         print("💾 บันทึกประวัติตั๋วเรียบร้อยแล้ว")
+        return True
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดในการบันทึก ticket_transcripts: {e}")
+        return False
 
 # =======================================================================================
 # ✅ คลาสหลักของบอท - OPTIMIZED FOR USER INSTALL
@@ -155,16 +137,6 @@ class MyBot(commands.Bot):
 # ✅ สร้าง instance ของบอท
 # =======================================================================================
 bot = MyBot()
-
-# Custom decorator for User Install commands
-def user_install_command(*args, **kwargs):
-    """Custom decorator for User Install commands"""
-    def decorator(func):
-        # Get the original command decorator
-        cmd = bot.tree.command(*args, **kwargs)(func)
-        
-        return cmd
-    return decorator
 
 # ตัวแปรเก็บข้อมูล
 user_data = {}
@@ -257,7 +229,7 @@ async def send_transcript_to_channel(transcript_data, transcript_text):
         
         if not target_channel:
             print(f"❌ ไม่พบห้องเป้าหมาย ID: {TRANSCRIPT_CHANNEL_ID}")
-            return
+            return False
         
         # สร้าง embed สรุป
         embed = discord.Embed(
@@ -287,7 +259,7 @@ async def send_transcript_to_channel(transcript_data, transcript_text):
         return False
 
 async def save_ticket_transcript(channel, action_by=None):
-    """บันทึกประวัติแชทในตั๋วและส่งไปยังห้องที่กำหนด"""
+    """บันทึกประวัติแชทในตั๋วและส่งไปยังห้องที่กำหนด - FIXED VERSION"""
     try:
         # เก็บข้อมูลตั๋ว
         transcript_data = {
@@ -301,23 +273,44 @@ async def save_ticket_transcript(channel, action_by=None):
         
         # เก็บข้อความทั้งหมดในตั๋ว
         messages = []
-        async for message in channel.history(limit=None, oldest_first=True):
-            message_data = {
-                "timestamp": message.created_at.isoformat(),
-                "author": str(message.author),
-                "author_id": message.author.id,
-                "content": message.content,
-                "embeds": [embed.to_dict() for embed in message.embeds],
-                "attachments": [att.url for att in message.attachments],
-                "message_id": message.id
-            }
-            messages.append(message_data)
+        try:
+            async for message in channel.history(limit=None, oldest_first=True):
+                message_data = {
+                    "timestamp": message.created_at.isoformat(),
+                    "author": str(message.author),
+                    "author_id": message.author.id,
+                    "content": message.content,
+                    "embeds": [embed.to_dict() for embed in message.embeds],
+                    "attachments": [att.url for att in message.attachments],
+                    "message_id": message.id
+                }
+                messages.append(message_data)
+        except Exception as e:
+            print(f"⚠️ ไม่สามารถดึงประวัติข้อความทั้งหมด: {e}")
+            # ดึงเฉพาะข้อความล่าสุด
+            try:
+                async for message in channel.history(limit=100, oldest_first=True):
+                    message_data = {
+                        "timestamp": message.created_at.isoformat(),
+                        "author": str(message.author),
+                        "author_id": message.author.id,
+                        "content": message.content,
+                        "embeds": [embed.to_dict() for embed in message.embeds],
+                        "attachments": [att.url for att in message.attachments],
+                        "message_id": message.id
+                    }
+                    messages.append(message_data)
+            except:
+                pass
         
         transcript_data["messages"] = messages
         
         # บันทึกลงไฟล์
         ticket_transcripts[str(channel.id)] = transcript_data
-        save_ticket_transcripts()
+        
+        # บันทึกไฟล์
+        if not save_ticket_transcripts():
+            print("⚠️ ไม่สามารถบันทึกไฟล์ transcripts ได้")
         
         # สร้างไฟล์ transcript
         transcript_text = await create_transcript_file(transcript_data)
@@ -372,19 +365,22 @@ async def archive_ticket_after_ty(channel, user):
         robux_amount = "unknown"
         
         # ค้นหาในข้อความล่าสุดเพื่อหา !od หรือ !odg
-        async for message in channel.history(limit=50, oldest_first=False):
-            if message.content.startswith('!od ') or message.content.startswith('!odg '):
-                try:
-                    # แยกคำสั่งและจำนวน
-                    parts = message.content.split()
-                    if len(parts) >= 2:
-                        # ลบเครื่องหมายคอมม่าและคำนวณ
-                        expr = parts[1].replace(",", "").lower().replace("x", "*").replace("÷", "/")
-                        if re.match(r"^[\d\s\+\-\*\/\(\)]+$", expr):
-                            robux_amount = str(int(eval(expr)))
-                            break
-                except:
-                    continue
+        try:
+            async for message in channel.history(limit=50, oldest_first=False):
+                if message.content.startswith('!od ') or message.content.startswith('!odg '):
+                    try:
+                        # แยกคำสั่งและจำนวน
+                        parts = message.content.split()
+                        if len(parts) >= 2:
+                            # ลบเครื่องหมายคอมม่าและคำนวณ
+                            expr = parts[1].replace(",", "").lower().replace("x", "*").replace("÷", "/")
+                            if re.match(r"^[\d\s\+\-\*\/\(\)]+$", expr):
+                                robux_amount = str(int(eval(expr)))
+                                break
+                    except:
+                        continue
+        except:
+            pass
         
         # ✅ ตั้งชื่อใหม่ตามรูปแบบ: transcript{หมายเลข}-{robux_amount}-{ชื่อผู้ใช้}
         username = user.name
@@ -433,7 +429,7 @@ class DeliveryView(View):
         self.price = price
         self.buyer = buyer
 
-    @discord.ui.button(label="ส่งสินค้าแล้ว ✅", style=discord.ButtonStyle.success, emoji="✅")
+    @discord.ui.button(label="ส่งสินค้าแล้ว ✅", style=discord.ButtonStyle.success, emoji="✅", custom_id="deliver_product_btn")
     async def deliver_product(self, interaction: discord.Interaction, button: Button):
         """ปุ่มส่งสินค้า (เฉพาะแอดมิน)"""
         try:
@@ -479,7 +475,7 @@ class DeliveryView(View):
         except Exception as e:
             await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
 
-    @discord.ui.button(label="ยกเลิก ❌", style=discord.ButtonStyle.danger, emoji="❌")
+    @discord.ui.button(label="ยกเลิก ❌", style=discord.ButtonStyle.danger, emoji="❌", custom_id="cancel_order_btn")
     async def cancel_order(self, interaction: discord.Interaction, button: Button):
         """ปุ่มยกเลิกคำสั่งซื้อ"""
         try:
@@ -498,17 +494,18 @@ class ConfirmDeliveryView(View):
         self.buyer = buyer
         self.delivery_image = delivery_image
 
-    @discord.ui.button(label="ยืนยัน ✅", style=discord.ButtonStyle.success, emoji="✅")
+    @discord.ui.button(label="ยืนยัน ✅", style=discord.ButtonStyle.success, emoji="✅", custom_id="confirm_delivery_btn")
     async def confirm_delivery(self, interaction: discord.Interaction, button: Button):
-        """ยืนยันการส่งสินค้า"""
+        """ยืนยันการส่งสินค้า - FIXED VERSION"""
         try:
             # ✅ บันทึกประวัติตั๋วก่อนส่งสินค้า
             save_success, transcript_text = await save_ticket_transcript(self.channel, interaction.user)
             
             if not save_success:
-                await interaction.response.send_message(
-                    "❌ เกิดข้อผิดพลาดในการบันทึกประวัติตั๋ว กรุณาลองใหม่อีกครั้ง",
-                    ephemeral=True
+                await interaction.response.edit_message(
+                    content="❌ เกิดข้อผิดพลาดในการบันทึกประวัติตั๋ว กรุณาลองใหม่อีกครั้ง",
+                    embed=None,
+                    view=None
                 )
                 return
 
@@ -552,9 +549,10 @@ class ConfirmDeliveryView(View):
             )
             
         except Exception as e:
-            await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
+            print(f"❌ เกิดข้อผิดพลาดในการยืนยันการส่งสินค้า: {e}")
+            await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {str(e)[:100]}", ephemeral=True)
 
-    @discord.ui.button(label="แก้ไข", style=discord.ButtonStyle.secondary, emoji="✏️")
+    @discord.ui.button(label="แก้ไข", style=discord.ButtonStyle.secondary, emoji="✏️", custom_id="edit_delivery_btn")
     async def edit_delivery(self, interaction: discord.Interaction, button: Button):
         """แก้ไขหลักฐานการส่งสินค้า"""
         try:
@@ -566,16 +564,16 @@ class ConfirmDeliveryView(View):
             await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
 
 # =======================================================================================
-# ✅ View ต่างๆ
+# ✅ View ต่างๆ - FIXED VERSION
 # =======================================================================================
 
 # --------------------------------------------------------------------------------------------------
-# ✅ View สำหรับ QR Code (แก้ไขข้อ 1)
+# ✅ View สำหรับ QR Code (แก้ไขข้อ 1) - FIXED
 class QRView(View):
     def __init__(self):
         super().__init__(timeout=None)
         
-    @discord.ui.button(label="คัดลอกเลขบัญชี", style=discord.ButtonStyle.success, emoji="📋")
+    @discord.ui.button(label="คัดลอกเลขบัญชี", style=discord.ButtonStyle.success, emoji="📋", custom_id="copy_bank_account_btn")
     async def copy_bank_account(self, interaction: discord.Interaction, button: Button):
         """ปุ่มคัดลอกเลขบัญชี SCB"""
         try:
@@ -593,7 +591,7 @@ class TicketActionView(View):
         self.user = user
         self.modal_class = modal_class
 
-    @discord.ui.button(label="📝 กรอกแบบฟอร์มใหม่", style=discord.ButtonStyle.primary, emoji="📝")
+    @discord.ui.button(label="📝 กรอกแบบฟอร์มใหม่", style=discord.ButtonStyle.primary, emoji="📝", custom_id="refill_form_btn")
     async def refill_form(self, interaction: discord.Interaction, button: Button):
         try:
             modal = self.modal_class()
@@ -601,7 +599,7 @@ class TicketActionView(View):
         except Exception as e:
             await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการเปิดแบบฟอร์ม", ephemeral=True)
 
-    @discord.ui.button(label="🔒 ปิดตั๋ว", style=discord.ButtonStyle.danger, emoji="🔒")
+    @discord.ui.button(label="🔒 ปิดตั๋ว", style=discord.ButtonStyle.danger, emoji="🔒", custom_id="close_ticket_btn")
     async def close_ticket(self, interaction: discord.Interaction, button: Button):
         try:
             # ✅ ตรวจสอบสิทธิ์เฉพาะแอดมิน
@@ -899,7 +897,7 @@ class ConfirmTicketView(View):
         super().__init__(timeout=300)
         self.embed_data = embed_data
 
-    @discord.ui.button(label="❌ ยกเลิกสินค้า", style=discord.ButtonStyle.danger, custom_id="cancel_ticket")
+    @discord.ui.button(label="❌ ยกเลิกสินค้า", style=discord.ButtonStyle.danger, custom_id="cancel_ticket_btn")
     async def cancel_button(self, interaction: discord.Interaction, button: Button):
         try:
             await interaction.response.send_message("❌ คำสั่งซื้อถูกยกเลิกโดยผู้ดูแลระบบ")
@@ -1366,7 +1364,7 @@ async def update_main_channel():
         print(f"❌ เกิดข้อผิดพลาดในการอัปเดตช่องหลัก: {e}")
 
 # =======================================================================================
-# ✅ Main Shop View
+# ✅ Main Shop View - FIXED
 # =======================================================================================
 
 class MainShopView(View):
@@ -1474,7 +1472,7 @@ class MainShopView(View):
         await check_user_level(interaction)
 
 # =======================================================================================
-# ✅ Events
+# ✅ Events - FIXED
 # =======================================================================================
 
 @bot.event
@@ -1511,7 +1509,6 @@ async def on_message(message):
             await message.channel.send(embed=help_embed)
             return
     
-    # ต่อด้วยโค้ดเดิม...
     if message.author == bot.user:
         return await bot.process_commands(message)
     
@@ -1544,7 +1541,7 @@ async def on_ready():
     print(f"✅ บอทออนไลน์แล้ว: {bot.user} (ID: {bot.user.id})")
     print(f"🌍 บอทพร้อมใช้งานใน: เซิร์ฟเวอร์, DM ส่วนตัว, และ Group DMs")
     
-    # ✅ โหลดข้อมูลผู้ใช้เมื่อบอทเริ่มทำงาน
+    # ✅ โหลดข้อมูลทั้งหมดเมื่อบอทเริ่มทำงาน
     global user_data, ticket_transcripts, transcript_counter
     user_data = load_user_data()
     ticket_transcripts = load_ticket_transcripts()
@@ -1586,7 +1583,7 @@ async def on_ready():
     
     print("✅ ตั้งค่าสถานะเรียบร้อย")
     
-    # ลงทะเบียน Views
+    # ลงทะเบียน Views ด้วย custom_id
     bot.add_view(MainShopView())
     bot.add_view(QRView())
     print("✅ ลงทะเบียน Views เรียบร้อย")
@@ -2222,11 +2219,11 @@ async def stock(ctx, stock_type: str = None, amount: str = None):
                 color=0x00FF99
             )
             response_msg = await ctx.send(embed=embed)
-            await asyncio.sleep(10)
-            try:
-                await response_msg.delete()
-            except:
-                pass
+            await asyncio.sleep(10):
+                try:
+                    await response_msg.delete()
+                except:
+                    pass
         else:
             amount_clean = amount.replace(",", "")
             try:
