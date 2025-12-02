@@ -195,17 +195,44 @@ async def save_ticket_transcript(channel, action_by=None):
     try:
         print(f"📝 กำลังบันทึกประวัติตั๋ว: {channel.name}")
         
-        # เก็บข้อมูลตั๋วแบบง่ายๆ
+        # ✅ สร้างชื่อไฟล์ใหม่ตามรูปแบบ ddmmyy-1-user
+        now = datetime.datetime.now()
+        date_str = now.strftime("%d%m%y")
+        
+        # ตรวจสอบและตั้งค่า transcript_counter
+        if 'transcript_counter' not in globals():
+            global transcript_counter
+            transcript_counter = {}
+        
+        if channel.guild.id not in transcript_counter:
+            transcript_counter[channel.guild.id] = 0
+        
+        # เพิ่มตัวนับ
+        transcript_counter[channel.guild.id] += 1
+        counter = transcript_counter[channel.guild.id]
+        
+        # หาผู้ใช้จากชื่อตั๋ว
+        username = "unknown"
+        if channel.name.startswith("ticket-"):
+            parts = channel.name.split('-')
+            if len(parts) >= 2:
+                username = parts[1]
+        
+        # ตั้งชื่อไฟล์ใหม่
+        filename = f"{date_str}-{counter}-{username}"
+        
+        # เก็บข้อมูลตั๋ว
         transcript_data = {
+            "filename": filename,
             "channel_name": channel.name,
             "channel_id": channel.id,
             "category": channel.category.name if channel.category else "ไม่มีหมวดหมู่",
-            "created_at": datetime.datetime.now().isoformat(),
+            "created_at": now.isoformat(),
             "closed_by": str(action_by) if action_by else "ระบบอัตโนมัติ",
             "messages_count": 0
         }
         
-        # นับข้อความแบบง่ายๆ (ไม่เก็บเนื้อหาเพื่อลดภาระ)
+        # นับข้อความแบบง่ายๆ
         message_count = 0
         try:
             async for message in channel.history(limit=None):
@@ -220,7 +247,7 @@ async def save_ticket_transcript(channel, action_by=None):
         
         # บันทึกไฟล์
         if save_ticket_transcripts():
-            print(f"✅ บันทึกประวัติตั๋วเรียบร้อย: {channel.name} (มี {message_count} ข้อความ)")
+            print(f"✅ บันทึกประวัติตั๋วเรียบร้อย: {filename} (มี {message_count} ข้อความ)")
             return True, "บันทึกเรียบร้อย"
         else:
             print(f"⚠️ บันทึกประวัติตั๋วไม่สำเร็จ: {channel.name}")
@@ -282,12 +309,15 @@ async def archive_ticket_after_ty(channel, user):
         except:
             pass
         
-        # ✅ ตั้งชื่อใหม่ตามรูปแบบ: transcript{หมายเลข}-{robux_amount}-{ชื่อผู้ใช้}
+        # ✅ ตั้งชื่อใหม่ตามรูปแบบ: ddmmyy-{หมายเลข}-{ชื่อผู้ใช้}
+        now = datetime.datetime.now()
+        date_str = now.strftime("%d%m%y")
+        
         username = user.name
         if len(username) > 15:  # ตัดชื่อถ้ายาวเกิน
             username = username[:15]
         
-        new_name = f"transcript{counter}-{robux_amount}-{username}"
+        new_name = f"{date_str}-{counter}-{username}"
         
         # ✅ เปลี่ยนสิทธิ์ห้อง - ซ่อนจากผู้ใช้ทั่วไป
         overwrites = {
@@ -317,7 +347,7 @@ async def archive_ticket_after_ty(channel, user):
         return False
 
 # =======================================================================================
-# ✅ View สำหรับส่งสินค้า - FIXED VERSION
+# ✅ View สำหรับส่งสินค้า - FIXED VERSION (แก้ไขข้อ 1: ไม่ส่งซ้ำ 2 รอบ)
 # =======================================================================================
 
 class DeliveryView(View):
@@ -393,12 +423,25 @@ class ConfirmDeliveryView(View):
         self.price = price
         self.buyer = buyer
         self.delivery_image = delivery_image
+        self.delivered = False  # ✅ เพิ่ม flag เพื่อป้องกันการส่งซ้ำ
 
     @discord.ui.button(label="ยืนยัน ✅", style=discord.ButtonStyle.success, emoji="✅", custom_id="confirm_delivery_btn")
     async def confirm_delivery(self, interaction: discord.Interaction, button: Button):
-        """ยืนยันการส่งสินค้า - SIMPLIFIED VERSION"""
+        """ยืนยันการส่งสินค้า - แก้ไขไม่ให้ส่งซ้ำ"""
         try:
-            # ✅ บันทึกประวัติตั๋วก่อนส่งสินค้า (แบบง่ายๆ)
+            # ✅ ตรวจสอบว่าเคยส่งไปแล้วหรือยัง
+            if self.delivered:
+                await interaction.response.edit_message(
+                    content="✅ สินค้าถูกส่งเรียบร้อยแล้ว",
+                    embed=None,
+                    view=None
+                )
+                return
+                
+            # ✅ ตั้งค่า flag เป็น True เพื่อป้องกันการส่งซ้ำ
+            self.delivered = True
+            
+            # ✅ บันทึกประวัติตั๋วก่อนส่งสินค้า
             save_success, _ = await save_ticket_transcript(self.channel, interaction.user)
             
             if not save_success:
@@ -407,17 +450,15 @@ class ConfirmDeliveryView(View):
                     embed=None,
                     view=None
                 )
-                # ดำเนินการต่อแม้บันทึกไม่สำเร็จ
                 pass
 
-            # สร้าง embed ใบเสร็จการสั่งซื้อ
+            # ✅ สร้าง embed ใบเสร็จการสั่งซื้อ
             receipt_color = 0xFFA500  # สีส้มสำหรับ Gamepass
             if self.product_type == "Group":
                 receipt_color = 0x00FFFF  # สีฟ้าแบบ Cyan
             elif self.product_type == "Limited":
                 receipt_color = 0x00FF00  # สีเขียว
             
-            # ✅ แก้ไขเวลาให้แสดงครั้งเดียว
             current_time = datetime.datetime.now()
             
             receipt_embed = discord.Embed(
@@ -434,7 +475,7 @@ class ConfirmDeliveryView(View):
             
             receipt_embed.set_footer(text=f"จัดส่งสินค้าสำเร็จ 🤗 • {current_time.strftime('%d/%m/%y, %H:%M')}")
             
-            # ส่งไปยังห้องบันทึกการขาย
+            # ✅ ส่งไปยังห้องบันทึกการขาย
             log_channel = bot.get_channel(SALES_LOG_CHANNEL_ID)
             if log_channel:
                 try:
@@ -443,9 +484,10 @@ class ConfirmDeliveryView(View):
                 except:
                     print(f"⚠️ ไม่สามารถส่งใบเสร็จไปยังห้องบันทึกการขาย")
             
-            # ส่งข้อความในตั๋ว
+            # ✅ ส่งข้อความในตั๋ว (ส่งแค่ครั้งเดียว)
             await self.channel.send(embed=receipt_embed)
             
+            # ✅ แก้ไขข้อความเดิมแทนการส่งใหม่ (ข้อ 1)
             await interaction.response.edit_message(
                 content="✅ บันทึกการส่งสินค้าเรียบร้อยแล้ว",
                 embed=None,
@@ -464,7 +506,11 @@ class ConfirmDeliveryView(View):
         except Exception as e:
             print(f"❌ เกิดข้อผิดพลาดในการยืนยันการส่งสินค้า: {e}")
             try:
-                await interaction.response.send_message("✅ ส่งสินค้าเรียบร้อยแล้ว (บันทึกบางส่วนไม่สมบูรณ์)", ephemeral=True)
+                await interaction.response.edit_message(
+                    content="✅ ส่งสินค้าเรียบร้อยแล้ว (บันทึกบางส่วนไม่สมบูรณ์)",
+                    embed=None,
+                    view=None
+                )
             except:
                 pass
 
@@ -1729,7 +1775,8 @@ async def ty(ctx):
             await ctx.send("❌ เกิดข้อผิดพลาดในการย้ายตั๋ว กรุณาลองใหม่อีกครั้ง")
             return
 
-        # ✅ ส่งข้อความยืนยัน
+        # ✅ ส่งข้อความยืนยัน (แก้ไขตามข้อ 2: ไม่พิมพ์ ✅ บันทึกการส่งสินค้าเรียบร้อยแล้ว ตั๋วจะถูกย้ายไปเก็บใน 10 นาที)
+        # ✅ ใช้ ctx.send แทน interaction.response
         await ctx.send("✅ บันทึกการส่งสินค้าเรียบร้อยแล้ว ตั๋วจะถูกย้ายไปเก็บใน 10 นาที")
 
         ticket_activity[ctx.channel.id] = {
