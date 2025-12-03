@@ -24,7 +24,7 @@ intents.members = True
 intents.messages = True
 intents.dm_messages = True
 intents.dm_reactions = True
-shop_open = True
+shop_open = True  # เริ่มต้นเปิดร้าน
 group_ticket_enabled = True
 
 # ตั้งค่าห้องหลักและ stock
@@ -863,42 +863,57 @@ async def update_user_roles(user_id, guild, old_level, new_level):
         print(f"❌ เกิดข้อผิดพลาดในการอัพเดทยศ: {e}")
 
 # --------------------------------------------------------------------------------------------------
-# ฟังก์ชันเปลี่ยนชื่อช่องหลัก
+# ✅ ฟังก์ชันเปลี่ยนชื่อช่องหลัก - FIXED
+# =======================================================================================
+
 async def update_channel_name():
     """เปลี่ยนชื่อช่องหลักตามสถานะร้าน"""
     try:
         current_time = time.time()
-        if current_time - bot.last_update_time < 60:
-            print(f"⏳ รอเพื่อป้องกัน rate limit... (เหลืออีก {60 - (current_time - bot.last_update_time):.0f} วินาที)")
+        
+        # ตรวจสอบ rate limit
+        if current_time - bot.last_update_time < 10:  # ลดเหลือ 10 วินาที
+            print(f"⏳ รอเพื่อป้องกัน rate limit...")
             return
             
         channel = bot.get_channel(MAIN_CHANNEL_ID)
-        if channel:
-            if shop_open:
-                new_name = "〔🟢เปิด〕กดสั่งซื้อที่นี่"
-            else:
-                new_name = "〔🔴〕ปิดชั่วคราว"
-            
-            if channel.name != new_name:
-                try:
-                    await channel.edit(name=new_name)
+        if not channel:
+            print("❌ ไม่พบช่องหลัก")
+            return
+
+        # ตรวจสอบว่าช่องเป็น TextChannel
+        if not isinstance(channel, discord.TextChannel):
+            print(f"❌ ช่อง {MAIN_CHANNEL_ID} ไม่ใช่ TextChannel")
+            return
+
+        if shop_open:
+            new_name = "〔🟢เปิด〕กดสั่งซื้อที่นี่"
+        else:
+            new_name = "〔🔴〕ปิดชั่วคราว"
+        
+        # ตรวจสอบว่าชื่อแตกต่างก่อนจะเปลี่ยน
+        if channel.name != new_name:
+            try:
+                await channel.edit(name=new_name)
+                bot.last_update_time = current_time
+                print(f"✅ เปลี่ยนชื่อช่องเป็น: {new_name}")
+            except discord.HTTPException as e:
+                if e.status == 429:
+                    print(f"⏳ Discord rate limit: {e}")
                     bot.last_update_time = current_time
-                    print(f"✅ เปลี่ยนชื่อช่องเป็น: {new_name}")
-                except discord.HTTPException as e:
-                    if e.status == 429:
-                        print(f"⏳ Discord rate limit: {e}")
-                        bot.last_update_time = current_time
-                        return
-                    else:
-                        raise
-            else:
-                print(f"ℹ️ ชื่อช่องเป็นปัจจุบันอยู่แล้ว: {new_name}")
-    except discord.Forbidden:
-        print("❌ บอทไม่มีสิทธิ์ในการแก้ไขชื่อช่อง")
-    except discord.HTTPException as e:
-        print(f"❌ เกิดข้อผิดพลาดในการเปลี่ยนชื่อช่อง: {e}")
+                    # ไม่ต้องรอ 60 วินาที รอแค่ 10 วินาที
+                    await asyncio.sleep(10)
+                else:
+                    print(f"❌ เกิดข้อผิดพลาดในการเปลี่ยนชื่อช่อง: {e}")
+            except discord.Forbidden:
+                print("❌ บอทไม่มีสิทธิ์ในการแก้ไขชื่อช่อง")
+            except Exception as e:
+                print(f"❌ เกิดข้อผิดพลาดที่ไม่คาดคิด: {e}")
+        else:
+            print(f"ℹ️ ชื่อช่องเป็นปัจจุบันอยู่แล้ว: {new_name}")
+            
     except Exception as e:
-        print(f"❌ เกิดข้อผิดพลาดที่ไม่คาดคิด: {e}")
+        print(f"❌ เกิดข้อผิดพลาดใน update_channel_name: {e}")
 
 # --------------------------------------------------------------------------------------------------
 # Modal สำหรับโน้ตส่วนตัว
@@ -1379,15 +1394,14 @@ async def qr(ctx):
     await ctx.send(embed=embed, view=qr_view)
     
 # =======================================================================================
-# ✅ อัพเดทช่องหลัก
+# ✅ อัพเดทช่องหลัก - FIXED VERSION
 # =======================================================================================
 
 async def update_main_channel():
     """อัพเดทข้อความในช่องหลักโดยการ edit ข้อความเดิม"""
     try:
         current_time = time.time()
-        if current_time - bot.last_update_time < 30:
-            print(f"⏳ รอเพื่อป้องกัน rate limit ใน update_main_channel...")
+        if current_time - bot.last_update_time < 5:  # ลดเวลา rate limit
             return
             
         channel = bot.get_channel(MAIN_CHANNEL_ID)
@@ -1395,26 +1409,25 @@ async def update_main_channel():
             print("❌ ไม่พบช่องหลัก")
             return
 
+        # ค้นหาข้อความของบอทในช่องหลัก
         target_message = None
-        async for msg in channel.history(limit=100):
+        async for msg in channel.history(limit=50):
             if msg.author == bot.user and msg.embeds:
-                if msg.embeds and len(msg.embeds) > 0:
-                    embed_title = msg.embeds[0].title or ""
-                    if "Sushi Shop" in embed_title:
-                        target_message = msg
-                        break
+                target_message = msg
+                break
         
         embed = discord.Embed(
             title="🍣 Sushi Shop 🍣 เปิดให้บริการ",
             color=0xFFA500
         )
         
+        # กำหนดสถานะตาม stock และ shop_open
         gamepass_status = "🟢" if gamepass_stock > 0 else "🔴"
         group_status = "🟢" if group_stock > 0 else "🔴"
         shop_status = "🟢 เปิด" if shop_open else "🔴 ปิดชั่วคราว"
         
         embed.add_field(
-            name=f"🎮 กดเกมพาส | 📊 Stock: {gamepass_stock} {gamepass_status}",
+            name=f"🎮 กดเกมพาส | 📊 Stock: {gamepass_stock:,} {gamepass_status}",
             value=(
                 "```\n"
                 f"เรท: {gamepass_rate} | โรแท้ยัดกลุ่มได้\n"
@@ -1425,7 +1438,7 @@ async def update_main_channel():
         )
         
         embed.add_field(
-            name=f"👥 โรบัคกลุ่ม | 📊 Stock: {group_stock} {group_status}", 
+            name=f"👥 โรบัคกลุ่ม | 📊 Stock: {group_stock:,} {group_status}", 
             value=(
                 "```\n"
                 f"เรท: {group_rate_low} | 500+ บาท เรท {group_rate_high}\n"
@@ -1448,15 +1461,18 @@ async def update_main_channel():
         
         embed.set_thumbnail(url="https://media.discordapp.net/attachments/717757556889747657/1403684950770847754/noFilter.png")
 
+        # สร้าง MainShopView ใหม่
+        main_view = MainShopView()
+
         if target_message:
             try:
-                await target_message.edit(embed=embed, view=MainShopView())
+                await target_message.edit(embed=embed, view=main_view)
                 bot.last_update_time = current_time
                 print(f"✅ อัพเดท embed หลักเรียบร้อยแล้ว (แก้ไขข้อความ ID: {target_message.id})")
             except discord.NotFound:
                 print("❌ ไม่พบข้อความเดิม ส่งข้อความใหม่")
                 try:
-                    await channel.send(embed=embed, view=MainShopView())
+                    await channel.send(embed=embed, view=main_view)
                     bot.last_update_time = current_time
                 except Exception as e:
                     print(f"❌ ไม่สามารถส่งข้อความใหม่: {e}")
@@ -1467,20 +1483,20 @@ async def update_main_channel():
                 else:
                     print(f"❌ ไม่สามารถ edit ข้อความ: {e}")
                     try:
-                        await channel.send(embed=embed, view=MainShopView())
+                        await channel.send(embed=embed, view=main_view)
                         bot.last_update_time = current_time
                     except:
                         pass
             except Exception as e:
                 print(f"❌ ไม่สามารถ edit ข้อความ: {e}")
                 try:
-                    await channel.send(embed=embed, view=MainShopView())
+                    await channel.send(embed=embed, view=main_view)
                     bot.last_update_time = current_time
                 except:
                     pass
         else:
             try:
-                await channel.send(embed=embed, view=MainShopView())
+                await channel.send(embed=embed, view=main_view)
                 bot.last_update_time = current_time
                 print("✅ สร้าง embed หลักใหม่เรียบร้อยแล้ว")
             except Exception as e:
@@ -1490,59 +1506,36 @@ async def update_main_channel():
         print(f"❌ เกิดข้อผิดพลาดในการอัปเดตช่องหลัก: {e}")
 
 # =======================================================================================
-# ✅ Main Shop View
+# ✅ Main Shop View - FIXED VERSION
 # =======================================================================================
 
 class MainShopView(View):
     def __init__(self):
         super().__init__(timeout=None)
         
-        if shop_open and gamepass_stock > 0:
-            gamepass_label = "เปิดตั๋วกดเกมพาส"
-            gamepass_style = discord.ButtonStyle.success
-            gamepass_disabled = False
-        else:
-            if not shop_open:
-                gamepass_label = "ร้านปิดชั่วคราว"
-            else:
-                gamepass_label = "สินค้าหมด"
-            gamepass_style = discord.ButtonStyle.danger
-            gamepass_disabled = True
-            
+        # ✅ ปุ่มเปิดตั๋วกดเกมพาส
         gamepass_button = Button(
-            label=gamepass_label,
-            style=gamepass_style,
+            label="เปิดตั๋วกดเกมพาส",
+            style=discord.ButtonStyle.success,
             custom_id="open_gamepass_ticket",
             emoji="🎮",
-            disabled=gamepass_disabled
+            disabled=False  # เริ่มต้นไม่ disabled
         )
         gamepass_button.callback = self.gamepass_ticket
         self.add_item(gamepass_button)
         
-        if shop_open and group_ticket_enabled and group_stock > 0:
-            group_label = "เปิดตั๋ว Group"
-            group_style = discord.ButtonStyle.success
-            group_disabled = False
-        else:
-            if not shop_open:
-                group_label = "ร้านปิดชั่วคราว"
-            elif not group_ticket_enabled:
-                group_label = "บริการปิดชั่วคราว"
-            else:
-                group_label = "สินค้าหมด"
-            group_style = discord.ButtonStyle.danger
-            group_disabled = True
-            
+        # ✅ ปุ่มเปิดตั๋ว Group
         group_button = Button(
-            label=group_label,
-            style=group_style,
+            label="เปิดตั๋ว Group",
+            style=discord.ButtonStyle.success,
             custom_id="open_group_ticket", 
             emoji="👥",
-            disabled=group_disabled
+            disabled=False  # เริ่มต้นไม่ disabled
         )
         group_button.callback = self.group_ticket
         self.add_item(group_button)
         
+        # ✅ ปุ่มจดวันที่เข้ากลุ่ม
         notes_button = Button(
             label="จดวันที่เข้ากลุ่ม",
             style=discord.ButtonStyle.secondary,
@@ -1552,6 +1545,7 @@ class MainShopView(View):
         notes_button.callback = self.personal_notes
         self.add_item(notes_button)
         
+        # ✅ ปุ่มดูเลเวลของคุณ
         level_button = Button(
             label="ดูเลเวลของคุณ",
             style=discord.ButtonStyle.primary,
@@ -1563,10 +1557,12 @@ class MainShopView(View):
 
     async def gamepass_ticket(self, interaction: discord.Interaction):
         try:
+            # ✅ ตรวจสอบว่าร้านเปิดหรือปิด
             if not shop_open:
                 await interaction.response.send_message("❌ ร้านปิดชั่วคราว", ephemeral=True)
                 return
             
+            # ✅ ตรวจสอบ stock
             if gamepass_stock <= 0:
                 await interaction.response.send_message("❌ สินค้าหมดชั่วคราว", ephemeral=True)
                 return
@@ -1578,14 +1574,17 @@ class MainShopView(View):
 
     async def group_ticket(self, interaction: discord.Interaction):
         try:
+            # ✅ ตรวจสอบว่าร้านเปิดหรือปิด
             if not shop_open:
                 await interaction.response.send_message("❌ ร้านปิดชั่วคราว", ephemeral=True)
                 return
             
+            # ✅ ตรวจสอบว่าบริการ Group เปิดหรือปิด
             if not group_ticket_enabled:
                 await interaction.response.send_message("❌ บริการ Group ปิดชั่วคราว", ephemeral=True)
                 return
                 
+            # ✅ ตรวจสอบ stock
             if group_stock <= 0:
                 await interaction.response.send_message("❌ สินค้าหมดชั่วคราว", ephemeral=True)
                 return
@@ -1718,10 +1717,8 @@ async def on_ready():
     bot.add_view(QRView())
     print("✅ ลงทะเบียน Views เรียบร้อย")
     
-    # อัพเดทช่องหลัก
+    # ✅ อัพเดทช่องหลักและชื่อช่อง
     await update_channel_name()
-    
-    # อัพเดทช่องหลัก
     await update_main_channel()
     
     # ✅ อัพเดทช่องเครดิตเมื่อบอทเริ่มทำงาน
@@ -1889,8 +1886,9 @@ async def ty(ctx):
             'robux_amount': robux_amount
         }
         
-        # ✅ 7. อัพเดทช่องหลัก
+        # ✅ 7. อัพเดทช่องหลักและชื่อช่อง
         await update_main_channel()
+        await update_channel_name()
         
     else:
         await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
@@ -2098,11 +2096,14 @@ async def help_command(ctx):
     )
     await ctx.send(embed=help_embed, delete_after=30)
 
-# --------------------------------------------------------------------------------------------------
-# คำสั่งจัดการ Stock
+# =======================================================================================
+# ✅ คำสั่งจัดการ Stock - FIXED VERSION
+# =======================================================================================
+
 @bot.command()
 @admin_only()
 async def stock(ctx, stock_type: str = None, amount: str = None):
+    """คำสั่งจัดการ stock"""
     global gamepass_stock, group_stock
     
     try:
@@ -2168,7 +2169,9 @@ async def stock(ctx, stock_type: str = None, amount: str = None):
                 
                 response_msg = await ctx.send(embed=embed)
                 
+                # ✅ อัพเดท embed และชื่อช่องทันที
                 await update_main_channel()
+                await update_channel_name()
                 
                 await asyncio.sleep(5)
                 try:
@@ -2220,7 +2223,9 @@ async def stock(ctx, stock_type: str = None, amount: str = None):
                 
                 response_msg = await ctx.send(embed=embed)
                 
+                # ✅ อัพเดท embed และชื่อช่องทันที
                 await update_main_channel()
+                await update_channel_name()
                 
                 await asyncio.sleep(5)
                 try:
@@ -2254,148 +2259,14 @@ async def stock(ctx, stock_type: str = None, amount: str = None):
         except:
             pass
 
-# --------------------------------------------------------------------------------------------------
-# คำสั่งเปลี่ยนเรท
-@bot.command()
-@admin_only()
-async def rate(ctx, rate_type: str = None, low_rate: str = None, high_rate: str = None):
-    """คำสั่งเปลี่ยนเรท Gamepass หรือ Group"""
-    global gamepass_rate, group_rate_low, group_rate_high
-    
-    try:
-        await ctx.message.delete()
-    except:
-        pass
-    
-    if rate_type is None:
-        embed = discord.Embed(
-            title="📊 อัตราแลกเปลี่ยนปัจจุบัน",
-            color=0x00FF99
-        )
-        embed.add_field(
-            name="🎮 Gamepass Rate", 
-            value=f"**{gamepass_rate}**", 
-            inline=True
-        )
-        embed.add_field(
-            name="👥 Group Rate", 
-            value=f"**{group_rate_low} - {group_rate_high}**", 
-            inline=True
-        )
-        embed.set_footer(text="ใช้ !rate <rate> หรือ !rate group <low> <high> เพื่อเปลี่ยนเรท")
-        response_msg = await ctx.send(embed=embed)
-        await asyncio.sleep(10)
-        try:
-            await response_msg.delete()
-        except:
-            pass
-        
-    elif rate_type.lower() == "group":
-        if low_rate is None or high_rate is None:
-            embed = discord.Embed(
-                title="❌ การใช้งานไม่ถูกต้อง",
-                description="**การใช้งาน:** `!rate group <low_rate> <high_rate>`",
-                color=0xFF0000
-            )
-            response_msg = await ctx.send(embed=embed)
-            await asyncio.sleep(10)
-            try:
-                await response_msg.delete()
-            except:
-                pass
-            return
-        
-        try:
-            new_low = float(low_rate)
-            new_high = float(high_rate)
-            
-            if new_low <= 0 or new_high <= 0:
-                error_msg = await ctx.send("❌ เรทต้องมากกว่า 0")
-                await asyncio.sleep(5)
-                try:
-                    await error_msg.delete()
-                except:
-                    pass
-                return
-            
-            group_rate_low = new_low
-            group_rate_high = new_high
-            
-            embed = discord.Embed(
-                title="✅ เปลี่ยนเรท Group เรียบร้อย",
-                description=f"ตั้งค่าเรท Group เป็น **{group_rate_low} - {group_rate_high}** เรียบร้อยแล้ว",
-                color=0x00FF00
-            )
-            response_msg = await ctx.send(embed=embed)
-            
-            await update_main_channel()
-            
-            await asyncio.sleep(5)
-            try:
-                await response_msg.delete()
-            except:
-                pass
-                
-        except ValueError:
-            error_msg = await ctx.send("❌ กรุณากรอกเรทเป็นตัวเลขที่ถูกต้อง")
-            await asyncio.sleep(5)
-            try:
-                await error_msg.delete()
-            except:
-                pass
-    
-    else:
-        try:
-            new_rate = float(rate_type)
-            
-            if new_rate <= 0:
-                error_msg = await ctx.send("❌ เรทต้องมากกว่า 0")
-                await asyncio.sleep(5)
-                try:
-                    await error_msg.delete()
-                except:
-                    pass
-                return
-            
-            gamepass_rate = new_rate
-            
-            embed = discord.Embed(
-                title="✅ เปลี่ยนเรท Gamepass เรียบร้อย",
-                description=f"ตั้งค่าเรท Gamepass เป็น **{gamepass_rate}** เรียบร้อยแล้ว",
-                color=0x00FF00
-            )
-            response_msg = await ctx.send(embed=embed)
-            
-            await update_main_channel()
-            
-            await asyncio.sleep(5)
-            try:
-                await response_msg.delete()
-            except:
-                pass
-                
-        except ValueError:
-            embed = discord.Embed(
-                title="❌ การใช้งานไม่ถูกต้อง",
-                description=(
-                    "**การใช้งาน:**\n"
-                    "`!rate <rate>` - เปลี่ยนเรท Gamepass\n"
-                    "`!rate group <low> <high>` - เปลี่ยนเรท Group"
-                ),
-                color=0xFF0000
-            )
-            response_msg = await ctx.send(embed=embed)
-            await asyncio.sleep(10)
-            try:
-                await response_msg.delete()
-            except:
-                pass
+# =======================================================================================
+# ✅ คำสั่งเปิดปิดร้าน - FIXED VERSION
+# =======================================================================================
 
-# --------------------------------------------------------------------------------------------------
-# คำสั่งเปิดปิดร้าน
 @bot.command()
 @admin_only()
 async def sushi(ctx):
+    """คำสั่งเปิด/ปิดร้าน"""
     global shop_open
     shop_open = not shop_open
 
@@ -2413,20 +2284,8 @@ async def sushi(ctx):
     
     status_msg = await ctx.send(embed=embed)
     
-    try:
-        channel = bot.get_channel(MAIN_CHANNEL_ID)
-        if channel:
-            if shop_open:
-                new_name = "〔🟢เปิด〕กดสั่งซื้อที่นี่"
-            else:
-                new_name = "〔🔴〕ปิดชั่วคราว"
-            
-            if channel.name != new_name:
-                await channel.edit(name=new_name)
-                print(f"✅ เปลี่ยนชื่อช่องเป็น: {new_name}")
-    except Exception as e:
-        print(f"⚠️ ไม่สามารถเปลี่ยนชื่อช่อง: {e}")
-    
+    # ✅ เรียกฟังก์ชันเปลี่ยนชื่อช่องและอัพเดท embed
+    await update_channel_name()
     await update_main_channel()
     
     await asyncio.sleep(3)
@@ -2436,11 +2295,14 @@ async def sushi(ctx):
     except:
         print("❌ ไม่สามารถลบข้อความสถานะร้าน")
 
-# --------------------------------------------------------------------------------------------------
-# คำสั่งเปิดปิด Group Ticket
+# =======================================================================================
+# ✅ คำสั่งเปิดปิด Group Ticket - FIXED VERSION
+# =======================================================================================
+
 @bot.command()
 @admin_only()
 async def group(ctx, status: str = None):
+    """คำสั่งเปิด/ปิด Group Ticket"""
     global group_ticket_enabled
     
     try:
@@ -2480,7 +2342,44 @@ async def group(ctx, status: str = None):
         )
         await ctx.send(embed=embed)
     
+    # ✅ อัพเดท embed ทันที
     await update_main_channel()
+
+# =======================================================================================
+# ✅ คำสั่งอื่นๆ
+# =======================================================================================
+
+@bot.command()
+@admin_only()
+async def setup(ctx):
+    """คำสั่งตั้งค่าระบบ"""
+    try:
+        await ctx.message.delete()
+    except:
+        pass
+    
+    embed = discord.Embed(
+        title="✅ ตั้งค่าระบบเรียบร้อยแล้ว",
+        color=0x00FF00
+    )
+    await ctx.send(embed=embed)
+    await update_main_channel()
+
+@bot.command()
+@admin_only()
+async def restart(ctx):
+    """คำสั่งรีสตาร์ทระบบ"""
+    try:
+        await ctx.message.delete()
+    except:
+        pass
+    
+    await update_main_channel()
+    embed = discord.Embed(
+        title="🔄 รีสตาร์ทระบบปุ่มเรียบร้อยแล้ว",
+        color=0x00FF00
+    )
+    await ctx.send(embed=embed)
 
 # --------------------------------------------------------------------------------------------------
 # คำสั่ง !level
@@ -2504,36 +2403,6 @@ async def say(ctx, *, message: str):
 
 @bot.command()
 @admin_only()
-async def setup(ctx):
-    try:
-        await ctx.message.delete()
-    except:
-        pass
-    
-    embed = discord.Embed(
-        title="✅ ตั้งค่าระบบเรียบร้อยแล้ว",
-        color=0x00FF00
-    )
-    await ctx.send(embed=embed)
-    await update_main_channel()
-
-@bot.command()
-@admin_only()
-async def restart(ctx):
-    try:
-        await ctx.message.delete()
-    except:
-        pass
-    
-    await update_main_channel()
-    embed = discord.Embed(
-        title="🔄 รีสตาร์ทระบบปุ่มเรียบร้อยแล้ว",
-        color=0x00FF00
-    )
-    await ctx.send(embed=embed)
-
-@bot.command()
-@admin_only()
 async def sync(ctx):
     """Sync slash commands (สำหรับแอดมิน)"""
     try:
@@ -2551,276 +2420,6 @@ async def test(ctx):
         color=0x00FF00
     )
     await ctx.send(embed=embed, delete_after=10)
-
-# =======================================================================================
-# ✅ SLASH COMMANDS
-# =======================================================================================
-
-@bot.tree.command(name="gamepass", description="คำนวณราคา Gamepass")
-async def gamepass_cmd(interaction: discord.Interaction, amount: str):
-    """คำสั่งคำนวณราคา Gamepass - ใช้ได้ใน DM ทุกที่"""
-    try:
-        expr = amount.replace(",", "").replace(" ", "").lower().replace("x", "*").replace("÷", "/")
-
-        if not re.match(r"^[\d\s\+\-\*\/\(\)\.]+$", expr):
-            await interaction.response.send_message("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", ephemeral=False)
-            return
-
-        robux = int(eval(expr))
-        price = robux / gamepass_rate
-        price_str = f"{price:,.0f} บาท"
-
-        response_msg = f"🎮 Gamepass {robux:,} Robux = **{price_str}** (เรท {gamepass_rate})"
-        await interaction.response.send_message(response_msg, ephemeral=False)
-
-    except Exception as e:
-        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=False)
-
-@bot.tree.command(name="group", description="คำนวณราคา Group")
-async def group_cmd(interaction: discord.Interaction, amount: str):
-    """คำสั่งคำนวณราคา Group - ใช้ได้ใน DM ทุกที่"""
-    try:
-        expr = amount.replace(",", "").replace(" ", "").lower().replace("x", "*").replace("÷", "/")
-
-        if not re.match(r"^[\d\s\+\-\*\/\(\)\.]+$", expr):
-            await interaction.response.send_message("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", ephemeral=False)
-            return
-
-        robux = int(eval(expr))
-
-        if robux < 2250:
-            rate = group_rate_low
-        else:
-            rate = group_rate_high
-
-        price = robux / rate
-        price_str = f"{price:,.0f} บาท"
-
-        response_msg = f"👥 Group {robux:,} Robux = **{price_str}** (เรท {rate})"
-        await interaction.response.send_message(response_msg, ephemeral=False)
-
-    except Exception as e:
-        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=False)
-
-@bot.tree.command(name="baht_gamepass", description="คำนวณ Robux จากเงินบาท")
-async def baht_gamepass_cmd(interaction: discord.Interaction, amount: str):
-    """คำสั่งคำนวณ Robux จากเงินบาท - ใช้ได้ใน DM ทุกที่"""
-    try:
-        expr = amount.replace(",", "").replace(" ", "").lower().replace("x", "*").replace("÷", "/")
-
-        if not re.match(r"^[\d\s\+\-\*\/\(\)\.]+$", expr):
-            await interaction.response.send_message("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", ephemeral=False)
-            return
-
-        baht = eval(expr)
-        robux = baht * gamepass_rate
-
-        response_msg = f"🎮 {baht:,.0f} บาท = **{robux:,.0f} Robux** (Gamepass เรท {gamepass_rate})"
-        await interaction.response.send_message(response_msg, ephemeral=False)
-
-    except Exception as e:
-        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=False)
-
-@bot.tree.command(name="baht_group", description="คำนวณเงินบาทเป็น Robux")
-async def baht_group_cmd(interaction: discord.Interaction, amount: str):
-    """คำสั่งคำนวณเงินบาทเป็น Robux - ใช้ได้ใน DM ทุกที่"""
-    try:
-        expr = amount.replace(",", "").replace(" ", "").lower().replace("x", "*").replace("÷", "/")
-
-        if not re.match(r"^[\d\s\+\-\*\/\(\)\.]+$", expr):
-            await interaction.response.send_message("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", ephemeral=False)
-            return
-
-        baht = eval(expr)
-
-        if baht < 500:
-            rate = group_rate_low
-        else:
-            rate = group_rate_high
-
-        robux = baht * rate
-
-        response_msg = f"👥 {baht:,.0f} บาท = **{robux:,.0f} Robux** (Group เรท {rate})"
-        await interaction.response.send_message(response_msg, ephemeral=False)
-
-    except Exception as e:
-        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=False)
-
-@bot.tree.command(name="tax", description="คำนวณ Robux หลังหัก 30%")
-async def tax_cmd(interaction: discord.Interaction, amount: str):
-    """คำสั่งคำนวณ Robux หลังหัก 30% - ใช้ได้ใน DM ทุกที่"""
-    try:
-        expr = amount.replace(" ", "")
-        
-        if re.match(r"^\d+$", expr):
-            number = int(expr)
-            result = number * 0.7
-            response_msg = f"💰 {number:,} Robux หลังหัก 30% = **{result:,.0f} Robux**"
-            
-        elif re.match(r"^\d+-\d+%$", expr):
-            parts = expr.split('-')
-            number = int(parts[0])
-            percent = int(parts[1].replace('%', ''))
-            
-            if percent < 0 or percent > 100:
-                await interaction.response.send_message("❌ เปอร์เซ็นต์ต้องอยู่ระหว่าง 0-100%", ephemeral=False)
-                return
-            
-            result = number * (1 - percent/100)
-            response_msg = f"💰 {number:,} Robux หลังหัก {percent}% = **{result:,.0f} Robux**"
-            
-        else:
-            response_msg = (
-                "❌ รูปแบบไม่ถูกต้อง\n\n"
-                "**การใช้งาน:**\n"
-                "`/tax 100` - หัก 30% อัตโนมัติ\n"
-                "`/tax 100-30%` - หัก 30%\n"
-                "`/tax 100-50%` - หัก 50%"
-            )
-
-        await interaction.response.send_message(response_msg, ephemeral=False)
-
-    except Exception as e:
-        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=False)
-
-@bot.tree.command(name="help", description="แสดงคำสั่งทั้งหมดที่ใช้ได้")
-async def help_cmd(interaction: discord.Interaction):
-    """คำสั่งช่วยเหลือ - แสดงคำสั่งทั้งหมด - ใช้ได้ใน DM ทุกที่"""
-    try:
-        help_embed = discord.Embed(
-            title="🍣 Sushi Shop - คำสั่งทั้งหมด",
-            description="**คำสั่ง Slash Commands (ใช้ /):**\n"
-                       "`/gamepass <จำนวน>` - คำนวณราคา Gamepass\n"
-                       "`/group <จำนวน>` - คำนวณราคา Group\n"
-                       "`/baht_gamepass <จำนวน>` - คำนวณ Robux จากจำนวนบาท\n"
-                       "`/baht_group <จำนวน>` - คำนวณ Robux จากจำนวนบาท\n"
-                       "`/tax <จำนวน>` - คำนวณ Robux หลังหักภาษี\n"
-                       "`/help` - แสดงคำสั่งที่ใช้ได้\n\n"
-                       "**หมายเหตุ:**\n"
-                       "• คำสั่งเหล่านี้ใช้ได้ทั้งในเซิร์ฟเวอร์และ DM\n"
-                       "• ในการสั่งซื้อจริง ต้องเปิดตั๋วในเซิร์ฟเวอร์เท่านั้น",
-            color=0x00FF99
-        )
-        
-        await interaction.response.send_message(embed=help_embed, ephemeral=False)
-        
-    except Exception as e:
-        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=False)
-
-# =======================================================================================
-# ✅ TEXT COMMANDS - ใช้ในเซิร์ฟเวอร์เท่านั้น
-# =======================================================================================
-
-@bot.command()
-async def gp(ctx, *, expression: str):
-    """คำสั่งคำนวณราคา Gamepass (Text Command)"""
-    try:
-        expr = expression.replace(",", "").lower().replace("x", "*").replace("÷", "/")
-
-        if not re.match(r"^[\d\s\+\-\*\/\(\)]+$", expr):
-            await ctx.send("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", delete_after=10)
-            return
-
-        robux = int(eval(expr))
-        price = robux / gamepass_rate
-        price_str = f"{price:,.0f} บาท"
-
-        await ctx.send(f"🎮 Gamepass {robux:,} Robux = **{price_str}** (เรท {gamepass_rate})")
-
-    except Exception as e:
-        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
-
-@bot.command()
-async def g(ctx, *, expression: str):
-    """คำสั่งคำนวณราคา Group (Text Command)"""
-    try:
-        expr = expression.replace(",", "").lower().replace("x", "*").replace("÷", "/")
-
-        if not re.match(r"^[\d\s\+\-\*\/\(\)]+$", expr):
-            await ctx.send("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", delete_after=10)
-            return
-
-        robux = int(eval(expr))
-
-        if robux < 2250:
-            rate = group_rate_low
-        else:
-            rate = group_rate_high
-
-        price = robux / rate
-        price_str = f"{price:,.0f} บาท"
-
-        await ctx.send(f"👥 Group {robux:,} Robux = **{price_str}** (เรท {rate})")
-
-    except Exception as e:
-        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
-
-@bot.command()
-async def gpb(ctx, *, expression: str):
-    """คำสั่งคำนวณ Robux จากเงินบาท (Gamepass) (Text Command)"""
-    try:
-        expr = expression.replace(",", "").replace(" ", "")
-        baht = eval(expr)
-
-        robux = baht * gamepass_rate
-        await ctx.send(f"🎮 {baht:,.0f} บาท = **{robux:,.0f} Robux** (Gamepass เรท {gamepass_rate})")
-
-    except Exception as e:
-        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
-
-@bot.command()
-async def gb(ctx, *, expression: str):
-    """คำสั่งคำนวณ Robux จากเงินบาท (Group) (Text Command)"""
-    try:
-        expr = expression.replace(",", "").replace(" ", "")
-        baht = eval(expr)
-
-        if baht < 500:
-            rate = group_rate_low
-        else:
-            rate = group_rate_high
-
-        robux = baht * rate
-        await ctx.send(f"👥 {baht:,.0f} บาท = **{robux:,.0f} Robux** (Group เรท {rate})")
-
-    except Exception as e:
-        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
-
-@bot.command()
-async def tax(ctx, *, expression: str):
-    """คำสั่งคำนวณ Robux หลังหักภาษี (Text Command)"""
-    try:
-        expr = expression.replace(" ", "")
-        
-        if re.match(r"^\d+$", expr):
-            number = int(expr)
-            result = number * 0.7
-            await ctx.send(f"💰 {number:,} Robux หลังหัก 30% = **{result:,.0f} Robux**")
-            
-        elif re.match(r"^\d+-\d+%$", expr):
-            parts = expr.split('-')
-            number = int(parts[0])
-            percent = int(parts[1].replace('%', ''))
-            
-            if percent < 0 or percent > 100:
-                await ctx.send("❌ เปอร์เซ็นต์ต้องอยู่ระหว่าง 0-100%", delete_after=10)
-                return
-            
-            result = number * (1 - percent/100)
-            await ctx.send(f"💰 {number:,} Robux หลังหัก {percent}% = **{result:,.0f} Robux**")
-            
-        else:
-            await ctx.send(
-                "❌ รูปแบบไม่ถูกต้อง\n\n"
-                "**การใช้งาน:**\n"
-                "`!tax 100` - หัก 30% อัตโนมัติ\n"
-                "`!tax 100-30%` - หัก 30%\n"
-                "`!tax 100-50%` - หัก 50%",
-                delete_after=15
-            )
-
-    except Exception as e:
-        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
 
 # =======================================================================================
 # ✅ เริ่มต้นบอท
