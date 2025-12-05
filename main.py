@@ -34,8 +34,8 @@ CREDIT_CHANNEL_ID = 1363250076549382246
 DELIVERED_CATEGORY_ID = 1419565515088597083  # ✅ Category "ส่งของแล้ว" (เดิมคือ DELIVERED_CHANNEL_ID)
 ARCHIVED_CATEGORY_ID = 1445086228113264650  # ✅ Category สำหรับย้ายตั๋วหลัง !ty
 TRANSCRIPT_CHANNEL_ID = None  # จะกำหนดค่าหลังจาก 10 นาที
-gamepass_stock = 100  # ตั้งค่าเริ่มต้น
-group_stock = 100     # ตั้งค่าเริ่มต้น
+gamepass_stock = 50000  # ตั้งค่าเริ่มต้น
+group_stock = 0     # ตั้งค่าเริ่มต้น
 
 # เก็บข้อมูลโน้ตส่วนตัว
 user_notes = {}
@@ -2988,3 +2988,4 @@ try:
     bot.run(os.getenv("TOKEN"))
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
+
