@@ -8,18 +8,40 @@ import asyncio
 import json
 import traceback
 import time
-import pytz  # เพิ่มไลบรารีสำหรับจัดการ timezone
+
+# =======================================================================================
+# ✅ ตรวจสอบและติดตั้ง pytz อัตโนมัติ
+# =======================================================================================
+try:
+    import pytz
+    print("✅ โหลด pytz สำเร็จ")
+except ImportError:
+    print("⚠️ ไม่พบ pytz กำลังใช้ datetime แบบธรรมดา...")
+    # สร้าง mock object สำหรับ pytz ถ้าไม่มี
+    class MockPytz:
+        def timezone(self, tz):
+            return None
+    pytz = MockPytz()
 
 from server import server_on
 
 # =======================================================================================
-# ✅ ตั้งค่า Timezone สำหรับประเทศไทย
+# ✅ ตั้งค่า Timezone สำหรับประเทศไทย (พร้อม fallback)
 # =======================================================================================
-THAILAND_TIMEZONE = pytz.timezone('Asia/Bangkok')
-
 def get_thailand_time():
     """รับเวลาปัจจุบันตามเวลาไทย"""
-    return datetime.datetime.now(THAILAND_TIMEZONE)
+    try:
+        THAILAND_TIMEZONE = pytz.timezone('Asia/Bangkok')
+        if THAILAND_TIMEZONE:
+            return datetime.datetime.now(THAILAND_TIMEZONE)
+        else:
+            # Fallback: เวลาไทยคือ UTC+7
+            utc_now = datetime.datetime.utcnow()
+            return utc_now + datetime.timedelta(hours=7)
+    except Exception:
+        # Fallback ถ้าไม่มี pytz หรือเกิดข้อผิดพลาด
+        utc_now = datetime.datetime.utcnow()
+        return utc_now + datetime.timedelta(hours=7)
 
 # ตั้งค่าเรท (ค่าเริ่มต้น)
 gamepass_rate = 6
@@ -33,7 +55,6 @@ intents.guilds = True
 intents.members = True
 intents.messages = True
 intents.dm_messages = True
-intents.dm_reactions = True
 intents.reactions = True  # เพิ่ม intent สำหรับ reactions
 shop_open = True
 group_ticket_enabled = True
@@ -2680,7 +2701,7 @@ async def rate(ctx, rate_type: str = None, low_rate: str = None, high_rate: str 
         try:
             await response_msg.delete()
         except:
-            pass
+        pass
         
     elif rate_type.lower() == "group":
         if low_rate is None or high_rate is None:
@@ -3302,14 +3323,6 @@ async def tax(ctx, *, expression: str):
 # =======================================================================================
 
 print("🚀 กำลังเริ่มต้นบอท...")
-
-# ✅ ติดตั้งไลบรารี pytz ถ้ายังไม่ได้ติดตั้ง
-try:
-    import pytz
-    print("✅ โหลด pytz สำเร็จ")
-except ImportError:
-    print("❌ ไม่พบไลบรารี pytz กรุณาติดตั้งด้วยคำสั่ง: pip install pytz")
-    exit(1)
 
 try:
     server_on()
