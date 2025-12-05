@@ -48,6 +48,7 @@ user_data_file = "user_data.json"
 ticket_transcripts_file = "ticket_transcripts.json"
 ticket_counter_file = "ticket_counter.json"  # ✅ ไฟล์เก็บตัวนับตั๋ว
 ticket_robux_data_file = "ticket_robux_data.json"  # ✅ ไฟล์เก็บข้อมูล robux_amount ของตั๋ว
+ticket_customer_data_file = "ticket_customer_data.json"  # ✅ ไฟล์เก็บชื่อลูกค้าของตั๋ว
 
 # =======================================================================================
 # ✅ ฟังก์ชันจัดการไฟล์ข้อมูล
@@ -151,6 +152,31 @@ def save_ticket_robux_data():
         print(f"❌ เกิดข้อผิดพลาดในการบันทึก ticket_robux_data: {e}")
         return False
 
+# ✅ ระบบเก็บข้อมูลชื่อลูกค้าสำหรับแต่ละตั๋ว
+def load_ticket_customer_data():
+    """โหลดข้อมูลชื่อลูกค้าของตั๋ว"""
+    try:
+        if os.path.exists(ticket_customer_data_file):
+            with open(ticket_customer_data_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                print(f"✅ โหลดข้อมูลชื่อลูกค้าของตั๋ว: {len(data)} tickets")
+                return data
+        return {}
+    except Exception as e:
+        print(f"❌ เกิดข้อผิดพลาดในการโหลด ticket_customer_data: {e}")
+        return {}
+
+def save_ticket_customer_data():
+    """บันทึกข้อมูลชื่อลูกค้าของตั๋ว"""
+    try:
+        with open(ticket_customer_data_file, 'w', encoding='utf-8') as f:
+            json.dump(ticket_customer_data, f, ensure_ascii=False, indent=2)
+        print("💾 บันทึกข้อมูลชื่อลูกค้าของตั๋วเรียบร้อยแล้ว")
+        return True
+    except Exception as e:
+        print(f"❌ เกิดข้อผิดพลาดในการบันทึก ticket_customer_data: {e}")
+        return False
+
 # =======================================================================================
 # ✅ คลาสหลักของบอท
 # =======================================================================================
@@ -171,14 +197,16 @@ class MyBot(commands.Bot):
         print("🔄 กำลังตั้งค่า slash commands...")
         
         # ✅ โหลดข้อมูลทั้งหมด
-        global user_data, ticket_transcripts, ticket_robux_data
+        global user_data, ticket_transcripts, ticket_robux_data, ticket_customer_data
         user_data = load_user_data()
         ticket_transcripts = load_ticket_transcripts()
         ticket_robux_data = load_ticket_robux_data()  # ✅ โหลดข้อมูล robux_amount
+        ticket_customer_data = load_ticket_customer_data()  # ✅ โหลดข้อมูลชื่อลูกค้า
         
         print(f"✅ โหลดข้อมูลผู้ใช้: {len(user_data)} users")
         print(f"✅ โหลดประวัติตั๋ว: {len(ticket_transcripts)} tickets")
         print(f"✅ โหลดข้อมูล robux_amount: {len(ticket_robux_data)} tickets")
+        print(f"✅ โหลดข้อมูลชื่อลูกค้า: {len(ticket_customer_data)} tickets")
         print(f"✅ โหลดตัวนับตั๋ว: {self.ticket_counter}")
         
         try:
@@ -196,6 +224,7 @@ bot = MyBot()
 user_data = {}
 ticket_transcripts = {}
 ticket_robux_data = {}  # เก็บข้อมูล robux_amount สำหรับแต่ละตั๋ว
+ticket_customer_data = {}  # เก็บข้อมูลชื่อลูกค้าสำหรับแต่ละตั๋ว
 
 # ระดับและ EXP
 LEVELS = {
@@ -265,40 +294,46 @@ def get_next_ticket_number():
         return 1
 
 # =======================================================================================
-# ✅ ฟังก์ชันบันทึกประวัติแชทในตั๋ว
+# ✅ ฟังก์ชันบันทึกประวัติแชทในตั๋ว - แก้ไขตามข้อ 2-3
 # =======================================================================================
 
-async def save_ticket_transcript(channel, action_by=None, robux_amount=None):
-    """บันทึกประวัติแชทในตั๋ว"""
+async def save_ticket_transcript(channel, action_by=None, robux_amount=None, customer_name=None):
+    """บันทึกประวัติแชทในตั๋ว - แก้ไขตามข้อ 2-3"""
     try:
         print(f"📝 กำลังบันทึกประวัติตั๋ว: {channel.name}")
         
         # ✅ ใช้ระบบตัวนับตั๋วใหม่
         ticket_number = get_next_ticket_number()
         
-        # ✅ สร้าง timestamp แบบใหม่ (ddmmyytime)
+        # ✅ ข้อ 3: ใช้เวลาจากเวลาที่ใช้คำสั่ง !ty (หรือเวลาปัจจุบัน)
         now = datetime.datetime.now()
-        date_str = now.strftime("%d%m%y")
-        time_str = now.strftime("%H%M")  # เวลาแบบ 24 ชั่วโมง เช่น 08:00 = 0800
-        timestamp_str = f"{date_str}{time_str}"
         
-        # ✅ ดึงชื่อผู้ใช้จากชื่อห้อง
-        username = "unknown"
-        if channel.name.startswith("ticket-"):
-            parts = channel.name.split('-')
-            if len(parts) >= 2:
-                username = parts[1]  # ใช้ส่วนที่สองเป็นชื่อผู้ใช้
+        # ✅ ข้อ 2: สร้าง format ใหม่ 0512250800-1099-wforr
+        date_str = now.strftime("%d%m%y")  # ddmmyy
+        time_str = now.strftime("%H%M")    # HHMM (24-hour format)
         
-        # ✅ ตรวจสอบจำนวน robux จากระบบเก็บข้อมูลแยก
+        # ✅ ข้อ 2: ใช้ robux_amount จากคำสั่ง !od หรือจากระบบเก็บข้อมูล
         if robux_amount is None and str(channel.id) in ticket_robux_data:
             robux_amount = ticket_robux_data[str(channel.id)]
         
-        robux_info = ""
-        if robux_amount and robux_amount != "unknown":
-            robux_info = f"-{robux_amount}"
+        # ✅ ข้อ 2: ใช้ 1099 ถ้าไม่มี robux_amount
+        robux_str = str(robux_amount) if robux_amount and robux_amount != "unknown" else "1099"
         
-        # ✅ สร้างชื่อไฟล์ใหม่ตามรูปแบบ: ddmmyytime1-1099-wforr
-        filename = f"{timestamp_str}{ticket_number}-1099-wforr"
+        # ✅ ข้อ 2: ใช้ชื่อลูกค้าจากระบบเก็บข้อมูล
+        if customer_name is None and str(channel.id) in ticket_customer_data:
+            customer_name = ticket_customer_data[str(channel.id)]
+        elif customer_name is None:
+            # ถ้าไม่มีชื่อลูกค้าในระบบ ให้ดึงจากชื่อห้อง
+            if channel.name.startswith("ticket-"):
+                parts = channel.name.split('-')
+                if len(parts) >= 2:
+                    customer_name = parts[1]  # ชื่อผู้ใช้จากชื่อห้อง
+        
+        # ✅ ข้อ 2: ใช้ชื่อลูกค้าหรือ wforr ถ้าไม่มี
+        customer_str = customer_name if customer_name else "wforr"
+        
+        # ✅ ข้อ 2: สร้างชื่อไฟล์ใหม่ตามรูปแบบ: ddmmyyHHMM-robux_amount-customer_name
+        filename = f"{date_str}{time_str}-{robux_str}-{customer_str}"
         
         # เก็บข้อมูลตั๋ว
         transcript_data = {
@@ -306,9 +341,11 @@ async def save_ticket_transcript(channel, action_by=None, robux_amount=None):
             "channel_name": channel.name,
             "channel_id": channel.id,
             "ticket_number": ticket_number,
-            "timestamp": timestamp_str,
-            "username": username,
-            "robux_amount": robux_amount,
+            "date": date_str,
+            "time": time_str,
+            "timestamp": f"{date_str}{time_str}",
+            "robux_amount": robux_str,
+            "customer_name": customer_str,
             "category": channel.category.name if channel.category else "ไม่มีหมวดหมู่",
             "created_at": now.isoformat(),
             "closed_by": str(action_by) if action_by else "ระบบอัตโนมัติ",
@@ -341,11 +378,11 @@ async def save_ticket_transcript(channel, action_by=None, robux_amount=None):
         return False, str(e)
 
 # =======================================================================================
-# ✅ ฟังก์ชันจัดการตั๋วหลัง !ty - พร้อมปุ่มให้เครดิต
+# ✅ ฟังก์ชันจัดการตั๋วหลัง !ty - แก้ไขตามข้อ 1-3
 # =======================================================================================
 
-async def handle_ticket_after_ty(channel, user, robux_amount=None):
-    """จัดการตั๋วหลังใช้ !ty พร้อมปุ่มให้เครดิต"""
+async def handle_ticket_after_ty(channel, user, robux_amount=None, customer_name=None):
+    """จัดการตั๋วหลังใช้ !ty - แก้ไขตามข้อ 1-3"""
     try:
         guild = channel.guild
         
@@ -353,16 +390,7 @@ async def handle_ticket_after_ty(channel, user, robux_amount=None):
         if robux_amount is None and str(channel.id) in ticket_robux_data:
             robux_amount = ticket_robux_data[str(channel.id)]
         
-        # ✅ สร้างชื่อใหม่ตาม format ddmmyytime
-        now = datetime.datetime.now()
-        date_str = now.strftime("%d%m%y")
-        time_str = now.strftime("%H%M")  # เวลาแบบ 24 ชั่วโมง
-        timestamp_str = f"{date_str}{time_str}"
-        
-        ticket_number = get_next_ticket_number()
-        
-        # ✅ สร้างชื่อใหม่ตามรูปแบบ: ddmmyytime1-1099-wforr
-        new_name = f"{timestamp_str}{ticket_number}-1099-wforr"
+        # ✅ ข้อ 1: ยังไม่ต้องเปลี่ยนชื่อห้องตอนนี้ (รอให้บันทึก transcript ก่อน)
         
         # ✅ ย้ายไป category "ส่งของแล้ว" ก่อน
         delivered_category = guild.get_channel(DELIVERED_CATEGORY_ID)
@@ -371,14 +399,38 @@ async def handle_ticket_after_ty(channel, user, robux_amount=None):
             print(f"❌ ไม่พบ category ส่งของแล้ว ID: {DELIVERED_CATEGORY_ID}")
             return False
         
-        # ✅ เปลี่ยนชื่อและย้ายไป category "ส่งของแล้ว"
+        # ✅ ข้อ 1: ย้ายไป category "ส่งของแล้ว" โดยยังไม่เปลี่ยนชื่อ
         try:
             await channel.edit(
                 category=delivered_category,
-                name=new_name,
                 reason=f"ย้ายไปห้องส่งของแล้วโดย {user.name if user else 'ระบบ'}"
             )
-            print(f"✅ ย้ายตั๋วไปยัง category ส่งของแล้วและเปลี่ยนชื่อเป็น: {new_name}")
+            print(f"✅ ย้ายตั๋วไปยัง category ส่งของแล้วแล้ว (ยังไม่เปลี่ยนชื่อ)")
+            
+            # ✅ ข้อ 3: ใช้เวลาจากตอนที่ใช้ !ty สำหรับบันทึก transcript
+            now = datetime.datetime.now()
+            date_str = now.strftime("%d%m%y")
+            time_str = now.strftime("%H%M")
+            
+            # ✅ ข้อ 2: ใช้ customer_name จากระบบเก็บข้อมูล
+            if customer_name is None and str(channel.id) in ticket_customer_data:
+                customer_name = ticket_customer_data[str(channel.id)]
+            
+            # ✅ บันทึก transcript ด้วยเวลาจากตอนที่ใช้ !ty
+            save_success, filename = await save_ticket_transcript(channel, user, robux_amount, customer_name)
+            
+            if save_success:
+                print(f"✅ บันทึก transcript ด้วยเวลา {time_str}: {filename}")
+                
+                # ✅ ข้อ 1: เปลี่ยนชื่อห้องหลังจากบันทึก transcript แล้ว
+                # ✅ ข้อ 2: ใช้ชื่อไฟล์ transcript เป็นชื่อห้องใหม่
+                try:
+                    await channel.edit(name=filename)
+                    print(f"✅ เปลี่ยนชื่อห้องเป็น: {filename}")
+                except Exception as e:
+                    print(f"⚠️ ไม่สามารถเปลี่ยนชื่อห้อง: {e}")
+            else:
+                print(f"⚠️ บันทึก transcript ไม่สำเร็จ")
             
             # ✅ สร้าง View สำหรับให้เครดิต
             credit_view = discord.ui.View(timeout=None)
@@ -406,7 +458,7 @@ async def handle_ticket_after_ty(channel, user, robux_amount=None):
             await channel.send(embed=credit_embed, view=credit_view)
             
             # ✅ เริ่มนับถอยหลัง 10 นาทีเพื่อย้ายไป transcript
-            bot.loop.create_task(move_to_transcript_after_delay(channel, user, robux_amount, 600))  # 600 วินาที = 10 นาที
+            bot.loop.create_task(move_to_transcript_after_delay(channel, user, robux_amount, customer_name, 600))  # 600 วินาที = 10 นาที
             
             return True
             
@@ -418,7 +470,7 @@ async def handle_ticket_after_ty(channel, user, robux_amount=None):
         print(f"❌ เกิดข้อผิดพลาดในการจัดการตั๋วหลัง !ty: {e}")
         return False
 
-async def move_to_transcript_after_delay(channel, user, robux_amount, delay_seconds):
+async def move_to_transcript_after_delay(channel, user, robux_amount, customer_name, delay_seconds):
     """รอ delay แล้วย้ายตั๋วไป transcript"""
     try:
         print(f"⏳ กำลังรอ {delay_seconds} วินาทีก่อนย้ายตั๋ว {channel.name} ไป transcript")
@@ -428,12 +480,6 @@ async def move_to_transcript_after_delay(channel, user, robux_amount, delay_seco
         if not channel or channel not in channel.guild.channels:
             print(f"❌ ตั๋ว {channel.name} ไม่มีอยู่แล้ว")
             return
-        
-        # ✅ บันทึก transcript
-        save_success, filename = await save_ticket_transcript(channel, user, robux_amount)
-        
-        if save_success:
-            print(f"✅ บันทึก transcript: {filename}")
         
         # ✅ ย้ายไป category transcript (เก็บถาวร)
         guild = channel.guild
@@ -463,7 +509,7 @@ async def move_to_transcript_after_delay(channel, user, robux_amount, delay_seco
                     transcript_embed = discord.Embed(
                         title="📁 ตั๋วถูกย้ายไปเก็บถาวรแล้ว",
                         description="ตั๋วนี้ถูกย้ายไปเก็บถาวรเรียบร้อยแล้ว\n\n" +
-                                   f"**ชื่อไฟล์ transcript:** `{filename}`\n" +
+                                   f"**ชื่อไฟล์ transcript:** `{channel.name}`\n" +
                                    "หากต้องการดูประวัติแชท โปรดติดต่อผู้ดูแลระบบ",
                         color=0x808080
                     )
@@ -570,7 +616,7 @@ class ConfirmDeliveryView(View):
 
     @discord.ui.button(label="ยืนยัน ✅", style=discord.ButtonStyle.success, emoji="✅", custom_id="confirm_delivery_btn")
     async def confirm_delivery(self, interaction: discord.Interaction, button: Button):
-        """ยืนยันการส่งสินค้า"""
+        """ยืนยันการส่งสินค้า - แก้ไขข้อ 1: ยังไม่เปลี่ยนชื่อห้อง"""
         try:
             # ตรวจสอบว่าเคยส่งไปแล้วหรือยัง
             if self.delivered:
@@ -584,15 +630,13 @@ class ConfirmDeliveryView(View):
             # ตั้งค่า flag เป็น True เพื่อป้องกันการส่งซ้ำ
             self.delivered = True
             
-            # ✅ จัดการตั๋วหลัง !ty
-            handle_success = await handle_ticket_after_ty(self.channel, self.buyer, str(self.robux_amount))
+            # ✅ ข้อ 1: ยังไม่ต้องจัดการตั๋วหลัง !ty ที่นี่ รอให้กด !ty
+            # ✅ ข้อ 1: แค่บันทึกข้อมูลและส่งใบเสร็จ
             
-            if not handle_success:
-                await interaction.response.edit_message(
-                    content="⚠️ บันทึกประวัติตั๋วไม่สมบูรณ์ แต่ดำเนินการส่งสินค้าต่อ",
-                    embed=None,
-                    view=None
-                )
+            # เก็บข้อมูลชื่อลูกค้า
+            if self.buyer:
+                ticket_customer_data[str(self.channel.id)] = self.buyer.name
+                save_ticket_customer_data()
             
             # สร้าง embed ใบเสร็จการสั่งซื้อ
             receipt_color = 0xFFA500  # สีส้มสำหรับ Gamepass
@@ -629,6 +673,9 @@ class ConfirmDeliveryView(View):
             # ส่งใบเสร็จในช่องตั๋ว
             await self.channel.send(embed=receipt_embed)
             
+            # แจ้งเตือนให้ใช้ !ty
+            ty_notice = await self.channel.send("✅ **ส่งสินค้าเรียบร้อยแล้ว!** กรุณาใช้คำสั่ง `!ty` เพื่อยืนยันการส่งสินค้าและเปลี่ยนชื่อตั๋ว")
+            
             # แก้ไขข้อความเดิม
             await interaction.response.edit_message(
                 content="✅ บันทึกการส่งสินค้าเรียบร้อยแล้ว",
@@ -639,8 +686,9 @@ class ConfirmDeliveryView(View):
             # ตั้งค่า tracking สำหรับตั๋ว
             ticket_activity[self.channel.id] = {
                 'last_activity': datetime.datetime.now(),
-                'ty_used': True,
-                'ty_time': datetime.datetime.now(),
+                'ty_used': False,
+                'delivery_confirmed': True,
+                'delivery_time': datetime.datetime.now(),
                 'buyer_id': self.buyer.id if self.buyer else None
             }
             
@@ -1098,6 +1146,10 @@ async def handle_open_ticket(interaction, category_name, modal_class, stock_type
             'last_activity': datetime.datetime.now(),
             'ty_used': False
         }
+        
+        # ✅ บันทึกข้อมูลชื่อลูกค้า
+        ticket_customer_data[str(channel.id)] = user.name
+        save_ticket_customer_data()
         
         if stock_type == "gamepass":
             gamepass_stock -= 1
@@ -1696,14 +1748,16 @@ async def on_command_completion(ctx):
 async def on_ready():
     print(f"✅ บอทออนไลน์แล้ว: {bot.user} (ID: {bot.user.id})")
     
-    global user_data, ticket_transcripts, ticket_robux_data
+    global user_data, ticket_transcripts, ticket_robux_data, ticket_customer_data
     user_data = load_user_data()
     ticket_transcripts = load_ticket_transcripts()
     ticket_robux_data = load_ticket_robux_data()
+    ticket_customer_data = load_ticket_customer_data()
     
     print(f"✅ โหลดข้อมูลผู้ใช้: {len(user_data)} users")
     print(f"✅ โหลดประวัติตั๋ว: {len(ticket_transcripts)} tickets")
     print(f"✅ โหลดข้อมูล robux_amount: {len(ticket_robux_data)} tickets")
+    print(f"✅ โหลดข้อมูลชื่อลูกค้า: {len(ticket_customer_data)} tickets")
     
     try:
         synced = await bot.tree.sync()
@@ -1739,6 +1793,7 @@ async def on_disconnect():
     save_user_data()
     save_ticket_transcripts()
     save_ticket_robux_data()
+    save_ticket_customer_data()
 
 @bot.event
 async def close():
@@ -1746,6 +1801,7 @@ async def close():
     save_user_data()
     save_ticket_transcripts()
     save_ticket_robux_data()
+    save_ticket_customer_data()
     await super().close()
     
 # =======================================================================================
@@ -1821,13 +1877,13 @@ async def check_user_level(interaction: discord.Interaction):
         await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการเช็คเลเวล", ephemeral=True)
 
 # =======================================================================================
-# ✅ คำสั่ง !ty - พร้อมปุ่มให้เครดิต
+# ✅ คำสั่ง !ty - แก้ไขตามข้อ 1-3
 # =======================================================================================
 
 @bot.command()
 @admin_only()
 async def ty(ctx):
-    """คำสั่งยืนยันการส่งสินค้า พร้อมปุ่มให้เครดิต"""
+    """คำสั่งยืนยันการส่งสินค้า - แก้ไขตามข้อ 1-3"""
     try:
         await ctx.message.delete()
     except:
@@ -1858,17 +1914,26 @@ async def ty(ctx):
         if str(ctx.channel.id) in ticket_robux_data:
             robux_amount = ticket_robux_data[str(ctx.channel.id)]
         
-        # ✅ จัดการตั๋วหลัง !ty (พร้อมปุ่มให้เครดิต)
-        handle_success = await handle_ticket_after_ty(ctx.channel, buyer, robux_amount)
+        # ✅ ดึงชื่อลูกค้าจากระบบเก็บข้อมูลแยก
+        customer_name = None
+        if str(ctx.channel.id) in ticket_customer_data:
+            customer_name = ticket_customer_data[str(ctx.channel.id)]
+        
+        # ✅ จัดการตั๋วหลัง !ty (พร้อมเปลี่ยนชื่อห้องตามข้อ 1-3)
+        handle_success = await handle_ticket_after_ty(ctx.channel, buyer, robux_amount, customer_name)
         
         if not handle_success:
             await ctx.send("❌ เกิดข้อผิดพลาดในการจัดการตั๋ว กรุณาลองใหม่อีกครั้ง")
             return
 
-        # ✅ ลบข้อมูล robux_amount ของตั๋วนี้หลังจากใช้งานแล้ว
+        # ✅ ลบข้อมูล robux_amount และ customer_name ของตั๋วนี้หลังจากใช้งานแล้ว
         if str(ctx.channel.id) in ticket_robux_data:
             del ticket_robux_data[str(ctx.channel.id)]
             save_ticket_robux_data()
+        
+        if str(ctx.channel.id) in ticket_customer_data:
+            del ticket_customer_data[str(ctx.channel.id)]
+            save_ticket_customer_data()
         
         # ส่งข้อความยืนยัน
         await ctx.send("✅ ยืนยันการส่งสินค้าเรียบร้อยแล้ว")
@@ -1910,21 +1975,30 @@ async def archive_ticket_automatically(channel):
         except:
             pass
         
-        # ✅ ดึงข้อมูล robux_amount จากระบบเก็บข้อมูลแยก
+        # ✅ ดึงข้อมูล robux_amount และ customer_name จากระบบเก็บข้อมูลแยก
         robux_amount = None
+        customer_name = None
+        
         if str(channel.id) in ticket_robux_data:
             robux_amount = ticket_robux_data[str(channel.id)]
         
+        if str(channel.id) in ticket_customer_data:
+            customer_name = ticket_customer_data[str(channel.id)]
+        
         # บันทึก transcript
-        save_success, filename = await save_ticket_transcript(channel, user if user else channel.guild.me, robux_amount)
+        save_success, filename = await save_ticket_transcript(channel, user if user else channel.guild.me, robux_amount, customer_name)
         
         if save_success:
             print(f"✅ บันทึก transcript: {filename}")
         
-        # ✅ ลบข้อมูล robux_amount ของตั๋วนี้หลังจากบันทึกแล้ว
+        # ✅ ลบข้อมูลของตั๋วนี้หลังจากบันทึกแล้ว
         if str(channel.id) in ticket_robux_data:
             del ticket_robux_data[str(channel.id)]
             save_ticket_robux_data()
+        
+        if str(channel.id) in ticket_customer_data:
+            del ticket_customer_data[str(channel.id)]
+            save_ticket_customer_data()
         
         # ย้ายไป archive category
         archived_category = channel.guild.get_channel(ARCHIVED_CATEGORY_ID)
@@ -1981,10 +2055,12 @@ async def backup_data(ctx):
         save_user_data()
         save_ticket_transcripts()
         save_ticket_robux_data()
+        save_ticket_customer_data()
         
         user_file_exists = os.path.exists(user_data_file)
         ticket_file_exists = os.path.exists(ticket_transcripts_file)
         robux_file_exists = os.path.exists(ticket_robux_data_file)
+        customer_file_exists = os.path.exists(ticket_customer_data_file)
         
         embed = discord.Embed(
             title="✅ สร้าง backup ข้อมูลเรียบร้อยแล้ว",
@@ -1993,6 +2069,7 @@ async def backup_data(ctx):
         embed.add_field(name="👥 ข้อมูลผู้ใช้", value="✅ บันทึกแล้ว" if user_file_exists else "❌ ไม่พบไฟล์", inline=True)
         embed.add_field(name="📝 ประวัติตั๋ว", value="✅ บันทึกแล้ว" if ticket_file_exists else "❌ ไม่พบไฟล์", inline=True)
         embed.add_field(name="💰 ข้อมูล Robux", value="✅ บันทึกแล้ว" if robux_file_exists else "❌ ไม่พบไฟล์", inline=True)
+        embed.add_field(name="👤 ข้อมูลลูกค้า", value="✅ บันทึกแล้ว" if customer_file_exists else "❌ ไม่พบไฟล์", inline=True)
         embed.add_field(name="📁 ไฟล์ backup", value="สร้างไฟล์ .backup แล้ว", inline=False)
         
         await ctx.send(embed=embed, delete_after=15)
@@ -2007,14 +2084,17 @@ async def data_status(ctx):
         user_count = len(user_data)
         ticket_count = len(ticket_transcripts)
         robux_count = len(ticket_robux_data)
+        customer_count = len(ticket_customer_data)
         
         user_file_size = os.path.getsize(user_data_file) if os.path.exists(user_data_file) else 0
         ticket_file_size = os.path.getsize(ticket_transcripts_file) if os.path.exists(ticket_transcripts_file) else 0
         robux_file_size = os.path.getsize(ticket_robux_data_file) if os.path.exists(ticket_robux_data_file) else 0
+        customer_file_size = os.path.getsize(ticket_customer_data_file) if os.path.exists(ticket_customer_data_file) else 0
         
         user_file_exists = os.path.exists(user_data_file)
         ticket_file_exists = os.path.exists(ticket_transcripts_file)
         robux_file_exists = os.path.exists(ticket_robux_data_file)
+        customer_file_exists = os.path.exists(ticket_customer_data_file)
         
         embed = discord.Embed(
             title="📊 สถานะข้อมูล",
@@ -2023,6 +2103,7 @@ async def data_status(ctx):
         embed.add_field(name="👥 จำนวนผู้ใช้", value=f"{user_count} users", inline=True)
         embed.add_field(name="📝 จำนวนตั๋วที่บันทึก", value=f"{ticket_count} tickets", inline=True)
         embed.add_field(name="💰 ข้อมูล Robux", value=f"{robux_count} tickets", inline=True)
+        embed.add_field(name="👤 ข้อมูลลูกค้า", value=f"{customer_count} tickets", inline=True)
         embed.add_field(name="💾 ไฟล์ข้อมูลผู้ใช้", 
                        value=f"✅ {user_file_size:,} bytes" if user_file_exists else "❌ ไม่พบไฟล์", 
                        inline=False)
@@ -2031,6 +2112,9 @@ async def data_status(ctx):
                        inline=False)
         embed.add_field(name="💵 ไฟล์ข้อมูล Robux", 
                        value=f"✅ {robux_file_size:,} bytes" if robux_file_exists else "❌ ไม่พบไฟล์", 
+                       inline=False)
+        embed.add_field(name="👤 ไฟล์ข้อมูลลูกค้า", 
+                       value=f"✅ {customer_file_size:,} bytes" if customer_file_exists else "❌ ไม่พบไฟล์", 
                        inline=False)
         embed.add_field(name="🕒 อัพเดทล่าสุด", 
                        value=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
@@ -2043,11 +2127,12 @@ async def data_status(ctx):
 @bot.command()
 @admin_only()
 async def restore_backup(ctx, data_type: str = "all"):
-    """กู้คืนข้อมูลจาก backup (all, user, ticket, robux)"""
+    """กู้คืนข้อมูลจาก backup (all, user, ticket, robux, customer)"""
     try:
         user_msg = ""
         ticket_msg = ""
         robux_msg = ""
+        customer_msg = ""
         
         if data_type.lower() in ["all", "user"]:
             backup_file = f"{user_data_file}.backup"
@@ -2082,6 +2167,17 @@ async def restore_backup(ctx, data_type: str = "all"):
             else:
                 robux_msg = "❌ ไม่พบไฟล์ backup ข้อมูล Robux"
         
+        if data_type.lower() in ["all", "customer"]:
+            backup_file = f"{ticket_customer_data_file}.backup"
+            if os.path.exists(backup_file):
+                with open(backup_file, 'r', encoding='utf-8') as f:
+                    global ticket_customer_data
+                    ticket_customer_data = json.load(f)
+                save_ticket_customer_data()
+                customer_msg = "✅ กู้คืนข้อมูลลูกค้าเรียบร้อย"
+            else:
+                customer_msg = "❌ ไม่พบไฟล์ backup ข้อมูลลูกค้า"
+        
         embed = discord.Embed(
             title="🔄 ผลการกู้คืนข้อมูล",
             color=0x00FF00
@@ -2093,6 +2189,8 @@ async def restore_backup(ctx, data_type: str = "all"):
             embed.add_field(name="📝 ประวัติตั๋ว", value=ticket_msg, inline=False)
         if data_type.lower() in ["all", "robux"]:
             embed.add_field(name="💰 ข้อมูล Robux", value=robux_msg, inline=False)
+        if data_type.lower() in ["all", "customer"]:
+            embed.add_field(name="👤 ข้อมูลลูกค้า", value=customer_msg, inline=False)
             
         await ctx.send(embed=embed, delete_after=15)
         
