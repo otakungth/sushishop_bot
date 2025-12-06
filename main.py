@@ -2512,162 +2512,6 @@ async def help_command(ctx):
     await ctx.send(embed=help_embed, delete_after=30)
 
 # --------------------------------------------------------------------------------------------------
-# คำสั่งจัดการ Stock
-@bot.command()
-@admin_only()
-async def stock(ctx, stock_type: str = None, amount: str = None):
-    global gamepass_stock, group_stock
-    
-    try:
-        await ctx.message.delete()
-    except:
-        pass
-    
-    if stock_type is None:
-        embed = discord.Embed(
-            title="📊 สต๊อกสินค้า",
-            color=0x00FF99
-        )
-        embed.add_field(
-            name="🎮 Gamepass Stock", 
-            value=f"**{gamepass_stock:,}**", 
-            inline=True
-        )
-        embed.add_field(
-            name="👥 Group Stock", 
-            value=f"**{group_stock:,}**", 
-            inline=True
-        )
-        response_msg = await ctx.send(embed=embed)
-        await asyncio.sleep(10)
-        try:
-            await response_msg.delete()
-        except:
-            pass
-        
-    elif stock_type.lower() in ["gp", "gamepass", "เกมพาส"]:
-        if amount is None:
-            embed = discord.Embed(
-                title="🎮 Gamepass Stock",
-                description=f"**{gamepass_stock:,}**",
-                color=0x00FF99
-            )
-            response_msg = await ctx.send(embed=embed)
-            await asyncio.sleep(10)
-            try:
-                await response_msg.delete()
-            except:
-                pass
-        else:
-            amount_clean = amount.replace(",", "")
-            try:
-                amount_int = int(amount_clean)
-                if amount_int < 0:
-                    error_msg = await ctx.send("❌ จำนวน stock ต้องมากกว่าหรือเท่ากับ 0")
-                    await asyncio.sleep(5)
-                    try:
-                        await error_msg.delete()
-                    except:
-                        pass
-                    return
-                
-                gamepass_stock = amount_int
-                
-                embed = discord.Embed(
-                    title="✅ ตั้งค่า Stock เรียบร้อย",
-                    description=f"ตั้งค่า สต๊อกเกมพาส เป็น **{gamepass_stock:,}** เรียบร้อยแล้ว",
-                    color=0x00FF00
-                )
-                
-                response_msg = await ctx.send(embed=embed)
-                
-                await update_main_channel()
-                
-                await asyncio.sleep(5)
-                try:
-                    await response_msg.delete()
-                except:
-                    pass
-                    
-            except ValueError:
-                error_msg = await ctx.send("❌ กรุณากรอกจำนวน stock เป็นตัวเลขที่ถูกต้อง")
-                await asyncio.sleep(5)
-                try:
-                    await error_msg.delete()
-                except:
-                    pass
-    
-    elif stock_type.lower() in ["g", "group", "กรุ๊ป"]:
-        if amount is None:
-            embed = discord.Embed(
-                title="👥 Group Stock",
-                description=f"**{group_stock:,}**",
-                color=0x00FF99
-            )
-            response_msg = await ctx.send(embed=embed)
-            await asyncio.sleep(10)
-            try:
-                await response_msg.delete()
-            except:
-                pass
-        else:
-            amount_clean = amount.replace(",", "")
-            try:
-                amount_int = int(amount_clean)
-                if amount_int < 0:
-                    error_msg = await ctx.send("❌ จำนวน stock ต้องมากกว่าหรือเท่ากับ 0")
-                    await asyncio.sleep(5)
-                    try:
-                        await error_msg.delete()
-                    except:
-                        pass
-                    return
-                
-                group_stock = amount_int
-                
-                embed = discord.Embed(
-                    title="✅ ตั้งค่า Stock เรียบร้อย",
-                    description=f"ตั้งค่า สต๊อกโรบัคกลุ่ม เป็น **{group_stock:,}** เรียบร้อยแล้ว",
-                    color=0x00FF00
-                )
-                
-                response_msg = await ctx.send(embed=embed)
-                
-                await update_main_channel()
-                
-                await asyncio.sleep(5)
-                try:
-                    await response_msg.delete()
-                except:
-                    pass
-                    
-            except ValueError:
-                error_msg = await ctx.send("❌ กรุณากรอกจำนวน stock เป็นตัวเลขที่ถูกต้อง")
-                await asyncio.sleep(5)
-                try:
-                    await error_msg.delete()
-                except:
-                    pass
-    
-    else:
-        embed = discord.Embed(
-            title="❌ การใช้งานไม่ถูกต้อง",
-            description=(
-                "**การใช้งาน:**\n"
-                "`!stock` - เช็ค stock ทั้งหมด\n"
-                "`!stock gp <จำนวน>` - ตั้งค่า Gamepass stock\n" 
-                "`!stock group <จำนวน>` - ตั้งค่า Group stock"
-            ),
-            color=0xFF0000
-        )
-        response_msg = await ctx.send(embed=embed)
-        await asyncio.sleep(10)
-        try:
-            await response_msg.delete()
-        except:
-            pass
-
-# --------------------------------------------------------------------------------------------------
 # คำสั่งเปลี่ยนเรท
 @bot.command()
 @admin_only()
@@ -2701,7 +2545,7 @@ async def rate(ctx, rate_type: str = None, low_rate: str = None, high_rate: str 
         try:
             await response_msg.delete()
         except:
-        pass
+            pass
         
     elif rate_type.lower() == "group":
         if low_rate is None or high_rate is None:
@@ -3329,3 +3173,4 @@ try:
     bot.run(os.getenv("TOKEN"))
 except Exception as e:
     print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
+
