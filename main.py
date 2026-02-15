@@ -50,14 +50,13 @@ try:
     print("✅ โหลด pytz สำเร็จ")
 except ImportError:
     print("⚠️ ไม่พบ pytz กำลังใช้ datetime แบบธรรมดา...")
-    # สร้าง mock object สำหรับ pytz ถ้าไม่มี
     class MockPytz:
         def timezone(self, tz):
             return None
     pytz = MockPytz()
 
 # =======================================================================================
-# ✅ ตั้งค่า Timezone สำหรับประเทศไทย (พร้อม fallback)
+# ✅ ตั้งค่า Timezone สำหรับประเทศไทย
 # =======================================================================================
 def get_thailand_time():
     """รับเวลาปัจจุบันตามเวลาไทย"""
@@ -66,11 +65,9 @@ def get_thailand_time():
         if THAILAND_TIMEZONE:
             return datetime.datetime.now(THAILAND_TIMEZONE)
         else:
-            # Fallback: เวลาไทยคือ UTC+7
             utc_now = datetime.datetime.utcnow()
             return utc_now + datetime.timedelta(hours=7)
     except Exception:
-        # Fallback ถ้าไม่มี pytz หรือเกิดข้อผิดพลาด
         utc_now = datetime.datetime.utcnow()
         return utc_now + datetime.timedelta(hours=7)
 
@@ -118,7 +115,6 @@ ticket_customer_data_file = "ticket_customer_data.json"
 # =======================================================================================
 
 def load_user_data():
-    """โหลดข้อมูลผู้ใช้จากไฟล์"""
     try:
         if os.path.exists(user_data_file):
             with open(user_data_file, 'r', encoding='utf-8') as f:
@@ -131,7 +127,6 @@ def load_user_data():
         return {}
 
 def save_user_data():
-    """บันทึกข้อมูลผู้ใช้ลงไฟล์ (เวอร์ชันปลอดภัย)"""
     try:
         with open(user_data_file, 'w', encoding='utf-8') as f:
             json.dump(user_data, f, ensure_ascii=False, indent=2)
@@ -142,7 +137,6 @@ def save_user_data():
         return False
 
 def load_ticket_transcripts():
-    """โหลดประวัติตั๋วจากไฟล์"""
     try:
         if os.path.exists(ticket_transcripts_file):
             with open(ticket_transcripts_file, 'r', encoding='utf-8') as f:
@@ -155,7 +149,6 @@ def load_ticket_transcripts():
         return {}
 
 def save_ticket_transcripts():
-    """บันทึกประวัติตั๋วลงไฟล์"""
     try:
         with open(ticket_transcripts_file, 'w', encoding='utf-8') as f:
             json.dump(ticket_transcripts, f, ensure_ascii=False, indent=2)
@@ -166,7 +159,6 @@ def save_ticket_transcripts():
         return False
 
 def load_ticket_counter():
-    """โหลดตัวนับตั๋วจากไฟล์"""
     try:
         if os.path.exists(ticket_counter_file):
             with open(ticket_counter_file, 'r', encoding='utf-8') as f:
@@ -179,7 +171,6 @@ def load_ticket_counter():
         return {"counter": 1, "date": get_thailand_time().strftime("%d%m%y")}
 
 def save_ticket_counter(counter_data):
-    """บันทึกตัวนับตั๋วลงไฟล์"""
     try:
         with open(ticket_counter_file, 'w', encoding='utf-8') as f:
             json.dump(counter_data, f, ensure_ascii=False, indent=2)
@@ -190,7 +181,6 @@ def save_ticket_counter(counter_data):
         return False
 
 def load_ticket_robux_data():
-    """โหลดข้อมูล robux_amount ของตั๋ว"""
     try:
         if os.path.exists(ticket_robux_data_file):
             with open(ticket_robux_data_file, 'r', encoding='utf-8') as f:
@@ -203,7 +193,6 @@ def load_ticket_robux_data():
         return {}
 
 def save_ticket_robux_data():
-    """บันทึกข้อมูล robux_amount ของตั๋ว"""
     try:
         with open(ticket_robux_data_file, 'w', encoding='utf-8') as f:
             json.dump(ticket_robux_data, f, ensure_ascii=False, indent=2)
@@ -214,7 +203,6 @@ def save_ticket_robux_data():
         return False
 
 def load_ticket_customer_data():
-    """โหลดข้อมูลชื่อลูกค้าของตั๋ว"""
     try:
         if os.path.exists(ticket_customer_data_file):
             with open(ticket_customer_data_file, 'r', encoding='utf-8') as f:
@@ -227,7 +215,6 @@ def load_ticket_customer_data():
         return {}
 
 def save_ticket_customer_data():
-    """บันทึกข้อมูลชื่อลูกค้าของตั๋ว"""
     try:
         with open(ticket_customer_data_file, 'w', encoding='utf-8') as f:
             json.dump(ticket_customer_data, f, ensure_ascii=False, indent=2)
@@ -1927,13 +1914,13 @@ class MainShopView(View):
         await check_user_level(interaction)
 
 # =======================================================================================
-# ✅ ฟังก์ชันอัพเดท Slash Commands Contexts (เพิ่มใหม่)
+# ✅ ฟังก์ชันอัพเดท Slash Commands Contexts (แบบมี Rate Limit Protection)
 # =======================================================================================
 async def update_slash_commands_context():
-    """อัพเดท contexts สำหรับ Slash Commands"""
+    """อัพเดท contexts สำหรับ Slash Commands แบบมี Rate Limit Protection"""
     try:
         # รอให้บอทพร้อมก่อน
-        await asyncio.sleep(5)
+        await asyncio.sleep(10)
         
         token = os.getenv("TOKEN")
         app_id = os.getenv("APPLICATION_ID")
@@ -1941,6 +1928,8 @@ async def update_slash_commands_context():
         if not app_id:
             print("⚠️ ไม่พบ APPLICATION_ID ข้ามการอัพเดท contexts")
             return
+        
+        print("🔍 กำลังตรวจสอบคำสั่ง Slash Commands...")
         
         headers = {
             "Authorization": f"Bot {token}",
@@ -1953,14 +1942,26 @@ async def update_slash_commands_context():
                 f"https://discord.com/api/v10/applications/{app_id}/commands", 
                 headers=headers
             ) as resp:
+                if resp.status == 429:
+                    retry_after = int(resp.headers.get('Retry-After', 5))
+                    print(f"⏳ Rate limit ในการดึงคำสั่ง รอ {retry_after} วินาที")
+                    await asyncio.sleep(retry_after)
+                    return await update_slash_commands_context()  # ลองใหม่
+                
                 if resp.status != 200:
-                    print(f"⚠️ ไม่สามารถดึงคำสั่งได้ (รหัส {resp.status})")
+                    print(f"⚠️ ไม่สามารถดึงคำสั่งได้ (รหัส {resp.status}) - ข้ามการอัพเดท contexts")
                     return
                 
                 commands = await resp.json()
+                print(f"📋 พบคำสั่งทั้งหมด {len(commands)} คำสั่ง")
             
-            # อัพเดท contexts
-            for cmd in commands:
+            # อัพเดท contexts ทีละคำสั่ง ช้าๆ
+            success_count = 0
+            for i, cmd in enumerate(commands):
+                # รอระหว่างคำสั่งเพื่อป้องกัน rate limit
+                if i > 0:
+                    await asyncio.sleep(1)  # รอ 1 วินาทีระหว่างคำสั่ง
+                
                 update_data = {
                     "contexts": [0, 1, 2]  # ให้ใช้ได้ทุกที่
                 }
@@ -1970,12 +1971,26 @@ async def update_slash_commands_context():
                     headers=headers,
                     json=update_data
                 ) as resp:
-                    if resp.status == 200:
+                    if resp.status == 429:
+                        retry_after = int(resp.headers.get('Retry-After', 5))
+                        print(f"⏳ Rate limit สำหรับ /{cmd['name']} รอ {retry_after} วินาที")
+                        await asyncio.sleep(retry_after)
+                        # ลองใหม่อีกครั้ง
+                        async with session.patch(
+                            f"https://discord.com/api/v10/applications/{app_id}/commands/{cmd['id']}",
+                            headers=headers,
+                            json=update_data
+                        ) as retry_resp:
+                            if retry_resp.status == 200:
+                                print(f"✅ ตั้งค่า /{cmd['name']} ให้ใช้ได้ทุกที่ (หลังจาก retry)")
+                                success_count += 1
+                    elif resp.status == 200:
                         print(f"✅ ตั้งค่า /{cmd['name']} ให้ใช้ได้ทุกที่")
+                        success_count += 1
                     else:
                         print(f"⚠️ ไม่สามารถตั้งค่า /{cmd['name']} (รหัส {resp.status})")
         
-        print("✅ อัพเดท contexts เสร็จสมบูรณ์")
+        print(f"✅ อัพเดท contexts เสร็จสมบูรณ์: {success_count}/{len(commands)} คำสั่ง")
         
     except Exception as e:
         print(f"⚠️ เกิดข้อผิดพลาดในการอัพเดท contexts: {e}")
@@ -2046,13 +2061,14 @@ async def on_command_completion(ctx):
 async def on_ready():
     print(f"✅ บอทออนไลน์แล้ว: {bot.user} (ID: {bot.user.id})")
     
-    # ✅ อัพเดทสถานะใน server (เพิ่มใหม่)
+    # ✅ อัพเดทสถานะใน server
     guild_count = len(bot.guilds)
     user_count = sum(guild.member_count for guild in bot.guilds)
     update_bot_status(True, guild_count, user_count)
     print(f"📊 สถิติ: {guild_count} เซิร์ฟเวอร์, {user_count} ผู้ใช้")
     
-    # ✅ อัพเดท contexts สำหรับ slash commands (เพิ่มใหม่)
+    # ✅ อัพเดท contexts สำหรับ slash commands (รอ 30 วินาทีก่อนเริ่ม)
+    print("⏳ จะเริ่มอัพเดท contexts ใน 30 วินาที...")
     bot.loop.create_task(update_slash_commands_context())
     
     try:
@@ -2105,7 +2121,7 @@ async def on_disconnect():
     save_ticket_robux_data()
     save_ticket_customer_data()
     
-    # ✅ อัพเดทสถานะเป็นออฟไลน์ (เพิ่มใหม่)
+    # ✅ อัพเดทสถานะเป็นออฟไลน์
     update_bot_status(False)
 
 # =======================================================================================
