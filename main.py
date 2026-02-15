@@ -8,6 +8,7 @@ import asyncio
 import json
 import traceback
 import time
+import random
 
 # =======================================================================================
 # ✅ ตรวจสอบและติดตั้ง pytz อัตโนมัติ
@@ -24,6 +25,44 @@ except ImportError:
     pytz = MockPytz()
 
 from server import server_on
+
+# =======================================================================================
+# ✅ Rate Limit Handler Class
+# =======================================================================================
+class RateLimitHandler:
+    def __init__(self):
+        self.request_times = []
+        self.max_requests_per_minute = 45  # Discord's limit is 50 per minute, we'll be safe
+        self.last_reset = time.time()
+        self.lock = asyncio.Lock()
+    
+    async def wait_if_needed(self):
+        """Wait if we're approaching rate limits"""
+        async with self.lock:
+            current_time = time.time()
+            
+            # Reset counter every minute
+            if current_time - self.last_reset > 60:
+                self.request_times = []
+                self.last_reset = current_time
+            
+            # Clean up old requests
+            self.request_times = [t for t in self.request_times if current_time - t < 60]
+            
+            # If we're near the limit, wait
+            if len(self.request_times) >= self.max_requests_per_minute:
+                wait_time = 60 - (current_time - self.request_times[0])
+                if wait_time > 0:
+                    print(f"⏳ Rate limit approaching, waiting {wait_time:.1f} seconds...")
+                    await asyncio.sleep(wait_time + 1)
+                    self.request_times = []
+                    self.last_reset = time.time()
+            
+            # Add current request
+            self.request_times.append(current_time)
+            return True
+
+rate_handler = RateLimitHandler()
 
 # =======================================================================================
 # ✅ ตั้งค่า Timezone สำหรับประเทศไทย (พร้อม fallback)
@@ -81,6 +120,13 @@ ticket_transcripts_file = "ticket_transcripts.json"
 ticket_counter_file = "ticket_counter.json"
 ticket_robux_data_file = "ticket_robux_data.json"
 ticket_customer_data_file = "ticket_customer_data.json"
+
+# Cache for credit channel to reduce API calls
+credit_channel_cache = {
+    "message_count": 0,
+    "last_updated": 0,
+    "cache_duration": 300  # 5 minutes
+}
 
 # =======================================================================================
 # ✅ ฟังก์ชันจัดการไฟล์ข้อมูล
@@ -207,12 +253,11 @@ def save_ticket_customer_data():
         return False
 
 # =======================================================================================
-# ✅ คลาสหลักของบอท - FIXED: super() issue
+# ✅ คลาสหลักของบอท
 # =======================================================================================
 
 class MyBot(commands.Bot):
     def __init__(self):
-        # FIXED: ใช้ super().__init__() แทน super()
         super().__init__(
             command_prefix="!",
             intents=intents,
@@ -223,6 +268,8 @@ class MyBot(commands.Bot):
         self.ticket_counter = load_ticket_counter()
         self.is_reacting_to_credit_channel = False
         self.stock_lock = asyncio.Lock()
+        self.credit_last_react_time = 0
+        self.credit_react_cooldown = 300  # 5 minutes between full scans
 
     async def setup_hook(self):
         """ตั้งค่าและ sync คำสั่ง"""
@@ -241,6 +288,7 @@ class MyBot(commands.Bot):
         print(f"✅ โหลดตัวนับตั๋ว: {self.ticket_counter}")
         
         try:
+            await asyncio.sleep(2)
             synced = await self.tree.sync()
             print(f"✅ Sync Global Commands เรียบร้อย: {len(synced)} commands")
         except Exception as e:
@@ -273,32 +321,59 @@ LEVELS = {
 print("🔄 กำลังเริ่มต้นบอท...")
 
 # =======================================================================================
-# ✅ ระบบนับเครดิตและกด react
+# ✅ ระบบนับเครดิตและกด react - OPTIMIZED
 # =======================================================================================
 
 async def update_credit_channel():
     """อัพเดทชื่อช่องเครดิตตามจำนวนข้อความ"""
     try:
-        channel = bot.get_channel(CREDIT_CHANNEL_ID)
-        if not channel:
-            print("❌ ไม่พบช่องเครดิต")
-            return
-        
-        message_count = 0
-        async for _ in channel.history(limit=None):
-            message_count += 1
+        # Check cache first
+        current_time = time.time()
+        if current_time - credit_channel_cache["last_updated"] < credit_channel_cache["cache_duration"]:
+            message_count = credit_channel_cache["message_count"]
+        else:
+            await rate_handler.wait_if_needed()
+            channel = bot.get_channel(CREDIT_CHANNEL_ID)
+            if not channel:
+                print("❌ ไม่พบช่องเครดิต")
+                return
+            
+            # Count messages more efficiently
+            message_count = 0
+            async for _ in channel.history(limit=1000):
+                message_count += 1
+            
+            # Update cache
+            credit_channel_cache["message_count"] = message_count
+            credit_channel_cache["last_updated"] = current_time
         
         new_name = f"✅credit : {message_count}"
-        if channel.name != new_name:
+        
+        await rate_handler.wait_if_needed()
+        channel = bot.get_channel(CREDIT_CHANNEL_ID)
+        if channel and channel.name != new_name:
             await channel.edit(name=new_name)
             print(f"✅ อัพเดทชื่อช่องเครดิตเป็น: {new_name}")
             
+    except discord.HTTPException as e:
+        if e.status == 429:
+            retry_after = e.retry_after if hasattr(e, 'retry_after') else 60
+            print(f"⏳ Rate limit ในการอัพเดทช่องเครดิต รอ {retry_after} วินาที")
+            await asyncio.sleep(retry_after)
+        else:
+            print(f"❌ เกิดข้อผิดพลาดในการอัพเดทช่องเครดิต: {e}")
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดในการอัพเดทช่องเครดิต: {e}")
 
 async def auto_react_to_credit_channel():
     """กด react ทุกข้อความในห้องเครดิต"""
     try:
+        # Check cooldown
+        current_time = time.time()
+        if current_time - bot.credit_last_react_time < bot.credit_react_cooldown:
+            print(f"⏳ รอคูลดาวน์กด react อีก {bot.credit_react_cooldown - (current_time - bot.credit_last_react_time):.0f} วินาที")
+            return
+            
         if bot.is_reacting_to_credit_channel:
             print("⏳ กำลังกด react ในห้องเครดิตอยู่... ข้ามรอบนี้")
             return
@@ -314,8 +389,12 @@ async def auto_react_to_credit_channel():
         heart_emoji = "❤️"
         sushi_emoji = "🍣"
         react_count = 0
+        message_count = 0
         
-        async for message in channel.history(limit=100):
+        # Process messages in batches
+        async for message in channel.history(limit=50):
+            message_count += 1
+            
             if message.author == bot.user:
                 continue
             
@@ -330,32 +409,37 @@ async def auto_react_to_credit_channel():
             
             try:
                 if not has_heart_react:
+                    await rate_handler.wait_if_needed()
                     await message.add_reaction(heart_emoji)
                     react_count += 1
+                    await asyncio.sleep(1)
                 
                 if not has_sushi_react:
+                    await rate_handler.wait_if_needed()
                     await message.add_reaction(sushi_emoji)
                     react_count += 1
-                
-                if react_count % 10 == 0:
                     await asyncio.sleep(1)
+                
+                if react_count % 10 == 0 and react_count > 0:
+                    await asyncio.sleep(3)
                     
             except discord.Forbidden:
                 print(f"❌ ไม่มีสิทธิ์กด react ในห้อง: {channel.name}")
                 break
             except discord.NotFound:
-                print(f"❌ ไม่พบข้อความ: {message.id}")
                 continue
             except discord.HTTPException as e:
                 if e.status == 429:
-                    print(f"⏳ Rate limit ในการกด react รอ {e.retry_after} วินาที")
-                    await asyncio.sleep(e.retry_after)
+                    retry_after = e.retry_after if hasattr(e, 'retry_after') else 60
+                    print(f"⏳ Rate limit ในการกด react รอ {retry_after} วินาที")
+                    await asyncio.sleep(retry_after)
                     continue
                 else:
                     print(f"❌ HTTP Error ในการกด react: {e}")
                     continue
         
-        print(f"✅ กด react เรียบร้อย: {react_count} reactions")
+        print(f"✅ กด react เรียบร้อย: {react_count} reactions จาก {message_count} ข้อความ")
+        bot.credit_last_react_time = current_time
         
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดในการกด react: {e}")
@@ -419,6 +503,14 @@ async def save_ticket_transcript(channel, action_by=None, robux_amount=None, cus
         customer_str = customer_name if customer_name else "wforr"
         filename = f"{date_str}{time_str}-{robux_str}-{customer_str}"
         
+        # Count messages with limit
+        message_count = 0
+        try:
+            async for _ in channel.history(limit=1000):
+                message_count += 1
+        except Exception as e:
+            print(f"⚠️ ไม่สามารถนับข้อความได้ทั้งหมด: {e}")
+        
         transcript_data = {
             "filename": filename,
             "channel_name": channel.name,
@@ -432,21 +524,13 @@ async def save_ticket_transcript(channel, action_by=None, robux_amount=None, cus
             "category": channel.category.name if channel.category else "ไม่มีหมวดหมู่",
             "created_at": now.isoformat(),
             "closed_by": str(action_by) if action_by else "ระบบอัตโนมัติ",
-            "messages_count": 0
+            "messages_count": message_count
         }
         
-        message_count = 0
-        try:
-            async for message in channel.history(limit=None):
-                message_count += 1
-        except:
-            pass
-        
-        transcript_data["messages_count"] = message_count
         ticket_transcripts[str(channel.id)] = transcript_data
         
         if save_ticket_transcripts():
-            print(f"✅ บันทึกประวัติตั๋วเรียบร้อย: {filename}")
+            print(f"✅ บันทึกประวัติตั๋วเรียบร้อย: {filename} ({message_count} ข้อความ)")
             return True, filename
         else:
             print(f"⚠️ บันทึกประวัติตั๋วไม่สำเร็จ: {channel.name}")
@@ -475,6 +559,7 @@ async def handle_ticket_after_ty(channel, user, robux_amount=None, customer_name
             return False
         
         try:
+            await rate_handler.wait_if_needed()
             await channel.edit(
                 category=delivered_category,
                 reason=f"ย้ายไปห้องส่งของแล้วโดย {user.name if user else 'ระบบ'}"
@@ -494,6 +579,7 @@ async def handle_ticket_after_ty(channel, user, robux_amount=None, customer_name
                 print(f"✅ บันทึก transcript ด้วยเวลา {time_str}: {filename}")
                 
                 try:
+                    await rate_handler.wait_if_needed()
                     await channel.edit(name=filename)
                     print(f"✅ เปลี่ยนชื่อห้องเป็น: {filename}")
                 except Exception as e:
@@ -551,6 +637,7 @@ async def move_to_transcript_after_delay(channel, user, robux_amount, customer_n
             try:
                 if user:
                     try:
+                        await rate_handler.wait_if_needed()
                         overwrites = channel.overwrites
                         if user in overwrites:
                             overwrites[user].update(read_messages=False)
@@ -559,6 +646,7 @@ async def move_to_transcript_after_delay(channel, user, robux_amount, customer_n
                     except Exception as e:
                         print(f"⚠️ ไม่สามารถลบสิทธิ์ view ของผู้ซื้อ: {e}")
                 
+                await rate_handler.wait_if_needed()
                 await channel.edit(
                     category=archived_category,
                     reason=f"ย้ายไปเก็บถาวรหลังจาก 10 นาที (ใช้ !ty แล้ว)"
@@ -937,6 +1025,7 @@ async def update_channel_name():
             
             if channel.name != new_name:
                 try:
+                    await rate_handler.wait_if_needed()
                     await channel.edit(name=new_name)
                     bot.last_update_time = current_time
                     print(f"✅ เปลี่ยนชื่อช่องเป็น: {new_name}")
@@ -1711,12 +1800,14 @@ async def update_main_channel():
 
         if target_message:
             try:
+                await rate_handler.wait_if_needed()
                 await target_message.edit(embed=embed, view=MainShopView())
                 bot.last_update_time = current_time
                 print(f"✅ อัพเดท embed หลักเรียบร้อยแล้ว (แก้ไขข้อความ ID: {target_message.id})")
             except discord.NotFound:
                 print("❌ ไม่พบข้อความเดิม ส่งข้อความใหม่")
                 try:
+                    await rate_handler.wait_if_needed()
                     await channel.send(embed=embed, view=MainShopView())
                     bot.last_update_time = current_time
                 except Exception as e:
@@ -1728,6 +1819,7 @@ async def update_main_channel():
                 else:
                     print(f"❌ ไม่สามารถ edit ข้อความ: {e}")
                     try:
+                        await rate_handler.wait_if_needed()
                         await channel.send(embed=embed, view=MainShopView())
                         bot.last_update_time = current_time
                     except:
@@ -1735,12 +1827,14 @@ async def update_main_channel():
             except Exception as e:
                 print(f"❌ ไม่สามารถ edit ข้อความ: {e}")
                 try:
+                    await rate_handler.wait_if_needed()
                     await channel.send(embed=embed, view=MainShopView())
                     bot.last_update_time = current_time
                 except:
                     pass
         else:
             try:
+                await rate_handler.wait_if_needed()
                 await channel.send(embed=embed, view=MainShopView())
                 bot.last_update_time = current_time
                 print("✅ สร้าง embed หลักใหม่เรียบร้อยแล้ว")
@@ -1937,6 +2031,7 @@ async def on_ready():
     print(f"✅ บอทออนไลน์แล้ว: {bot.user} (ID: {bot.user.id})")
     
     try:
+        await asyncio.sleep(2)
         synced = await bot.tree.sync()
         print(f"✅ Sync Global Commands เรียบร้อย: {len(synced)} commands")
     except Exception as e:
@@ -2017,7 +2112,7 @@ async def check_user_level(interaction: discord.Interaction):
             next_display = "สูงสุดแล้ว"
         
         embed = discord.Embed(
-            title=f"🍣 ระดับของคุณ {interaction.user.displayName}",
+            title=f"🍣 ระดับของคุณ {interaction.user.display_name}",
             color=0x00FF99
         )
         embed.add_field(name="🎮 ระดับปัจจุบัน", value=current_display, inline=True)
@@ -2171,6 +2266,7 @@ async def archive_ticket_automatically(channel):
         archived_category = channel.guild.get_channel(ARCHIVED_CATEGORY_ID)
         if archived_category:
             try:
+                await rate_handler.wait_if_needed()
                 await channel.edit(
                     category=archived_category,
                     reason=f"Archived automatically after timeout"
@@ -2698,6 +2794,7 @@ async def sushi(ctx):
                 new_name = "〔🔴〕ปิดชั่วคราว"
             
             if channel.name != new_name:
+                await rate_handler.wait_if_needed()
                 await channel.edit(name=new_name)
                 print(f"✅ เปลี่ยนชื่อช่องเป็น: {new_name}")
     except Exception as e:
