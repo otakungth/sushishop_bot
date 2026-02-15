@@ -17,7 +17,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 logger = logging.getLogger(__name__)
 
 # ตั้งค่าเรท (ค่าเริ่มต้น)
-gamepass_rate = 6
+gamepass_rate = 6.5
 group_rate_low = 4
 group_rate_high = 4.5
 
@@ -40,8 +40,8 @@ DELIVERED_CATEGORY_ID = 1419565515088597083
 ARCHIVED_CATEGORY_ID = 1445086228113264650
 TRANSCRIPT_CHANNEL_ID = None
 
-gamepass_stock = 50000
-group_stock = 0
+gamepass_stock = 150000
+group_stock = 4000
 
 # เก็บข้อมูลโน้ตส่วนตัว
 user_notes = {}
@@ -2394,3 +2394,4 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
         sys.exit(1)
+
