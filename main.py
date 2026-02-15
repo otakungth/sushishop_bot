@@ -2352,25 +2352,61 @@ async def on_disconnect():
     save_ticket_transcripts(bot.ticket_transcripts)
 
 # =======================================================================================
-# ✅ Server health check สำหรับ Render
+# ✅ นำเข้า server.py
 # =======================================================================================
 
-from flask import Flask
-from threading import Thread
+from server import server_on
 
-app = Flask(__name__)
+# =======================================================================================
+# ✅ ฟังก์ชันอัพเดท contexts สำหรับ Slash Commands
+# =======================================================================================
 
-@app.route('/')
-def home():
-    return "Bot is running!"
-
-def run():
-    app.run(host='0.0.0.0', port=8080)
-
-def keep_alive():
-    t = Thread(target=run)
-    t.daemon = True
-    t.start()
+async def update_commands_contexts():
+    """อัพเดท contexts ของ slash commands ให้ใช้ได้ในทุกที่"""
+    token = os.getenv("TOKEN")
+    app_id = os.getenv("APPLICATION_ID")
+    
+    if not token or not app_id:
+        logger.warning("⚠️ ไม่พบ TOKEN หรือ APPLICATION_ID ใน environment variables")
+        return
+    
+    headers = {
+        "Authorization": f"Bot {token}",
+        "Content-Type": "application/json"
+    }
+    
+    try:
+        async with aiohttp.ClientSession() as session:
+            # ดึงคำสั่งปัจจุบัน
+            async with session.get(f"https://discord.com/api/v10/applications/{app_id}/commands", headers=headers) as resp:
+                if resp.status != 200:
+                    logger.error(f"❌ ไม่สามารถดึงคำสั่ง: {await resp.text()}")
+                    return
+                
+                commands = await resp.json()
+                logger.info(f"✅ พบคำสั่งทั้งหมด {len(commands)} คำสั่ง")
+            
+            # อัพเดท contexts สำหรับแต่ละคำสั่ง
+            for cmd in commands:
+                update_data = {
+                    "contexts": [0, 1, 2],  # [GUILD, BOT_DM, PRIVATE_CHANNEL]
+                    "integration_types": [0, 1]  # [GUILD_INSTALL, USER_INSTALL]
+                }
+                
+                async with session.patch(
+                    f"https://discord.com/api/v10/applications/{app_id}/commands/{cmd['id']}",
+                    headers=headers,
+                    json=update_data
+                ) as resp:
+                    if resp.status == 200:
+                        logger.info(f"✅ อัพเดท contexts สำหรับ /{cmd['name']}")
+                    else:
+                        logger.error(f"❌ ไม่สามารถอัพเดท /{cmd['name']}: {await resp.text()}")
+                        
+        logger.info("✅ อัพเดท contexts เสร็จสิ้น")
+        
+    except Exception as e:
+        logger.error(f"❌ เกิดข้อผิดพลาดในการอัพเดท contexts: {e}")
 
 # =======================================================================================
 # ✅ เริ่มต้นบอท
@@ -2379,19 +2415,26 @@ def keep_alive():
 if __name__ == "__main__":
     logger.info("🚀 กำลังเริ่มต้นบอท...")
     
-    # เริ่ม web server สำหรับ health check
-    keep_alive()
+    # เริ่ม web server จาก server.py
+    server_on()
     logger.info("✅ Web server started on port 8080")
     
     # รันบอท
     token = os.getenv("TOKEN")
+    app_id = os.getenv("APPLICATION_ID")
+    
     if not token:
         logger.error("❌ ไม่พบ TOKEN ใน environment variables")
         sys.exit(1)
     
+    if not app_id:
+        logger.warning("⚠️ ไม่พบ APPLICATION_ID ใน environment variables (จะไม่สามารถอัพเดท contexts ได้)")
+    
     try:
+        # รันบอท
         bot.run(token)
     except Exception as e:
         logger.error(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
         sys.exit(1)
+
 
