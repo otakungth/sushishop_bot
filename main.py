@@ -12,8 +12,6 @@ import logging
 from typing import Optional, Dict, Any, List
 from collections import deque
 import random
-import threading
-from flask import Flask
 
 # ตั้งค่า logging
 logging.basicConfig(
@@ -23,51 +21,25 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# =======================================================================================
-# ✅ Web Server Function (defined first to avoid import issues)
-# =======================================================================================
-
-def run_web_server():
-    """Run Flask web server in a separate thread"""
-    try:
+# นำเข้า server.py
+try:
+    from server import server_on
+    logger.info("✅ นำเข้า server.py สำเร็จ")
+except Exception as e:
+    logger.error(f"❌ ไม่สามารถนำเข้า server.py: {e}")
+    def server_on():
+        from flask import Flask
+        import threading
         app = Flask(__name__)
-        
         @app.route('/')
         def home():
             return "Sushi Shop Bot is running!"
-        
-        @app.route('/health')
-        def health():
-            return "OK", 200
-        
-        # Render requires binding to 0.0.0.0
-        app.run(host='0.0.0.0', port=8080, debug=False, use_reloader=False)
-    except Exception as e:
-        logger.error(f"❌ Web server error: {e}")
-
-def start_web_server():
-    """Start web server in background thread"""
-    try:
-        # Try to import server.py first
-        try:
-            from server import server_on
-            server_on()
-            logger.info("✅ นำเข้า server.py สำเร็จ")
-        except ImportError:
-            logger.warning("⚠️ ไม่พบ server.py ใช้ fallback web server")
-            # Start fallback web server in thread
-            thread = threading.Thread(target=run_web_server, daemon=True)
-            thread.start()
-            logger.info("✅ Fallback web server started on port 8080")
-    except Exception as e:
-        logger.error(f"❌ ไม่สามารถเริ่ม web server: {e}")
-        # Try fallback directly
-        try:
-            thread = threading.Thread(target=run_web_server, daemon=True)
-            thread.start()
-            logger.info("✅ Emergency web server started on port 8080")
-        except Exception as e2:
-            logger.error(f"❌ Cannot start any web server: {e2}")
+        def run():
+            app.run(host='0.0.0.0', port=8080)
+        t = threading.Thread(target=run)
+        t.daemon = True
+        t.start()
+        logger.info("✅ Server started on port 8080 (fallback)")
 
 # ตั้งค่าเรท (ค่าเริ่มต้น)
 gamepass_rate = 6
@@ -212,8 +184,6 @@ class SushiBot(commands.Bot):
         self.update_queue = asyncio.Queue()
         self.update_task = None
         self.initialized = False
-        self.reconnect_attempts = 0
-        self.max_reconnect_attempts = 10
         
     def load_ticket_counter(self):
         """โหลดตัวนับตั๋ว"""
@@ -270,8 +240,6 @@ class SushiBot(commands.Bot):
                 # รอระหว่างการอัพเดท - เพิ่มเวลารอ
                 await asyncio.sleep(15)  # Increased from 10 to 15 seconds
                 
-            except asyncio.CancelledError:
-                break
             except Exception as e:
                 logger.error(f"❌ เกิดข้อผิดพลาดในการ process_updates: {e}")
                 await asyncio.sleep(30)
@@ -288,7 +256,6 @@ class SushiBot(commands.Bot):
         
     async def on_ready(self):
         logger.info(f"✅ บอทออนไลน์แล้ว: {self.user} (ID: {self.user.id})")
-        self.reconnect_attempts = 0  # Reset reconnect attempts on successful connection
         
         await self.change_presence(
             activity=discord.Activity(
@@ -307,14 +274,8 @@ class SushiBot(commands.Bot):
         logger.info("🎯 บอทพร้อมใช้งานเต็มที่!")
         
     async def on_disconnect(self):
-        logger.warning("⚠️ บอท disconnected กำลังพยายาม reconnect...")
-        self.reconnect_attempts += 1
-        logger.info(f"💾 กำลังบันทึกข้อมูล...")
+        logger.info("💾 กำลังบันทึกข้อมูลก่อนปิดบอท...")
         self.save_all_data()
-        
-    async def on_resumed(self):
-        logger.info("✅ การเชื่อมต่อกลับมาทำงานอีกครั้ง")
-        self.reconnect_attempts = 0
         
     async def periodic_updates(self):
         """ทำงานพื้นหลังที่ต้องทำเป็นระยะ (ช้าลง)"""
@@ -329,8 +290,6 @@ class SushiBot(commands.Bot):
                 await asyncio.sleep(30)  # Wait 30 seconds between updates
                 await self.queue_update("credit_channel")
                 
-            except asyncio.CancelledError:
-                break
             except Exception as e:
                 logger.error(f"❌ เกิดข้อผิดพลาดใน periodic_updates: {e}")
                 await asyncio.sleep(300)
@@ -547,8 +506,6 @@ class SushiBot(commands.Bot):
                 for channel_id in channels_to_remove:
                     ticket_activity.pop(channel_id, None)
                     
-            except asyncio.CancelledError:
-                break
             except Exception as e:
                 logger.error(f"❌ เกิดข้อผิดพลาดในการตรวจสอบตั๋วค้าง: {e}")
                 await asyncio.sleep(300)
@@ -1921,28 +1878,27 @@ async def on_error(event, *args, **kwargs):
 if __name__ == "__main__":
     logger.info("🚀 กำลังเริ่มต้นบอท...")
     
-    # เริ่ม web server ก่อน
-    start_web_server()
+    # เริ่ม web server
+    try:
+        server_on()
+        logger.info("✅ Web server started on port 8080")
+    except Exception as e:
+        logger.error(f"❌ ไม่สามารถเริ่ม web server: {e}")
     
     # รันบอท
     token = os.getenv("TOKEN")
     if not token:
         logger.error("❌ ไม่พบ TOKEN ใน environment variables")
-        # Try to get from environment
-        token = os.environ.get("TOKEN")
-        if not token:
-            logger.error("❌ กรุณาตั้งค่า TOKEN ใน environment variables")
-            sys.exit(1)
+        sys.exit(1)
     
     # Add reconnect logic with exponential backoff
-    max_retries = 10
+    max_retries = 5
     retry_count = 0
     base_delay = 5
     
     while retry_count < max_retries:
         try:
-            logger.info(f"🔌 กำลังเชื่อมต่อ Discord... (ครั้งที่ {retry_count + 1})")
-            # รันบอท
+            # รันบอทโดยไม่ใช้ shard และจำกัด rate
             bot.run(token, log_handler=None, reconnect=True)
             break  # If successful, exit loop
         except discord.HTTPException as e:
@@ -1954,33 +1910,12 @@ if __name__ == "__main__":
             else:
                 logger.error(f"❌ HTTP Exception: {e}")
                 break
-        except discord.GatewayNotFound:
-            logger.error("❌ Gateway not found - Discord API may be down")
-            retry_count += 1
-            wait_time = base_delay * (2 ** retry_count)
-            logger.info(f"🔄 Retrying in {wait_time}s...")
-            time.sleep(wait_time)
-        except discord.ConnectionClosed:
-            logger.error("❌ Connection closed - reconnecting...")
-            retry_count += 1
-            wait_time = base_delay * (2 ** retry_count)
-            logger.info(f"🔄 Retrying in {wait_time}s...")
-            time.sleep(wait_time)
         except discord.PrivilegedIntentsRequired:
             logger.error("❌ ต้องเปิด Privileged Intents ใน Discord Developer Portal")
             break
         except discord.LoginFailure:
             logger.error("❌ TOKEN ไม่ถูกต้อง")
             break
-        except KeyboardInterrupt:
-            logger.info("👋 หยุดการทำงานโดยผู้ใช้")
-            break
         except Exception as e:
             logger.error(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
-            retry_count += 1
-            if retry_count >= max_retries:
-                logger.error("❌ ไม่สามารถเชื่อมต่อได้หลังจากลองหลายครั้ง")
-                break
-            wait_time = base_delay * (2 ** retry_count)
-            logger.info(f"🔄 Retrying in {wait_time}s...")
-            time.sleep(wait_time)
+            break
