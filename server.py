@@ -1,5 +1,6 @@
 from flask import Flask
 import threading
+import time
 
 app = Flask(__name__)
 
@@ -7,11 +8,17 @@ app = Flask(__name__)
 def home():
     return "Sushi Shop Bot is running!"
 
+@app.route('/health')
+def health():
+    return {"status": "alive", "time": time.time()}, 200
+
 def run():
-    app.run(host='0.0.0.0', port=8080)
+    # ใช้ port ที่ Render กำหนด หรือ 8080
+    port = int(os.environ.get("PORT", 8080))
+    app.run(host='0.0.0.0', port=port)
 
 def server_on():
     t = threading.Thread(target=run)
     t.daemon = True
     t.start()
-    print("✅ Server started on port 8080")
+    print(f"✅ Server started on port {os.environ.get('PORT', 8080)}")
