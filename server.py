@@ -92,7 +92,7 @@ def update_bot_status(online, guilds=0, users=0):
 
 def run():
     """รัน Flask server"""
-    port = int(os.getenv("PORT", 8080))  # Render ใช้ PORT environment variable
+    port = int(os.getenv("PORT", 8080))
     app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
 
 def server_on():
@@ -102,4 +102,3 @@ def server_on():
     t.start()
     print(f"✅ Web server started on port {os.getenv('PORT', 8080)}")
     return t
-
