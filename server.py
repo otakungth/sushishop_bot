@@ -21,5 +21,6 @@ def server_on():
     t = threading.Thread(target=run)
     t.daemon = True
     t.start()
-    print(f"✅ Server started on port {os.environ.get('PORT', 8080)}")
+    print(f"✅ Server started on port {os.environ.get('PORT', 10000)}")
+
 
