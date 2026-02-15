@@ -11,6 +11,8 @@ import time
 from flask import Flask
 from threading import Thread
 import logging
+import aiohttp
+from server import update_bot_status
 
 # =======================================================================================
 # ✅ ปิด log ของ Flask
@@ -32,13 +34,13 @@ def health():
     return "OK", 200
 
 def run():
-    app.run(host='0.0.0.0', port=8080)
+    app.run(host='0.0.0.0', port=int(os.getenv("PORT", 8080)))
 
 def keep_alive():
     t = Thread(target=run)
     t.daemon = True
     t.start()
-    print("✅ Web server started on port 8080")
+    print(f"✅ Web server started on port {os.getenv('PORT', 8080)}")
 
 # =======================================================================================
 # ✅ ตรวจสอบและติดตั้ง pytz อัตโนมัติ
@@ -751,7 +753,7 @@ class ConfirmDeliveryView(View):
             
             await self.channel.send(embed=receipt_embed)
             
-            ty_notice = await self.channel.send("✅ **ส่งสินค้าเรียบร้อยแล้ว!** กรุณาใช้คำสั่ง `!ty` เพื่อยืนยันการส่งสินค้าและเปลี่ยนชื่อตั๋ว")
+            await self.channel.send("✅ **ส่งสินค้าเรียบร้อยแล้ว!** กรุณาใช้คำสั่ง `!ty` เพื่อยืนยันการส่งสินค้าและเปลี่ยนชื่อตั๋ว")
             
             await interaction.response.edit_message(
                 content="✅ บันทึกการส่งสินค้าเรียบร้อยแล้ว",
@@ -1925,6 +1927,60 @@ class MainShopView(View):
         await check_user_level(interaction)
 
 # =======================================================================================
+# ✅ ฟังก์ชันอัพเดท Slash Commands Contexts (เพิ่มใหม่)
+# =======================================================================================
+async def update_slash_commands_context():
+    """อัพเดท contexts สำหรับ Slash Commands"""
+    try:
+        # รอให้บอทพร้อมก่อน
+        await asyncio.sleep(5)
+        
+        token = os.getenv("TOKEN")
+        app_id = os.getenv("APPLICATION_ID")
+        
+        if not app_id:
+            print("⚠️ ไม่พบ APPLICATION_ID ข้ามการอัพเดท contexts")
+            return
+        
+        headers = {
+            "Authorization": f"Bot {token}",
+            "Content-Type": "application/json"
+        }
+        
+        async with aiohttp.ClientSession() as session:
+            # ดึงคำสั่งปัจจุบัน
+            async with session.get(
+                f"https://discord.com/api/v10/applications/{app_id}/commands", 
+                headers=headers
+            ) as resp:
+                if resp.status != 200:
+                    print(f"⚠️ ไม่สามารถดึงคำสั่งได้ (รหัส {resp.status})")
+                    return
+                
+                commands = await resp.json()
+            
+            # อัพเดท contexts
+            for cmd in commands:
+                update_data = {
+                    "contexts": [0, 1, 2]  # ให้ใช้ได้ทุกที่
+                }
+                
+                async with session.patch(
+                    f"https://discord.com/api/v10/applications/{app_id}/commands/{cmd['id']}",
+                    headers=headers,
+                    json=update_data
+                ) as resp:
+                    if resp.status == 200:
+                        print(f"✅ ตั้งค่า /{cmd['name']} ให้ใช้ได้ทุกที่")
+                    else:
+                        print(f"⚠️ ไม่สามารถตั้งค่า /{cmd['name']} (รหัส {resp.status})")
+        
+        print("✅ อัพเดท contexts เสร็จสมบูรณ์")
+        
+    except Exception as e:
+        print(f"⚠️ เกิดข้อผิดพลาดในการอัพเดท contexts: {e}")
+
+# =======================================================================================
 # ✅ Events
 # =======================================================================================
 
@@ -1990,6 +2046,15 @@ async def on_command_completion(ctx):
 async def on_ready():
     print(f"✅ บอทออนไลน์แล้ว: {bot.user} (ID: {bot.user.id})")
     
+    # ✅ อัพเดทสถานะใน server (เพิ่มใหม่)
+    guild_count = len(bot.guilds)
+    user_count = sum(guild.member_count for guild in bot.guilds)
+    update_bot_status(True, guild_count, user_count)
+    print(f"📊 สถิติ: {guild_count} เซิร์ฟเวอร์, {user_count} ผู้ใช้")
+    
+    # ✅ อัพเดท contexts สำหรับ slash commands (เพิ่มใหม่)
+    bot.loop.create_task(update_slash_commands_context())
+    
     try:
         synced = await bot.tree.sync()
         print(f"✅ Sync Global Commands เรียบร้อย: {len(synced)} commands")
@@ -2039,16 +2104,10 @@ async def on_disconnect():
     save_ticket_transcripts()
     save_ticket_robux_data()
     save_ticket_customer_data()
-
-@bot.event
-async def close():
-    print("💾 บันทึกข้อมูลสุดท้าย...")
-    save_user_data()
-    save_ticket_transcripts()
-    save_ticket_robux_data()
-    save_ticket_customer_data()
-    await super().close()
     
+    # ✅ อัพเดทสถานะเป็นออฟไลน์ (เพิ่มใหม่)
+    update_bot_status(False)
+
 # =======================================================================================
 # ✅ ฟังก์ชันเช็คเลเวลผู้ใช้
 # =======================================================================================
