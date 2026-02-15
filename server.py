@@ -1,26 +1,12 @@
+import os
 from flask import Flask
-import threading
-import time
 
 app = Flask(__name__)
 
-@app.route('/')
+@app.route("/")
 def home():
-    return "Sushi Shop Bot is running!"
-
-@app.route('/health')
-def health():
-    return {"status": "alive", "time": time.time()}, 200
+    return "Bot is running!"
 
 def run():
-    # ใช้ port ที่ Render กำหนด หรือ 8080
     port = int(os.environ.get("PORT", 10000))
-    app.run(host='0.0.0.0', port=port)
-
-def server_on():
-    t = threading.Thread(target=run)
-    t.daemon = True
-    t.start()
-    print(f"✅ Server started on port {os.environ.get('PORT', 10000)}")
-
-
+    app.run(host="0.0.0.0", port=port)
