@@ -9,16 +9,15 @@ import asyncio
 import json
 import time
 import logging
-import aiohttp
 from typing import Optional, Dict, Any, List
+from collections import deque
+import random
 
 # ตั้งค่า logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout)
-    ]
+    handlers=[logging.StreamHandler(sys.stdout)]
 )
 logger = logging.getLogger(__name__)
 
@@ -28,27 +27,22 @@ try:
     logger.info("✅ นำเข้า server.py สำเร็จ")
 except Exception as e:
     logger.error(f"❌ ไม่สามารถนำเข้า server.py: {e}")
-    # สร้างฟังก์ชัน server_on เองถ้าไม่มี
     def server_on():
         from flask import Flask
         import threading
-        
         app = Flask(__name__)
-        
         @app.route('/')
         def home():
             return "Sushi Shop Bot is running!"
-        
         def run():
             app.run(host='0.0.0.0', port=8080)
-        
         t = threading.Thread(target=run)
         t.daemon = True
         t.start()
         logger.info("✅ Server started on port 8080 (fallback)")
 
 # ตั้งค่าเรท (ค่าเริ่มต้น)
-gamepass_rate = 6.5
+gamepass_rate = 6
 group_rate_low = 4
 group_rate_high = 4.5
 
@@ -70,8 +64,8 @@ CREDIT_CHANNEL_ID = 1363250076549382246
 DELIVERED_CATEGORY_ID = 1419565515088597083
 ARCHIVED_CATEGORY_ID = 1445086228113264650
 
-gamepass_stock = 150000
-group_stock = 4000
+gamepass_stock = 50000
+group_stock = 0
 
 # เก็บข้อมูลโน้ตส่วนตัว
 user_notes = {}
@@ -84,18 +78,43 @@ user_data_file = "user_data.json"
 ticket_transcripts_file = "ticket_transcripts.json"
 ticket_counter_file = "ticket_counter.json"
 
-# ระดับและ EXP
-LEVELS = {
-    1: {"exp": 1, "role_id": 1361555369825927249, "role_name": "Level 1"},
-    2: {"exp": 5000, "role_id": 1432070662977093703, "role_name": "Level 2"},
-    3: {"exp": 10000, "role_id": 1361555364776247297, "role_name": "Level 3"},
-    4: {"exp": 20000, "role_id": 1432075600746643537, "role_name": "Level 4"},
-    5: {"exp": 50000, "role_id": 1432075369179254804, "role_name": "Level 5"},
-    6: {"exp": 100000, "role_id": 1361554929017294949, "role_name": "Level 6"},
-    7: {"exp": 250000, "role_id": 1432077732862492722, "role_name": "Level 7"},
-    8: {"exp": 500000, "role_id": 1363882685260365894, "role_name": "Level 8"},
-    9: {"exp": 1000000, "role_id": 1406309272786047106, "role_name": "Level 9"}
-}
+# Rate limiting handler
+class RateLimitHandler:
+    def __init__(self):
+        self.request_times = deque(maxlen=50)
+        self.last_reset = time.time()
+        self.min_interval = 1.0  # 1 second between requests
+        self.max_requests_per_minute = 30
+        
+    async def wait_if_needed(self):
+        """รอถ้าใกล้ถึง rate limit"""
+        now = time.time()
+        
+        # รีเซ็ตทุกนาที
+        if now - self.last_reset >= 60:
+            self.request_times.clear()
+            self.last_reset = now
+            
+        # ตรวจสอบจำนวน requests ในนาทีนี้
+        self.request_times.append(now)
+        
+        if len(self.request_times) >= self.max_requests_per_minute:
+            # รอจนครบนาที
+            wait_time = 60 - (now - self.last_reset)
+            if wait_time > 0:
+                logger.warning(f"⏳ Rate limit: รอ {wait_time:.1f} วินาที")
+                await asyncio.sleep(wait_time)
+                self.request_times.clear()
+                self.last_reset = time.time()
+        
+        # รอระหว่าง requests
+        if self.request_times and len(self.request_times) > 1:
+            last_request = self.request_times[-2]
+            time_since_last = now - last_request
+            if time_since_last < self.min_interval:
+                await asyncio.sleep(self.min_interval - time_since_last)
+
+rate_handler = RateLimitHandler()
 
 # =======================================================================================
 # ✅ ฟังก์ชันจัดการไฟล์ข้อมูล
@@ -104,7 +123,7 @@ LEVELS = {
 def load_json_file(filename, default=None):
     """โหลดข้อมูลจากไฟล์ JSON"""
     if default is None:
-        default = {} if 'transcripts' not in filename else {}
+        default = {}
     try:
         if os.path.exists(filename):
             with open(filename, 'r', encoding='utf-8') as f:
@@ -119,16 +138,6 @@ def load_json_file(filename, default=None):
 def save_json_file(filename, data):
     """บันทึกข้อมูลลงไฟล์ JSON"""
     try:
-        # สร้าง backup ก่อนบันทึก
-        if os.path.exists(filename):
-            backup_file = f"{filename}.backup"
-            try:
-                with open(filename, 'r', encoding='utf-8') as src:
-                    with open(backup_file, 'w', encoding='utf-8') as dst:
-                        dst.write(src.read())
-            except:
-                pass
-        
         with open(filename, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         logger.info(f"💾 บันทึก {filename} เรียบร้อยแล้ว")
@@ -150,9 +159,12 @@ class SushiBot(commands.Bot):
             allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False)
         )
         self.last_update_time = 0
+        self.last_channel_update = 0
         self.ticket_counter = self.load_ticket_counter()
         self.user_data = load_json_file(user_data_file, {})
         self.ticket_transcripts = load_json_file(ticket_transcripts_file, {})
+        self.update_queue = asyncio.Queue()
+        self.update_task = None
         self.initialized = False
         
     def load_ticket_counter(self):
@@ -177,14 +189,52 @@ class SushiBot(commands.Bot):
         """ตั้งค่าและ sync คำสั่ง"""
         logger.info("🔄 กำลังตั้งค่า slash commands...")
         
+        # ไม่ sync ทันที รอให้พร้อม
+        self.loop.create_task(self.delayed_sync())
+        
+        # เริ่ม task สำหรับอัพเดทช่อง
+        self.update_task = self.loop.create_task(self.process_updates())
+        
+        self.initialized = True
+        
+    async def delayed_sync(self):
+        """sync commands แบบหน่วงเวลา"""
+        await asyncio.sleep(5)  # รอ 5 วินาทีก่อน sync
         try:
-            # ลอง sync commands
+            await rate_handler.wait_if_needed()
             synced = await self.tree.sync()
             logger.info(f"✅ Sync Global Commands เรียบร้อย: {len(synced)} commands")
         except Exception as e:
             logger.error(f"❌ เกิดข้อผิดพลาดในการ sync: {e}")
+            
+    async def process_updates(self):
+        """ประมวลผลการอัพเดทช่องแบบคิว"""
+        while not self.is_closed():
+            try:
+                # รอรับงานจากคิว
+                update_type = await self.update_queue.get()
+                
+                if update_type == "main_channel":
+                    await self._update_main_channel()
+                elif update_type == "credit_channel":
+                    await self._update_credit_channel()
+                    
+                # รอระหว่างการอัพเดท
+                await asyncio.sleep(10)
+                
+            except Exception as e:
+                logger.error(f"❌ เกิดข้อผิดพลาดในการ process_updates: {e}")
+                await asyncio.sleep(30)
         
-        self.initialized = True
+    async def queue_update(self, update_type):
+        """เพิ่มงานอัพเดทลงคิว"""
+        try:
+            # ตรวจสอบว่ามีงานซ้ำในคิวหรือไม่
+            if not any(item == update_type for item in self.update_queue._queue):
+                await self.update_queue.put(update_type)
+                logger.info(f"📋 เพิ่ม {update_type} ในคิวอัพเดท")
+        except:
+            pass
         
     async def on_ready(self):
         logger.info(f"✅ บอทออนไลน์แล้ว: {self.user} (ID: {self.user.id})")
@@ -196,13 +246,12 @@ class SushiBot(commands.Bot):
             )
         )
         
-        # เริ่มงานพื้นหลัง
+        # เริ่มงานพื้นหลังแบบจำกัด rate
         self.loop.create_task(self.periodic_updates())
         self.loop.create_task(self.check_stale_tickets())
         
-        # อัพเดท contexts (ไม่จำเป็นต้องรอ)
-        if os.getenv("APPLICATION_ID"):
-            self.loop.create_task(self.update_commands_contexts())
+        # อัพเดทช่องหลักครั้งแรก
+        await self.queue_update("main_channel")
         
         logger.info("🎯 บอทพร้อมใช้งานเต็มที่!")
         
@@ -211,19 +260,23 @@ class SushiBot(commands.Bot):
         self.save_all_data()
         
     async def periodic_updates(self):
-        """ทำงานพื้นหลังที่ต้องทำเป็นระยะ"""
+        """ทำงานพื้นหลังที่ต้องทำเป็นระยะ (ช้าลง)"""
         await self.wait_until_ready()
         while not self.is_closed():
             try:
-                await self.update_main_channel()
-                await asyncio.sleep(300)  # ทุก 5 นาที
+                # อัพเดททุก 10 นาทีแทน 5 นาที
+                await asyncio.sleep(600)
+                await self.queue_update("main_channel")
+                await self.queue_update("credit_channel")
             except Exception as e:
                 logger.error(f"❌ เกิดข้อผิดพลาดใน periodic_updates: {e}")
-                await asyncio.sleep(60)
+                await asyncio.sleep(300)
                 
-    async def update_main_channel(self):
-        """อัพเดทข้อความในช่องหลัก"""
+    async def _update_main_channel(self):
+        """อัพเดทข้อความในช่องหลัก (private)"""
         try:
+            await rate_handler.wait_if_needed()
+            
             channel = self.get_channel(MAIN_CHANNEL_ID)
             if not channel:
                 logger.error("❌ ไม่พบช่องหลัก")
@@ -266,20 +319,15 @@ class SushiBot(commands.Bot):
                 inline=False
             )
             
-            embed.set_footer(
-                text="Sushi Shop • รับกดเกมพาสและอื่น ๆ",
-                icon_url="https://media.discordapp.net/attachments/717757556889747657/1403684950770847754/noFilter.png"
-            )
-            
-            # ค้นหาข้อความเก่า
-            async for msg in channel.history(limit=100):
-                if msg.author == self.user and msg.embeds:
-                    try:
+            # ค้นหาข้อความเก่า (จำกัด history)
+            try:
+                async for msg in channel.history(limit=20):
+                    if msg.author == self.user and msg.embeds:
                         await msg.edit(embed=embed, view=MainShopView())
                         logger.info("✅ อัพเดท embed หลักเรียบร้อยแล้ว")
                         return
-                    except:
-                        pass
+            except Exception as e:
+                logger.error(f"❌ ไม่สามารถค้นหาข้อความเก่า: {e}")
             
             # ถ้าไม่พบ ให้ส่งใหม่
             await channel.send(embed=embed, view=MainShopView())
@@ -287,6 +335,37 @@ class SushiBot(commands.Bot):
             
         except Exception as e:
             logger.error(f"❌ เกิดข้อผิดพลาดในการอัปเดตช่องหลัก: {e}")
+    
+    async def _update_credit_channel(self):
+        """อัพเดทชื่อช่องเครดิต (private)"""
+        try:
+            await rate_handler.wait_if_needed()
+            
+            channel = self.get_channel(CREDIT_CHANNEL_ID)
+            if not channel:
+                logger.error("❌ ไม่พบช่องเครดิต")
+                return
+            
+            # นับข้อความแบบจำกัด (ใช้ cache)
+            message_count = 0
+            try:
+                async for _ in channel.history(limit=100):
+                    message_count += 1
+                    if message_count >= 100:
+                        break
+            except:
+                pass
+            
+            # เพิ่มจำนวนคร่าวๆ
+            message_count = message_count + random.randint(0, 5)
+            
+            new_name = f"✅credit : {message_count}"
+            if channel.name != new_name:
+                await channel.edit(name=new_name)
+                logger.info(f"✅ อัพเดทชื่อช่องเครดิตเป็น: {new_name}")
+                
+        except Exception as e:
+            logger.error(f"❌ เกิดข้อผิดพลาดในการอัพเดทช่องเครดิต: {e}")
     
     def get_next_ticket_number(self):
         """สร้างเลขตั๋วถัดไป"""
@@ -340,11 +419,13 @@ class SushiBot(commands.Bot):
                 "messages_count": 0
             }
             
-            # นับข้อความ
+            # นับข้อความแบบจำกัด
             message_count = 0
             try:
-                async for _ in channel.history(limit=None):
+                async for _ in channel.history(limit=200):
                     message_count += 1
+                    if message_count >= 200:
+                        break
             except:
                 pass
             
@@ -361,11 +442,11 @@ class SushiBot(commands.Bot):
             return None
     
     async def check_stale_tickets(self):
-        """ตรวจสอบตั๋วค้างที่ต้องย้าย"""
+        """ตรวจสอบตั๋วค้างที่ต้องย้าย (ช้าลง)"""
         await self.wait_until_ready()
         while not self.is_closed():
             try:
-                await asyncio.sleep(300)
+                await asyncio.sleep(600)  # ตรวจสอบทุก 10 นาที
                 
                 current_time = datetime.datetime.now()
                 channels_to_remove = []
@@ -376,7 +457,7 @@ class SushiBot(commands.Bot):
                         if last_activity:
                             time_since_activity = current_time - last_activity
                             
-                            if time_since_activity.total_seconds() >= 1200:  # 20 นาที
+                            if time_since_activity.total_seconds() >= 1800:  # 30 นาที
                                 channel = self.get_channel(channel_id)
                                 if channel:
                                     logger.info(f"🔍 พบตั๋วค้างต้องย้าย: {channel.name}")
@@ -388,13 +469,12 @@ class SushiBot(commands.Bot):
                     
             except Exception as e:
                 logger.error(f"❌ เกิดข้อผิดพลาดในการตรวจสอบตั๋วค้าง: {e}")
-                await asyncio.sleep(60)
+                await asyncio.sleep(300)
                 
     async def archive_ticket_automatically(self, channel):
         """ย้ายตั๋วไปยัง archive category อัตโนมัติ"""
         try:
             if not channel or channel not in channel.guild.channels:
-                logger.error(f"❌ ตั๋ว {channel.name} ไม่มีอยู่แล้ว")
                 return
             
             # บันทึก transcript
@@ -404,6 +484,7 @@ class SushiBot(commands.Bot):
             archived_category = channel.guild.get_channel(ARCHIVED_CATEGORY_ID)
             if archived_category:
                 try:
+                    await rate_handler.wait_if_needed()
                     await channel.edit(
                         category=archived_category,
                         reason="Archived automatically after timeout"
@@ -414,53 +495,6 @@ class SushiBot(commands.Bot):
                     
         except Exception as e:
             logger.error(f"❌ เกิดข้อผิดพลาดในการย้ายตั๋วอัตโนมัติ: {e}")
-    
-    async def update_commands_contexts(self):
-        """อัพเดท contexts ของ slash commands ให้ใช้ได้ในทุกที่"""
-        token = os.getenv("TOKEN")
-        app_id = os.getenv("APPLICATION_ID")
-        
-        if not token or not app_id:
-            logger.warning("⚠️ ไม่พบ TOKEN หรือ APPLICATION_ID ใน environment variables")
-            return
-        
-        headers = {
-            "Authorization": f"Bot {token}",
-            "Content-Type": "application/json"
-        }
-        
-        try:
-            async with aiohttp.ClientSession() as session:
-                # ดึงคำสั่งปัจจุบัน
-                async with session.get(f"https://discord.com/api/v10/applications/{app_id}/commands", headers=headers) as resp:
-                    if resp.status != 200:
-                        logger.error(f"❌ ไม่สามารถดึงคำสั่ง: {await resp.text()}")
-                        return
-                    
-                    commands = await resp.json()
-                    logger.info(f"✅ พบคำสั่งทั้งหมด {len(commands)} คำสั่ง")
-                
-                # อัพเดท contexts สำหรับแต่ละคำสั่ง
-                for cmd in commands:
-                    update_data = {
-                        "contexts": [0, 1, 2],  # [GUILD, BOT_DM, PRIVATE_CHANNEL]
-                        "integration_types": [0, 1]  # [GUILD_INSTALL, USER_INSTALL]
-                    }
-                    
-                    async with session.patch(
-                        f"https://discord.com/api/v10/applications/{app_id}/commands/{cmd['id']}",
-                        headers=headers,
-                        json=update_data
-                    ) as resp:
-                        if resp.status == 200:
-                            logger.info(f"✅ อัพเดท contexts สำหรับ /{cmd['name']}")
-                        else:
-                            logger.error(f"❌ ไม่สามารถอัพเดท /{cmd['name']}: {await resp.text()}")
-                            
-            logger.info("✅ อัพเดท contexts เสร็จสิ้น")
-            
-        except Exception as e:
-            logger.error(f"❌ เกิดข้อผิดพลาดในการอัพเดท contexts: {e}")
 
 # =======================================================================================
 # ✅ สร้าง instance ของบอท
@@ -523,7 +557,7 @@ class DeliveryView(View):
                 return
 
             delivery_image = None
-            async for message in self.channel.history(limit=10):
+            async for message in self.channel.history(limit=5):
                 if message.author == interaction.user and message.attachments:
                     for attachment in message.attachments:
                         if any(attachment.filename.lower().endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.gif']):
@@ -885,7 +919,6 @@ async def handle_open_ticket(interaction, category_name, stock_type):
         # หาหมวดหมู่
         category = discord.utils.get(guild.categories, name=category_name)
         if category is None:
-            # สร้างหมวดหมู่ใหม่ถ้าไม่มี
             category = await guild.create_category(category_name)
             logger.info(f"✅ สร้างหมวดหมู่ใหม่: {category_name}")
 
@@ -948,20 +981,10 @@ async def handle_open_ticket(interaction, category_name, stock_type):
                 value=f"📦 Stock: **{gamepass_stock}**",
                 inline=False
             )
-            welcome_embed.add_field(
-                name="คำแนะนำ:",
-                value="• ระบุสิ่งที่ต้องการซื้อ\n• ใช้คำสั่ง !gp ตามด้วยจำนวนเพื่อเช็คราคา 🎉",
-                inline=False
-            )
         else:
             welcome_embed.add_field(
                 name="บริการโรบัคกลุ่ม",
                 value=f"📦 Stock: **{group_stock}**",
-                inline=False
-            )
-            welcome_embed.add_field(
-                name="คำแนะนำ:",
-                value="• ระบุจำนวนที่ต้องการซื้อ\n• รอทีมงานตรวจสอบข้อมูลค่ะ 🎉",
                 inline=False
             )
             
@@ -974,7 +997,6 @@ async def handle_open_ticket(interaction, category_name, stock_type):
             await channel.send("📝 **กรุณากรอกแบบฟอร์มด้านล่าง:**", view=discord.ui.View().add_item(
                 discord.ui.Button(label="📝 กรอกแบบฟอร์ม", style=discord.ButtonStyle.primary, custom_id="open_modal_btn")
             ))
-            # TODO: เพิ่ม interaction สำหรับเปิด modal
 
     except Exception as e:
         logger.error(f"❌ เกิดข้อผิดพลาดในการเปิดตั๋ว: {e}")
@@ -1002,6 +1024,7 @@ async def handle_ticket_after_ty(channel, user, robux_amount=None):
             return False
         
         try:
+            await rate_handler.wait_if_needed()
             await channel.edit(
                 category=delivered_category,
                 name=new_name,
@@ -1014,15 +1037,15 @@ async def handle_ticket_after_ty(channel, user, robux_amount=None):
                 description="สินค้าถูกจัดส่งเรียบร้อยแล้ว!\n\n" +
                            "**ขอบคุณที่ใช้บริการร้าน Sushi Shop 🍣**\n" +
                            "ฝากกดเครดิตให้ด้วยนะคะ ⭐\n\n" +
-                           "⚠️ **หมายเหตุ:** ตั๋วนี้จะถูกย้ายไปเก็บถาวรใน 10 นาที",
+                           "⚠️ **หมายเหตุ:** ตั๋วนี้จะถูกย้ายไปเก็บถาวรใน 30 นาที",
                 color=0x00FF00
             )
             credit_embed.set_footer(text="Sushi Shop • ขอบคุณที่ใช้บริการ")
             
             await channel.send(embed=credit_embed)
             
-            # เริ่มนับถอยหลัง 10 นาที
-            bot.loop.create_task(move_to_transcript_after_delay(channel, user, robux_amount, 600))
+            # เริ่มนับถอยหลัง 30 นาที
+            bot.loop.create_task(move_to_transcript_after_delay(channel, user, robux_amount, 1800))
             
             return True
             
@@ -1041,7 +1064,6 @@ async def move_to_transcript_after_delay(channel, user, robux_amount, delay_seco
         await asyncio.sleep(delay_seconds)
         
         if not channel or channel not in channel.guild.channels:
-            logger.error(f"❌ ตั๋ว {channel.name} ไม่มีอยู่แล้ว")
             return
         
         filename = await bot.save_ticket_transcript(channel, user, robux_amount)
@@ -1059,33 +1081,20 @@ async def move_to_transcript_after_delay(channel, user, robux_amount, delay_seco
                         overwrites = channel.overwrites
                         if user in overwrites:
                             overwrites[user].update(read_messages=False)
+                            await rate_handler.wait_if_needed()
                             await channel.edit(overwrites=overwrites)
-                            logger.info(f"✅ ลบสิทธิ์ view ของผู้ซื้อ: {user.name}")
-                    except Exception as e:
-                        logger.warning(f"⚠️ ไม่สามารถลบสิทธิ์ view ของผู้ซื้อ: {e}")
+                    except:
+                        pass
                 
+                await rate_handler.wait_if_needed()
                 await channel.edit(
                     category=archived_category,
-                    reason="ย้ายไปเก็บถาวรหลังจาก 10 นาที"
+                    reason="ย้ายไปเก็บถาวรหลังจาก 30 นาที"
                 )
                 logger.info(f"✅ ย้ายตั๋ว {channel.name} ไปเก็บถาวรเรียบร้อยแล้ว")
-                
-                try:
-                    transcript_embed = discord.Embed(
-                        title="📁 ตั๋วถูกย้ายไปเก็บถาวรแล้ว",
-                        description="ตั๋วนี้ถูกย้ายไปเก็บถาวรเรียบร้อยแล้ว\n\n" +
-                                   f"**ชื่อไฟล์ transcript:** `{filename}`\n" +
-                                   "หากต้องการดูประวัติแชท โปรดติดต่อผู้ดูแลระบบ",
-                        color=0x808080
-                    )
-                    await channel.send(embed=transcript_embed)
-                except:
-                    pass
                     
             except Exception as e:
                 logger.error(f"❌ ไม่สามารถย้ายตั๋วไปเก็บถาวร: {e}")
-        else:
-            logger.error(f"❌ ไม่พบ category เก็บถาวร ID: {ARCHIVED_CATEGORY_ID}")
             
     except Exception as e:
         logger.error(f"❌ เกิดข้อผิดพลาดในการย้ายตั๋วหลังจาก delay: {e}")
@@ -1131,12 +1140,14 @@ async def update_user_roles(user_id, guild, old_level, new_level):
             old_role_id = LEVELS[old_level]["role_id"]
             old_role = guild.get_role(old_role_id)
             if old_role and old_role in member.roles:
+                await rate_handler.wait_if_needed()
                 await member.remove_roles(old_role)
         
         if new_level > 0 and new_level in LEVELS:
             new_role_id = LEVELS[new_level]["role_id"]
             new_role = guild.get_role(new_role_id)
             if new_role and new_role not in member.roles:
+                await rate_handler.wait_if_needed()
                 await member.add_roles(new_role)
                 logger.info(f"✅ เพิ่มยศ {LEVELS[new_level]['role_name']} ให้ {member.display_name}")
                 
@@ -1155,54 +1166,17 @@ async def check_user_level(interaction: discord.Interaction):
         user_exp = bot.user_data[user_id]["exp"]
         user_level = bot.user_data[user_id]["level"]
         
-        if user_level == 0:
-            current_display = "Level 0"
-        else:
-            current_role_id = LEVELS[user_level]["role_id"]
-            current_display = f"<@&{current_role_id}>"
-        
-        if user_level < 9:
-            next_level = user_level + 1
-            next_level_exp = LEVELS[next_level]["exp"]
-            next_role_id = LEVELS[next_level]["role_id"]
-            next_display = f"<@&{next_role_id}>"
-            exp_needed = next_level_exp - user_exp
-        else:
-            exp_needed = 0
-            next_display = "สูงสุดแล้ว"
-        
         embed = discord.Embed(
             title=f"🍣 ระดับของคุณ {interaction.user.display_name}",
             color=0x00FF99
         )
-        embed.add_field(name="🎮 ระดับปัจจุบัน", value=current_display, inline=True)
-        embed.add_field(name="⭐ EXP สะสม", value=f"**{user_exp:,} EXP**", inline=True)
+        embed.add_field(name="🎮 ระดับ", value=f"Level {user_level}", inline=True)
+        embed.add_field(name="⭐ EXP", value=f"**{user_exp:,}**", inline=True)
         
         if user_level < 9:
-            embed.add_field(
-                name="🎯 ระดับถัดไป", 
-                value=f"ต้องการอีก **{exp_needed:,} EXP** เพื่อยศ {next_display}", 
-                inline=False
-            )
-        else:
-            embed.add_field(
-                name="🏆 สูงสุดแล้ว!", 
-                value="คุณถึงระดับสูงสุดแล้ว! 🎉", 
-                inline=False
-            )
-        
-        if user_level < 9:
-            current_level_exp = LEVELS[user_level]["exp"] if user_level > 0 else 0
-            progress = user_exp - current_level_exp
-            total_for_level = next_level_exp - current_level_exp
-            percentage = (progress / total_for_level) * 100 if total_for_level > 0 else 0
-            
-            progress_bar = "🟢" * int(percentage / 20) + "⚫" * (5 - int(percentage / 20))
-            embed.add_field(
-                name="🌱 ความคืบหน้า",
-                value=f"{progress_bar} {percentage:.1f}%",
-                inline=False
-            )
+            next_exp = LEVELS[user_level + 1]["exp"]
+            need = next_exp - user_exp
+            embed.add_field(name="🎯 EXP ที่ต้องใช้ถึง Level ถัดไป", value=f"**{need:,}**", inline=False)
         
         embed.set_footer(text="ได้รับ EXP จากการซื้อสินค้าในร้าน")
         await interaction.response.send_message(embed=embed, ephemeral=True)
@@ -1210,6 +1184,22 @@ async def check_user_level(interaction: discord.Interaction):
     except Exception as e:
         logger.error(f"❌ เกิดข้อผิดพลาดในการเช็คเลเวล: {e}")
         await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการเช็คเลเวล", ephemeral=True)
+
+# =======================================================================================
+# ✅ ระดับและ EXP
+# =======================================================================================
+
+LEVELS = {
+    1: {"exp": 1, "role_id": 1361555369825927249, "role_name": "Level 1"},
+    2: {"exp": 5000, "role_id": 1432070662977093703, "role_name": "Level 2"},
+    3: {"exp": 10000, "role_id": 1361555364776247297, "role_name": "Level 3"},
+    4: {"exp": 20000, "role_id": 1432075600746643537, "role_name": "Level 4"},
+    5: {"exp": 50000, "role_id": 1432075369179254804, "role_name": "Level 5"},
+    6: {"exp": 100000, "role_id": 1361554929017294949, "role_name": "Level 6"},
+    7: {"exp": 250000, "role_id": 1432077732862492722, "role_name": "Level 7"},
+    8: {"exp": 500000, "role_id": 1363882685260365894, "role_name": "Level 8"},
+    9: {"exp": 1000000, "role_id": 1406309272786047106, "role_name": "Level 9"}
+}
 
 # =======================================================================================
 # ✅ Decorator สำหรับตรวจสอบสิทธิ์แอดมิน
@@ -1500,7 +1490,7 @@ async def stock(ctx, stock_type: str = None, amount: str = None):
                     return
                 gamepass_stock = amount_int
                 await ctx.send(f"✅ ตั้งค่า Gamepass Stock เป็น **{gamepass_stock:,}** เรียบร้อย")
-                await bot.update_main_channel()
+                await bot.queue_update("main_channel")
             except ValueError:
                 await ctx.send("❌ กรุณากรอกตัวเลข")
     
@@ -1515,7 +1505,7 @@ async def stock(ctx, stock_type: str = None, amount: str = None):
                     return
                 group_stock = amount_int
                 await ctx.send(f"✅ ตั้งค่า Group Stock เป็น **{group_stock:,}** เรียบร้อย")
-                await bot.update_main_channel()
+                await bot.queue_update("main_channel")
             except ValueError:
                 await ctx.send("❌ กรุณากรอกตัวเลข")
     else:
@@ -1550,7 +1540,7 @@ async def rate(ctx, rate_type: str = None, low_rate: str = None, high_rate: str 
             group_rate_low = float(low_rate)
             group_rate_high = float(high_rate)
             await ctx.send(f"✅ ตั้งค่า Group Rate เป็น **{group_rate_low} - {group_rate_high}**")
-            await bot.update_main_channel()
+            await bot.queue_update("main_channel")
         except ValueError:
             await ctx.send("❌ กรุณากรอกตัวเลข")
     
@@ -1558,7 +1548,7 @@ async def rate(ctx, rate_type: str = None, low_rate: str = None, high_rate: str 
         try:
             gamepass_rate = float(rate_type)
             await ctx.send(f"✅ ตั้งค่า Gamepass Rate เป็น **{gamepass_rate}**")
-            await bot.update_main_channel()
+            await bot.queue_update("main_channel")
         except ValueError:
             await ctx.send("❌ กรุณากรอกตัวเลข")
 
@@ -1570,7 +1560,7 @@ async def sushi(ctx):
     shop_open = not shop_open
     status = "✅ ร้านเปิด" if shop_open else "❌ ร้านปิด"
     await ctx.send(f"🏪 **{status}**")
-    await bot.update_main_channel()
+    await bot.queue_update("main_channel")
 
 @bot.command()
 @admin_only()
@@ -1590,7 +1580,7 @@ async def group(ctx, status: str = None):
     else:
         await ctx.send("❌ ใช้ !group [on/off]")
     
-    await bot.update_main_channel()
+    await bot.queue_update("main_channel")
 
 @bot.command()
 async def level(ctx, member: discord.Member = None):
@@ -1799,7 +1789,7 @@ async def on_message(message):
         return await bot.process_commands(message)
     
     if message.channel.id == CREDIT_CHANNEL_ID:
-        await bot.update_main_channel()
+        await bot.queue_update("credit_channel")
     
     await bot.process_commands(message)
 
@@ -1824,7 +1814,14 @@ if __name__ == "__main__":
         sys.exit(1)
     
     try:
-        bot.run(token, log_handler=None)  # ปิด logging ของ discord.py เพื่อลด conflict
+        # รันบอทโดยไม่ใช้ shard และจำกัด rate
+        bot.run(token, log_handler=None, reconnect=True)
+    except discord.PrivilegedIntentsRequired:
+        logger.error("❌ ต้องเปิด Privileged Intents ใน Discord Developer Portal")
+        sys.exit(1)
+    except discord.LoginFailure:
+        logger.error("❌ TOKEN ไม่ถูกต้อง")
+        sys.exit(1)
     except Exception as e:
         logger.error(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
         sys.exit(1)
