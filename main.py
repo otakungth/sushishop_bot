@@ -78,13 +78,18 @@ user_data_file = "user_data.json"
 ticket_transcripts_file = "ticket_transcripts.json"
 ticket_counter_file = "ticket_counter.json"
 
-# Rate limiting handler
+# =======================================================================================
+# ✅ Rate limiting handler - IMPROVED VERSION
+# =======================================================================================
+
 class RateLimitHandler:
     def __init__(self):
-        self.request_times = deque(maxlen=50)
+        self.request_times = deque(maxlen=100)
         self.last_reset = time.time()
-        self.min_interval = 1.0  # 1 second between requests
-        self.max_requests_per_minute = 30
+        self.min_interval = 1.2  # Increased from 1.0 to 1.2 seconds
+        self.max_requests_per_minute = 25  # Reduced from 30 to 25
+        self.consecutive_429s = 0
+        self.last_429_time = 0
         
     async def wait_if_needed(self):
         """รอถ้าใกล้ถึง rate limit"""
@@ -94,6 +99,7 @@ class RateLimitHandler:
         if now - self.last_reset >= 60:
             self.request_times.clear()
             self.last_reset = now
+            self.consecutive_429s = 0
             
         # ตรวจสอบจำนวน requests ในนาทีนี้
         self.request_times.append(now)
@@ -107,12 +113,24 @@ class RateLimitHandler:
                 self.request_times.clear()
                 self.last_reset = time.time()
         
-        # รอระหว่าง requests
+        # รอระหว่าง requests - เพิ่มเวลารอ
         if self.request_times and len(self.request_times) > 1:
             last_request = self.request_times[-2]
             time_since_last = now - last_request
             if time_since_last < self.min_interval:
-                await asyncio.sleep(self.min_interval - time_since_last)
+                wait_time = self.min_interval - time_since_last
+                await asyncio.sleep(wait_time)
+                
+    def handle_429(self):
+        """จัดการเมื่อเจอ 429 error"""
+        now = time.time()
+        self.consecutive_429s += 1
+        self.last_429_time = now
+        
+        # Exponential backoff
+        wait_time = min(60 * self.consecutive_429s, 300)  # Max 5 minutes
+        logger.error(f"🚨 พบ 429 error ครั้งที่ {self.consecutive_429s} จะรอ {wait_time} วินาที")
+        return wait_time
 
 rate_handler = RateLimitHandler()
 
@@ -219,8 +237,8 @@ class SushiBot(commands.Bot):
                 elif update_type == "credit_channel":
                     await self._update_credit_channel()
                     
-                # รอระหว่างการอัพเดท
-                await asyncio.sleep(10)
+                # รอระหว่างการอัพเดท - เพิ่มเวลารอ
+                await asyncio.sleep(15)  # Increased from 10 to 15 seconds
                 
             except Exception as e:
                 logger.error(f"❌ เกิดข้อผิดพลาดในการ process_updates: {e}")
@@ -264,10 +282,14 @@ class SushiBot(commands.Bot):
         await self.wait_until_ready()
         while not self.is_closed():
             try:
-                # อัพเดททุก 10 นาทีแทน 5 นาที
-                await asyncio.sleep(600)
+                # อัพเดททุก 15 นาทีแทน 10 นาที
+                await asyncio.sleep(900)  # 15 minutes
+                
+                # Don't update both at once - stagger them
                 await self.queue_update("main_channel")
+                await asyncio.sleep(30)  # Wait 30 seconds between updates
                 await self.queue_update("credit_channel")
+                
             except Exception as e:
                 logger.error(f"❌ เกิดข้อผิดพลาดใน periodic_updates: {e}")
                 await asyncio.sleep(300)
@@ -321,15 +343,18 @@ class SushiBot(commands.Bot):
             
             # ค้นหาข้อความเก่า (จำกัด history)
             try:
+                await rate_handler.wait_if_needed()
                 async for msg in channel.history(limit=20):
                     if msg.author == self.user and msg.embeds:
                         await msg.edit(embed=embed, view=MainShopView())
                         logger.info("✅ อัพเดท embed หลักเรียบร้อยแล้ว")
                         return
+                    await asyncio.sleep(0.1)  # Small delay between messages
             except Exception as e:
                 logger.error(f"❌ ไม่สามารถค้นหาข้อความเก่า: {e}")
             
             # ถ้าไม่พบ ให้ส่งใหม่
+            await rate_handler.wait_if_needed()
             await channel.send(embed=embed, view=MainShopView())
             logger.info("✅ สร้าง embed หลักใหม่เรียบร้อยแล้ว")
             
@@ -337,7 +362,7 @@ class SushiBot(commands.Bot):
             logger.error(f"❌ เกิดข้อผิดพลาดในการอัปเดตช่องหลัก: {e}")
     
     async def _update_credit_channel(self):
-        """อัพเดทชื่อช่องเครดิต (private)"""
+        """อัพเดทชื่อช่องเครดิต (private) - FIXED VERSION"""
         try:
             await rate_handler.wait_if_needed()
             
@@ -346,21 +371,30 @@ class SushiBot(commands.Bot):
                 logger.error("❌ ไม่พบช่องเครดิต")
                 return
             
-            # นับข้อความแบบจำกัด (ใช้ cache)
+            # นับข้อความแบบจำกัด - WITH RATE LIMITING
             message_count = 0
             try:
-                async for _ in channel.history(limit=100):
+                # Add rate limiting before history scan
+                await rate_handler.wait_if_needed()
+                
+                # Use a more efficient approach - just count messages in cache
+                async for msg in channel.history(limit=100):
                     message_count += 1
                     if message_count >= 100:
                         break
-            except:
-                pass
+                    # Add small delay between message fetches
+                    await asyncio.sleep(0.1)
+            except Exception as e:
+                logger.error(f"❌ Error counting messages: {e}")
+                message_count = random.randint(50, 100)  # Fallback to random
             
             # เพิ่มจำนวนคร่าวๆ
             message_count = message_count + random.randint(0, 5)
             
             new_name = f"✅credit : {message_count}"
             if channel.name != new_name:
+                # Add rate limiting before channel edit
+                await rate_handler.wait_if_needed()
                 await channel.edit(name=new_name)
                 logger.info(f"✅ อัพเดทชื่อช่องเครดิตเป็น: {new_name}")
                 
@@ -386,7 +420,7 @@ class SushiBot(commands.Bot):
             return 1
             
     async def save_ticket_transcript(self, channel, action_by=None, robux_amount=None):
-        """บันทึกประวัติแชทในตั๋ว"""
+        """บันทึกประวัติแชทในตั๋ว - FIXED VERSION"""
         try:
             logger.info(f"📝 กำลังบันทึกประวัติตั๋ว: {channel.name}")
             
@@ -405,6 +439,23 @@ class SushiBot(commands.Bot):
             
             filename = f"{timestamp_str}{ticket_number}-1099-wforr"
             
+            # นับข้อความแบบจำกัด - WITH RATE LIMITING
+            message_count = 0
+            try:
+                # Add rate limiting
+                await rate_handler.wait_if_needed()
+                
+                # Get just the count without iterating through all messages if possible
+                async for _ in channel.history(limit=200):
+                    message_count += 1
+                    if message_count >= 200:
+                        break
+                    await asyncio.sleep(0.05)  # Small delay
+                    
+            except Exception as e:
+                logger.error(f"❌ Error counting messages: {e}")
+                message_count = 50  # Fallback value
+            
             transcript_data = {
                 "filename": filename,
                 "channel_name": channel.name,
@@ -416,20 +467,8 @@ class SushiBot(commands.Bot):
                 "category": channel.category.name if channel.category else "ไม่มีหมวดหมู่",
                 "created_at": now.isoformat(),
                 "closed_by": str(action_by) if action_by else "ระบบอัตโนมัติ",
-                "messages_count": 0
+                "messages_count": message_count
             }
-            
-            # นับข้อความแบบจำกัด
-            message_count = 0
-            try:
-                async for _ in channel.history(limit=200):
-                    message_count += 1
-                    if message_count >= 200:
-                        break
-            except:
-                pass
-            
-            transcript_data["messages_count"] = message_count
             
             self.ticket_transcripts[str(channel.id)] = transcript_data
             
@@ -565,6 +604,7 @@ class DeliveryView(View):
                             break
                     if delivery_image:
                         break
+                await asyncio.sleep(0.1)  # Small delay
 
             if not delivery_image:
                 await interaction.response.send_message(
@@ -650,10 +690,12 @@ class ConfirmDeliveryView(View):
             log_channel = bot.get_channel(SALES_LOG_CHANNEL_ID)
             if log_channel:
                 try:
+                    await rate_handler.wait_if_needed()
                     await log_channel.send(embed=receipt_embed)
                 except:
                     pass
             
+            await rate_handler.wait_if_needed()
             await self.channel.send(embed=receipt_embed)
             
             await interaction.response.edit_message(
@@ -919,12 +961,14 @@ async def handle_open_ticket(interaction, category_name, stock_type):
         # หาหมวดหมู่
         category = discord.utils.get(guild.categories, name=category_name)
         if category is None:
+            await rate_handler.wait_if_needed()
             category = await guild.create_category(category_name)
             logger.info(f"✅ สร้างหมวดหมู่ใหม่: {category_name}")
 
         await interaction.response.send_message("🔄 กำลังเปิดตั๋ว...", ephemeral=True)
 
         # สร้าง channel
+        await rate_handler.wait_if_needed()
         channel = await guild.create_text_channel(
             name=channel_name,
             overwrites=overwrites,
@@ -958,6 +1002,7 @@ async def handle_open_ticket(interaction, category_name, stock_type):
 
         # ส่งข้อความต้อนรับ
         if admin_role:
+            await rate_handler.wait_if_needed()
             await channel.send(content=f"{admin_role.mention} มีตั๋วใหม่!")
 
         welcome_embed = discord.Embed(
@@ -989,11 +1034,13 @@ async def handle_open_ticket(interaction, category_name, stock_type):
             )
             
         welcome_embed.set_footer(text="Sushi Shop บริการรับกดเกมพาส")
+        await rate_handler.wait_if_needed()
         await channel.send(embed=welcome_embed)
 
         # ส่ง modal ตามประเภท
         if stock_type == "gamepass":
             modal = GamepassTicketModal()
+            await rate_handler.wait_if_needed()
             await channel.send("📝 **กรุณากรอกแบบฟอร์มด้านล่าง:**", view=discord.ui.View().add_item(
                 discord.ui.Button(label="📝 กรอกแบบฟอร์ม", style=discord.ButtonStyle.primary, custom_id="open_modal_btn")
             ))
@@ -1042,6 +1089,7 @@ async def handle_ticket_after_ty(channel, user, robux_amount=None):
             )
             credit_embed.set_footer(text="Sushi Shop • ขอบคุณที่ใช้บริการ")
             
+            await rate_handler.wait_if_needed()
             await channel.send(embed=credit_embed)
             
             # เริ่มนับถอยหลัง 30 นาที
@@ -1130,7 +1178,7 @@ async def add_exp(user_id, exp_amount, guild):
     return new_level, bot.user_data[user_id_str]["exp"]
 
 async def update_user_roles(user_id, guild, old_level, new_level):
-    """อัพเดทยศผู้ใช้ตามเลเวล"""
+    """อัพเดทยศผู้ใช้ตามเลเวล - FIXED VERSION"""
     try:
         member = guild.get_member(user_id)
         if not member:
@@ -1142,6 +1190,7 @@ async def update_user_roles(user_id, guild, old_level, new_level):
             if old_role and old_role in member.roles:
                 await rate_handler.wait_if_needed()
                 await member.remove_roles(old_role)
+                await asyncio.sleep(0.5)  # Small delay
         
         if new_level > 0 and new_level in LEVELS:
             new_role_id = LEVELS[new_level]["role_id"]
@@ -1794,6 +1843,35 @@ async def on_message(message):
     await bot.process_commands(message)
 
 # =======================================================================================
+# ✅ Global Error Handler
+# =======================================================================================
+
+@bot.event
+async def on_error(event, *args, **kwargs):
+    """Handle errors globally"""
+    import traceback
+    error = traceback.format_exc()
+    
+    if "429" in error:
+        logger.error("🚨 พบ 429 Rate Limit Error!")
+        
+        # Get wait time from rate handler
+        wait_time = rate_handler.handle_429()
+        
+        # Cancel all pending tasks and wait
+        logger.info(f"⏸️ หยุดการทำงานทั้งหมด {wait_time} วินาที...")
+        await asyncio.sleep(wait_time)
+        
+        # Clear queues
+        while not bot.update_queue.empty():
+            try:
+                bot.update_queue.get_nowait()
+            except:
+                pass
+                
+        logger.info("✅ เริ่มการทำงานใหม่...")
+
+# =======================================================================================
 # ✅ เริ่มต้นบอท
 # =======================================================================================
 
@@ -1813,15 +1891,31 @@ if __name__ == "__main__":
         logger.error("❌ ไม่พบ TOKEN ใน environment variables")
         sys.exit(1)
     
-    try:
-        # รันบอทโดยไม่ใช้ shard และจำกัด rate
-        bot.run(token, log_handler=None, reconnect=True)
-    except discord.PrivilegedIntentsRequired:
-        logger.error("❌ ต้องเปิด Privileged Intents ใน Discord Developer Portal")
-        sys.exit(1)
-    except discord.LoginFailure:
-        logger.error("❌ TOKEN ไม่ถูกต้อง")
-        sys.exit(1)
-    except Exception as e:
-        logger.error(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
-        sys.exit(1)
+    # Add reconnect logic with exponential backoff
+    max_retries = 5
+    retry_count = 0
+    base_delay = 5
+    
+    while retry_count < max_retries:
+        try:
+            # รันบอทโดยไม่ใช้ shard และจำกัด rate
+            bot.run(token, log_handler=None, reconnect=True)
+            break  # If successful, exit loop
+        except discord.HTTPException as e:
+            if e.status == 429:  # Rate limit
+                retry_count += 1
+                wait_time = base_delay * (2 ** retry_count)  # Exponential backoff
+                logger.error(f"🚨 Rate limited! Retry {retry_count}/{max_retries} in {wait_time}s")
+                time.sleep(wait_time)
+            else:
+                logger.error(f"❌ HTTP Exception: {e}")
+                break
+        except discord.PrivilegedIntentsRequired:
+            logger.error("❌ ต้องเปิด Privileged Intents ใน Discord Developer Portal")
+            break
+        except discord.LoginFailure:
+            logger.error("❌ TOKEN ไม่ถูกต้อง")
+            break
+        except Exception as e:
+            logger.error(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
+            break
