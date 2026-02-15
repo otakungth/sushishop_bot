@@ -14,7 +14,7 @@ def health():
 
 def run():
     # ใช้ port ที่ Render กำหนด หรือ 8080
-    port = int(os.environ.get("PORT", 8080))
+    port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
 
 def server_on():
@@ -22,3 +22,4 @@ def server_on():
     t.daemon = True
     t.start()
     print(f"✅ Server started on port {os.environ.get('PORT', 8080)}")
+
