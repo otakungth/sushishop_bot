@@ -163,21 +163,25 @@ class SushiBot(commands.Bot):
         self.add_view(QRView())
         logger.info("✅ ลงทะเบียน Views เรียบร้อย")
         
-    async def on_ready(self):
-        logger.info(f"✅ บอทออนไลน์แล้ว: {self.user} (ID: {self.user.id})")
-        
-        await self.change_presence(
-            activity=discord.Activity(
-                type=discord.ActivityType.watching, 
-                name="ร้าน Sushi Shop | พิมพ์ /help"
-            )
+async def on_ready(self):
+    logger.info(f"✅ บอทออนไลน์แล้ว: {self.user} (ID: {self.user.id})")
+    
+    await self.change_presence(
+        activity=discord.Activity(
+            type=discord.ActivityType.watching, 
+            name="ร้าน Sushi Shop | พิมพ์ /help"
         )
-        
-        # เริ่มงานพื้นหลัง
-        self.loop.create_task(self.check_stale_tickets())
-        self.loop.create_task(self.periodic_updates())
-        
-        logger.info("🎯 บอทพร้อมใช้งานเต็มที่!")
+    )
+    
+    # เริ่มงานพื้นหลัง
+    self.loop.create_task(self.check_stale_tickets())
+    self.loop.create_task(self.periodic_updates())
+    
+    # อัพเดท contexts (รันแบบไม่ต้องรอ)
+    if os.getenv("APPLICATION_ID"):
+        self.loop.create_task(update_commands_contexts())
+    
+    logger.info("🎯 บอทพร้อมใช้งานเต็มที่!")
         
     async def periodic_updates(self):
         """ทำงานพื้นหลังที่ต้องทำเป็นระยะ"""
@@ -2436,6 +2440,7 @@ if __name__ == "__main__":
     except Exception as e:
         logger.error(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
         sys.exit(1)
+
 
 
 
