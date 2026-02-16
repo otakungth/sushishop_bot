@@ -1,34 +1,22 @@
-import os
-from flask import Flask, jsonify
+# ใน main.py - เพิ่มตรง import ตอนต้นไฟล์
+from server import app, run as run_server
 
-# Create Flask app
-app = Flask(__name__)
-
-# Health check route (Render needs this to keep service alive)
-@app.route("/")
-def home():
-    return "Service is running!", 200
-
-# Optional status route
-@app.route("/health")
-def health():
-    return jsonify({
-        "status": "healthy"
-    }), 200
-
-
-def run():
-    """
-    Starts the Flask server.
-    Uses Render's assigned PORT automatically.
-    Falls back to 10000 for local development.
-    """
-    port = int(os.environ.get("PORT", 10000))
-    print(f"🚀 Starting Flask server on port {port}")
-
-    app.run(
-        host="0.0.0.0",   # Required for Render
-        port=port,
-        debug=False      # Never use debug=True on Render
-    )
-
+# และในส่วน __main__ ตอนท้ายไฟล์:
+if __name__ == "__main__":
+    try:
+        # เริ่ม web server
+        run_server()  # ใช้ function จาก server.py แทน keep_alive()
+        print("🚀 กำลังเริ่มต้นบอท...")
+        
+        token = os.getenv("TOKEN")
+        if not token:
+            print("❌ ไม่พบ TOKEN ใน environment variables")
+            exit(1)
+        
+        print("⏳ รอ 30 วินาทีก่อนเริ่มบอท...")
+        time.sleep(30)
+        
+        bot.run(token)
+    except Exception as e:
+        print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
+        traceback.print_exc()
