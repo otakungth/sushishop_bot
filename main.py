@@ -3457,24 +3457,59 @@ def keep_alive():
     print(f"✅ Web server started on port {os.environ.get('PORT', 10000)}")
 
 # =======================================================================================
-# ✅ เริ่มต้นบอท
+# ✅ เริ่มต้นบอท (WITH DEBUGGING)
 # =======================================================================================
 if __name__ == "__main__":
     try:
         # เริ่ม web server
-        keep_alive()  # THIS MUST BE CALLED!
+        keep_alive()
         print("🚀 กำลังเริ่มต้นบอท...")
         
         token = os.getenv("TOKEN")
         if not token:
             print("❌ ไม่พบ TOKEN ใน environment variables")
+            print("📝 กรุณาตั้งค่า TOKEN ใน Render Environment Variables")
             exit(1)
+        
+        # แสดง token บางส่วนเพื่อตรวจสอบ (ปลอดภัย)
+        print(f"🔑 Token found (length: {len(token)} chars)")
+        print(f"🔑 Token starts with: {token[:5]}...")
+        print(f"🔑 Token ends with: ...{token[-5:]}")
         
         print("⏳ รอ 30 วินาทีก่อนเริ่มบอท...")
         time.sleep(30)
         
-        bot.run(token)
+        print("🔄 กำลังเชื่อมต่อกับ Discord...")
+        
+        # เพิ่ม error handling พิเศษ
+        try:
+            bot.run(token, log_handler=None)  # ปิด logging ปกติของ discord.py
+        except discord.LoginFailure as e:
+            print(f"❌ Login Failed: {e}")
+            print("📝 สาเหตุที่เป็นไปได้:")
+            print("  1. Token ไม่ถูกต้อง")
+            print("  2. Token หมดอายุ")
+            print("  3. Bot ถูกปิดการใช้งานใน Discord Developer Portal")
+            print("\n🔄 วิธีแก้ไข:")
+            print("  1. ไปที่ https://discord.com/developers/applications")
+            print("  2. เลือก Bot ของคุณ")
+            print("  3. ไปที่แท็บ 'Bot'")
+            print("  4. กด 'Reset Token'")
+            print("  5. คัดลอก Token ใหม่")
+            print("  6. อัพเดทใน Render Environment Variables")
+        except discord.PrivilegedIntentsRequired as e:
+            print(f"❌ Privileged Intents Required: {e}")
+            print("📝 วิธีแก้ไข:")
+            print("  1. ไปที่ https://discord.com/developers/applications")
+            print("  2. เลือก Bot ของคุณ")
+            print("  3. ไปที่แท็บ 'Bot'")
+            print("  4. เปิด 'SERVER MEMBERS INTENT' และ 'MESSAGE CONTENT INTENT'")
+            print("  5. กด Save Changes")
+        except Exception as e:
+            print(f"❌ เกิดข้อผิดพลาด: {e}")
+            import traceback
+            traceback.print_exc()
+            
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
         traceback.print_exc()
-
