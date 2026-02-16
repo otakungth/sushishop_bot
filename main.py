@@ -8,39 +8,55 @@ import asyncio
 import json
 import traceback
 import time
-from flask import Flask
+from flask import Flask, jsonify
 from threading import Thread
 import logging
 import aiohttp
-from server import update_bot_status
+
+# =======================================================================================
+# ✅ Web Server สำหรับ Render (built directly into main.py)
+# =======================================================================================
+app = Flask(__name__)
+start_time = time.time()
+bot_status = {
+    "online": False,
+    "guilds": 0,
+    "users": 0,
+    "last_heartbeat": None
+}
+
+@app.route('/')
+def home():
+    uptime = time.time() - start_time
+    hours, remainder = divmod(uptime, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    return f"Bot is alive! Uptime: {int(hours)}h {int(minutes)}m {int(seconds)}s"
+
+@app.route('/health')
+def health():
+    return jsonify({"status": "healthy", "bot_online": bot_status['online']}), 200
+
+def update_bot_status(online, guilds=0, users=0):
+    bot_status['online'] = online
+    bot_status['guilds'] = guilds
+    bot_status['users'] = users
+    bot_status['last_heartbeat'] = datetime.datetime.now().strftime('%d/%m/%Y %H:%M:%S')
+
+def run_server():
+    port = int(os.getenv("PORT", 8080))
+    app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
+
+def keep_alive():
+    t = Thread(target=run_server)
+    t.daemon = True
+    t.start()
+    print(f"✅ Web server started on port {os.getenv('PORT', 8080)}")
 
 # =======================================================================================
 # ✅ ปิด log ของ Flask
 # =======================================================================================
 log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
-
-# =======================================================================================
-# ✅ Web Server สำหรับ Render
-# =======================================================================================
-app = Flask(__main__)
-
-@app.route('/')
-def home():
-    return "Bot is alive! Last heartbeat: " + str(datetime.datetime.now())
-
-@app.route('/health')
-def health():
-    return "OK", 200
-
-def run():
-    app.run(host='0.0.0.0', port=int(os.getenv("PORT", 8080)))
-
-def keep_alive():
-    t = Thread(target=run)
-    t.daemon = True
-    t.start()
-    print(f"✅ Web server started on port {os.getenv('PORT', 8080)}")
 
 # =======================================================================================
 # ✅ ตรวจสอบและติดตั้ง pytz อัตโนมัติ
@@ -59,7 +75,6 @@ except ImportError:
 # ✅ ตั้งค่า Timezone สำหรับประเทศไทย
 # =======================================================================================
 def get_thailand_time():
-    """รับเวลาปัจจุบันตามเวลาไทย"""
     try:
         THAILAND_TIMEZONE = pytz.timezone('Asia/Bangkok')
         if THAILAND_TIMEZONE:
@@ -242,7 +257,6 @@ class MyBot(commands.Bot):
         self.stock_lock = asyncio.Lock()
 
     async def setup_hook(self):
-        """ตั้งค่าและ sync คำสั่ง"""
         print("🔄 กำลังตั้งค่า slash commands...")
         
         global user_data, ticket_transcripts, ticket_robux_data, ticket_customer_data
@@ -3360,4 +3374,3 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
         traceback.print_exc()
-
