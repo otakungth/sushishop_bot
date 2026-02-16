@@ -3425,12 +3425,44 @@ async def tax(ctx, *, expression: str):
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
 
 # =======================================================================================
+# ✅ Flask Server สำหรับ Render
+# =======================================================================================
+from flask import Flask, jsonify
+import threading
+
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Bot is running!", 200
+
+@app.route('/health')
+def health():
+    return jsonify({
+        "status": "healthy",
+        "bot_online": True
+    }), 200
+
+def run_flask():
+    """Start Flask server"""
+    port = int(os.environ.get("PORT", 10000))
+    print(f"🚀 Starting Flask server on port {port}")
+    app.run(host="0.0.0.0", port=port, debug=False, use_reloader=False)
+
+def keep_alive():
+    """Run Flask in separate thread"""
+    t = threading.Thread(target=run_flask)
+    t.daemon = True
+    t.start()
+    print(f"✅ Web server started on port {os.environ.get('PORT', 10000)}")
+
+# =======================================================================================
 # ✅ เริ่มต้นบอท
 # =======================================================================================
 if __name__ == "__main__":
     try:
         # เริ่ม web server
-        keep_alive()
+        keep_alive()  # THIS MUST BE CALLED!
         print("🚀 กำลังเริ่มต้นบอท...")
         
         token = os.getenv("TOKEN")
@@ -3438,7 +3470,6 @@ if __name__ == "__main__":
             print("❌ ไม่พบ TOKEN ใน environment variables")
             exit(1)
         
-        # ✅ รอ 30 วินาทีก่อนเริ่มบอท
         print("⏳ รอ 30 วินาทีก่อนเริ่มบอท...")
         time.sleep(30)
         
@@ -3446,3 +3477,4 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
         traceback.print_exc()
+
