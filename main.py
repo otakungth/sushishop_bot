@@ -16,7 +16,7 @@ import aiohttp
 # =======================================================================================
 # ✅ Web Server สำหรับ Render (built directly into main.py)
 # =======================================================================================
-app = Flask(__name__)
+app = Flask(__main__)
 start_time = time.time()
 bot_status = {
     "online": False,
@@ -3357,7 +3357,7 @@ async def tax(ctx, *, expression: str):
 # ✅ เริ่มต้นบอท
 # =======================================================================================
 
-if __name__ == "__main__":
+if __main__ == "__main__":
     try:
         # เริ่ม web server ก่อน
         keep_alive()
@@ -3374,3 +3374,4 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
         traceback.print_exc()
+
