@@ -8,22 +8,17 @@ import asyncio
 import json
 import traceback
 import time
+import aiohttp
+import logging
 from flask import Flask, jsonify
 from threading import Thread
-import logging
-import aiohttp
 
 # =======================================================================================
-# ✅ Web Server สำหรับ Render (built directly into main.py)
+# ✅ Web Server สำหรับ Render
 # =======================================================================================
 app = Flask(__name__)
 start_time = time.time()
-bot_status = {
-    "online": False,
-    "guilds": 0,
-    "users": 0,
-    "last_heartbeat": None
-}
+bot_status = {"online": False, "guilds": 0, "users": 0, "last_heartbeat": None}
 
 @app.route('/')
 def home():
@@ -59,7 +54,7 @@ log = logging.getLogger('werkzeug')
 log.setLevel(logging.ERROR)
 
 # =======================================================================================
-# ✅ ตรวจสอบและติดตั้ง pytz อัตโนมัติ
+# ✅ ตรวจสอบ pytz
 # =======================================================================================
 try:
     import pytz
@@ -67,12 +62,11 @@ try:
 except ImportError:
     print("⚠️ ไม่พบ pytz กำลังใช้ datetime แบบธรรมดา...")
     class MockPytz:
-        def timezone(self, tz):
-            return None
+        def timezone(self, tz): return None
     pytz = MockPytz()
 
 # =======================================================================================
-# ✅ ตั้งค่า Timezone สำหรับประเทศไทย
+# ✅ ตั้งค่า Timezone
 # =======================================================================================
 def get_thailand_time():
     try:
@@ -86,12 +80,13 @@ def get_thailand_time():
         utc_now = datetime.datetime.utcnow()
         return utc_now + datetime.timedelta(hours=7)
 
-# ตั้งค่าเรท (ค่าเริ่มต้น)
+# =======================================================================================
+# ✅ ตัวแปร global
+# =======================================================================================
 gamepass_rate = 6
 group_rate_low = 4
 group_rate_high = 4.5
 
-# ตั้งค่าพื้นฐาน
 intents = discord.Intents.all()
 intents.message_content = True
 intents.guilds = True
@@ -102,23 +97,17 @@ intents.reactions = True
 shop_open = True
 group_ticket_enabled = True
 
-# ตั้งค่าห้องหลักและ stock
 MAIN_CHANNEL_ID = 1361044752975532152
 SALES_LOG_CHANNEL_ID = 1402993077643120720
 CREDIT_CHANNEL_ID = 1363250076549382246
 DELIVERED_CATEGORY_ID = 1419565515088597083
 ARCHIVED_CATEGORY_ID = 1445086228113264650
-TRANSCRIPT_CHANNEL_ID = None
 gamepass_stock = 50000
 group_stock = 0
 
-# เก็บข้อมูลโน้ตส่วนตัว
 user_notes = {}
-
-# ระบบติดตามกิจกรรมในตั๋ว
 ticket_activity = {}
 
-# ระบบเก็บเลเวลและ EXP
 user_data_file = "user_data.json"
 ticket_transcripts_file = "ticket_transcripts.json"
 ticket_counter_file = "ticket_counter.json"
@@ -126,9 +115,8 @@ ticket_robux_data_file = "ticket_robux_data.json"
 ticket_customer_data_file = "ticket_customer_data.json"
 
 # =======================================================================================
-# ✅ ฟังก์ชันจัดการไฟล์ข้อมูล
+# ✅ ฟังก์ชันจัดการไฟล์
 # =======================================================================================
-
 def load_user_data():
     try:
         if os.path.exists(user_data_file):
@@ -242,7 +230,6 @@ def save_ticket_customer_data():
 # =======================================================================================
 # ✅ คลาสหลักของบอท
 # =======================================================================================
-
 class MyBot(commands.Bot):
     def __init__(self):
         super().__init__(
@@ -255,6 +242,8 @@ class MyBot(commands.Bot):
         self.ticket_counter = load_ticket_counter()
         self.is_reacting_to_credit_channel = False
         self.stock_lock = asyncio.Lock()
+        self._api_lock = asyncio.Lock()  # ✅ เพิ่ม lock สำหรับ API calls
+        self._last_api_call = 0
 
     async def setup_hook(self):
         print("🔄 กำลังตั้งค่า slash commands...")
@@ -271,24 +260,56 @@ class MyBot(commands.Bot):
         print(f"✅ โหลดข้อมูลชื่อลูกค้า: {len(ticket_customer_data)} tickets")
         print(f"✅ โหลดตัวนับตั๋ว: {self.ticket_counter}")
         
+        # ✅ รอ 60 วินาทีก่อน sync เพื่อป้องกัน rate limit
+        print("⏳ รอ 60 วินาทีก่อน sync commands...")
+        await asyncio.sleep(60)
+        
         try:
             synced = await self.tree.sync()
             print(f"✅ Sync Global Commands เรียบร้อย: {len(synced)} commands")
         except Exception as e:
             print(f"❌ เกิดข้อผิดพลาดในการ sync: {e}")
 
+    # ✅ ฟังก์ชันสำหรับทำ API calls แบบมี rate limit protection
+    async def rate_limited_api_call(self, coro, max_retries=3):
+        for attempt in range(max_retries):
+            try:
+                async with self._api_lock:
+                    # รอให้แน่ใจว่าไม่เกิน 1 request ต่อวินาที
+                    now = time.time()
+                    time_since_last = now - self._last_api_call
+                    if time_since_last < 1.0:
+                        await asyncio.sleep(1.0 - time_since_last)
+                    
+                    result = await coro
+                    self._last_api_call = time.time()
+                    return result
+                    
+            except discord.HTTPException as e:
+                if e.status == 429:
+                    retry_after = e.retry_after if hasattr(e, 'retry_after') else 5
+                    print(f"⏳ Rate limit ในการเรียก API, รอ {retry_after} วินาที (ครั้งที่ {attempt + 1}/{max_retries})")
+                    await asyncio.sleep(retry_after)
+                else:
+                    raise
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    raise
+                print(f"⚠️ เกิดข้อผิดพลาดในการเรียก API, ลองใหม่ครั้งที่ {attempt + 2}: {e}")
+                await asyncio.sleep(2 ** attempt)  # exponential backoff
+        
+        raise Exception("ไม่สามารถเรียก API ได้หลังจากลองหลายครั้ง")
+
 # =======================================================================================
-# ✅ สร้าง instance ของบอท
+# ✅ สร้าง instance
 # =======================================================================================
 bot = MyBot()
 
-# ตัวแปรเก็บข้อมูล
 user_data = {}
 ticket_transcripts = {}
 ticket_robux_data = {}
 ticket_customer_data = {}
 
-# ระดับและ EXP
 LEVELS = {
     1: {"exp": 1, "role_id": 1361555369825927249, "role_name": "Level 1"},
     2: {"exp": 5000, "role_id": 1432070662977093703, "role_name": "Level 2"},
@@ -1928,13 +1949,13 @@ class MainShopView(View):
         await check_user_level(interaction)
 
 # =======================================================================================
-# ✅ ฟังก์ชันอัพเดท Slash Commands Contexts (แบบมี Rate Limit Protection)
+# ✅ ฟังก์ชันอัพเดท contexts (แบบช้าๆ ป้องกัน rate limit)
 # =======================================================================================
 async def update_slash_commands_context():
-    """อัพเดท contexts สำหรับ Slash Commands แบบมี Rate Limit Protection"""
+    """อัพเดท contexts สำหรับ Slash Commands แบบช้าๆ"""
     try:
         # รอให้บอทพร้อมก่อน
-        await asyncio.sleep(10)
+        await asyncio.sleep(30)
         
         token = os.getenv("TOKEN")
         app_id = os.getenv("APPLICATION_ID")
@@ -1957,13 +1978,13 @@ async def update_slash_commands_context():
                 headers=headers
             ) as resp:
                 if resp.status == 429:
-                    retry_after = int(resp.headers.get('Retry-After', 5))
+                    retry_after = int(resp.headers.get('Retry-After', 60))
                     print(f"⏳ Rate limit ในการดึงคำสั่ง รอ {retry_after} วินาที")
                     await asyncio.sleep(retry_after)
-                    return await update_slash_commands_context()  # ลองใหม่
+                    return
                 
                 if resp.status != 200:
-                    print(f"⚠️ ไม่สามารถดึงคำสั่งได้ (รหัส {resp.status}) - ข้ามการอัพเดท contexts")
+                    print(f"⚠️ ไม่สามารถดึงคำสั่งได้ (รหัส {resp.status})")
                     return
                 
                 commands = await resp.json()
@@ -1972,13 +1993,11 @@ async def update_slash_commands_context():
             # อัพเดท contexts ทีละคำสั่ง ช้าๆ
             success_count = 0
             for i, cmd in enumerate(commands):
-                # รอระหว่างคำสั่งเพื่อป้องกัน rate limit
+                # รอระหว่างคำสั่ง 5 วินาทีเพื่อป้องกัน rate limit
                 if i > 0:
-                    await asyncio.sleep(1)  # รอ 1 วินาทีระหว่างคำสั่ง
+                    await asyncio.sleep(5)
                 
-                update_data = {
-                    "contexts": [0, 1, 2]  # ให้ใช้ได้ทุกที่
-                }
+                update_data = {"contexts": [0, 1, 2]}
                 
                 async with session.patch(
                     f"https://discord.com/api/v10/applications/{app_id}/commands/{cmd['id']}",
@@ -1986,18 +2005,9 @@ async def update_slash_commands_context():
                     json=update_data
                 ) as resp:
                     if resp.status == 429:
-                        retry_after = int(resp.headers.get('Retry-After', 5))
+                        retry_after = int(resp.headers.get('Retry-After', 30))
                         print(f"⏳ Rate limit สำหรับ /{cmd['name']} รอ {retry_after} วินาที")
                         await asyncio.sleep(retry_after)
-                        # ลองใหม่อีกครั้ง
-                        async with session.patch(
-                            f"https://discord.com/api/v10/applications/{app_id}/commands/{cmd['id']}",
-                            headers=headers,
-                            json=update_data
-                        ) as retry_resp:
-                            if retry_resp.status == 200:
-                                print(f"✅ ตั้งค่า /{cmd['name']} ให้ใช้ได้ทุกที่ (หลังจาก retry)")
-                                success_count += 1
                     elif resp.status == 200:
                         print(f"✅ ตั้งค่า /{cmd['name']} ให้ใช้ได้ทุกที่")
                         success_count += 1
@@ -2012,6 +2022,46 @@ async def update_slash_commands_context():
 # =======================================================================================
 # ✅ Events
 # =======================================================================================
+@bot.event
+async def on_ready():
+    print(f"✅ บอทออนไลน์แล้ว: {bot.user} (ID: {bot.user.id})")
+    
+    guild_count = len(bot.guilds)
+    user_count = sum(guild.member_count for guild in bot.guilds)
+    update_bot_status(True, guild_count, user_count)
+    print(f"📊 สถิติ: {guild_count} เซิร์ฟเวอร์, {user_count} ผู้ใช้")
+    
+    # ✅ รอ 2 นาทีก่อนอัพเดท contexts
+    print("⏳ จะเริ่มอัพเดท contexts ใน 120 วินาที...")
+    bot.loop.create_task(update_slash_commands_context())
+    
+    # ✅ ไม่ sync commands ซ้ำอีก เพราะทำใน setup_hook แล้ว
+    await bot.change_presence(
+        activity=discord.Activity(
+            type=discord.ActivityType.watching, 
+            name="ร้าน Sushi Shop | พิมพ์ /help"
+        )
+    )
+    
+    print("✅ ตั้งค่าสถานะเรียบร้อย")
+    
+    bot.add_view(MainShopView())
+    bot.add_view(QRView())
+    print("✅ ลงทะเบียน Views เรียบร้อย")
+    
+    await update_channel_name()
+    bot.loop.create_task(check_stale_tickets())
+    bot.loop.create_task(periodic_credit_channel_update())
+    print("✅ เริ่มระบบตรวจสอบตั๋วค้างเรียบร้อย")
+    
+    await update_main_channel()
+    await update_credit_channel()
+    
+    # ✅ รอ 1 นาทีก่อนกด react เพื่อป้องกัน rate limit
+    await asyncio.sleep(60)
+    await auto_react_to_credit_channel()
+    
+    print("\n🎯 บอทพร้อมใช้งานเต็มที่!")
 
 @bot.event
 async def on_message(message):
@@ -2071,61 +2121,17 @@ async def on_command_completion(ctx):
             'ty_time': get_thailand_time()
         }
 
-@bot.event
-async def on_ready():
-    print(f"✅ บอทออนไลน์แล้ว: {bot.user} (ID: {bot.user.id})")
-    
-    # ✅ อัพเดทสถานะใน server
-    guild_count = len(bot.guilds)
-    user_count = sum(guild.member_count for guild in bot.guilds)
-    update_bot_status(True, guild_count, user_count)
-    print(f"📊 สถิติ: {guild_count} เซิร์ฟเวอร์, {user_count} ผู้ใช้")
-    
-    # ✅ อัพเดท contexts สำหรับ slash commands (รอ 30 วินาทีก่อนเริ่ม)
-    print("⏳ จะเริ่มอัพเดท contexts ใน 30 วินาที...")
-    bot.loop.create_task(update_slash_commands_context())
-    
-    try:
-        synced = await bot.tree.sync()
-        print(f"✅ Sync Global Commands เรียบร้อย: {len(synced)} commands")
-    except Exception as e:
-        print(f"❌ เกิดข้อผิดพลาดในการ sync: {e}")
-    
-    await bot.change_presence(
-        activity=discord.Activity(
-            type=discord.ActivityType.watching, 
-            name="ร้าน Sushi Shop | พิมพ์ /help"
-        )
-    )
-    
-    print("✅ ตั้งค่าสถานะเรียบร้อย")
-    
-    bot.add_view(MainShopView())
-    bot.add_view(QRView())
-    print("✅ ลงทะเบียน Views เรียบร้อย")
-    
-    await update_channel_name()
-    bot.loop.create_task(check_stale_tickets())
-    bot.loop.create_task(periodic_credit_channel_update())
-    print("✅ เริ่มระบบตรวจสอบตั๋วค้างเรียบร้อย")
-    
-    await update_main_channel()
-    await update_credit_channel()
-    
-    await auto_react_to_credit_channel()
-    
-    print("\n🎯 บอทพร้อมใช้งานเต็มที่!")
-
 async def periodic_credit_channel_update():
-    """ฟังก์ชันตรวจสอบห้องเครดิตเป็นระยะ"""
+    """ฟังก์ชันตรวจสอบห้องเครดิตเป็นระยะ - ช้าลง"""
     while True:
         try:
+            # อัพเดททุก 30 นาทีแทนที่จะเป็น 5 นาที
+            await asyncio.sleep(1800)  # 30 นาที
             await update_credit_channel()
             await auto_react_to_credit_channel()
-            await asyncio.sleep(300)
         except Exception as e:
             print(f"❌ เกิดข้อผิดพลาดใน periodic_credit_channel_update: {e}")
-            await asyncio.sleep(60)
+            await asyncio.sleep(300)
 
 @bot.event
 async def on_disconnect():
@@ -2134,8 +2140,6 @@ async def on_disconnect():
     save_ticket_transcripts()
     save_ticket_robux_data()
     save_ticket_customer_data()
-    
-    # ✅ อัพเดทสถานะเป็นออฟไลน์
     update_bot_status(False)
 
 # =======================================================================================
@@ -3356,20 +3360,21 @@ async def tax(ctx, *, expression: str):
 # =======================================================================================
 # ✅ เริ่มต้นบอท
 # =======================================================================================
-
 if __name__ == "__main__":
     try:
-        # เริ่ม web server ก่อน
+        # เริ่ม web server
         keep_alive()
         print("🚀 กำลังเริ่มต้นบอท...")
         
-        # รันบอท
         token = os.getenv("TOKEN")
         if not token:
             print("❌ ไม่พบ TOKEN ใน environment variables")
-            print("⚠️ กรุณาตั้งค่า TOKEN ใน Render Dashboard")
             exit(1)
-            
+        
+        # ✅ รอ 30 วินาทีก่อนเริ่มบอท
+        print("⏳ รอ 30 วินาทีก่อนเริ่มบอท...")
+        time.sleep(30)
+        
         bot.run(token)
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
