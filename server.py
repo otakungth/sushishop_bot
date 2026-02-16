@@ -2,7 +2,7 @@ import os
 from flask import Flask, jsonify
 
 # Create Flask app
-app = Flask(__main__)
+app = Flask(__name__)
 
 # Health check route (Render needs this to keep service alive)
 @app.route("/")
@@ -31,3 +31,4 @@ def run():
         port=port,
         debug=False      # Never use debug=True on Render
     )
+
