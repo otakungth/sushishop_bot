@@ -650,76 +650,6 @@ async def move_to_transcript_after_delay(channel, user, robux_amount, customer_n
 # ✅ View สำหรับส่งสินค้า
 # =======================================================================================
 
-class DeliveryView(View):
-    def __init__(self, channel, product_type, robux_amount, price, buyer):
-        super().__init__(timeout=None)
-        self.channel = channel
-        self.product_type = product_type
-        self.robux_amount = robux_amount
-        self.price = price
-        self.buyer = buyer
-        self.delivered = False
-
-    @discord.ui.button(label="ส่งสินค้าแล้ว ✅", style=discord.ButtonStyle.success, emoji="✅", custom_id="deliver_product_btn")
-    async def deliver_product(self, interaction: discord.Interaction, button: Button):
-        """ปุ่มส่งสินค้า (เฉพาะแอดมิน)"""
-        try:
-            admin_role = interaction.guild.get_role(1361016912259055896)
-            if not admin_role or admin_role not in interaction.user.roles:
-                await interaction.response.send_message("❌ คุณไม่มีสิทธิ์ใช้ปุ่มนี้", ephemeral=True)
-                return
-
-            if self.delivered:
-                await interaction.response.edit_message(
-                    content="✅ สินค้าถูกส่งเรียบร้อยแล้ว",
-                    embed=None,
-                    view=None
-                )
-                return
-
-            delivery_image = None
-            async for message in self.channel.history(limit=10):
-                if message.author == interaction.user and message.attachments:
-                    for attachment in message.attachments:
-                        if any(attachment.filename.lower().endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.gif']):
-                            delivery_image = attachment.url
-                            break
-                    if delivery_image:
-                        break
-
-            if not delivery_image:
-                await interaction.response.send_message(
-                    "❌ ผู้ส่งสินค้าต้องแนบไฟล์หลักฐานการส่งสินค้าก่อน !",
-                    ephemeral=True
-                )
-                return
-
-            confirm_embed = discord.Embed(
-                title="📦 ยืนยันการส่งสินค้า",
-                description="ยืนยันหลักฐานการส่งสินค้านี้หรือไม่?",
-                color=0x00FF00
-            )
-            confirm_embed.set_image(url=delivery_image)
-            
-            confirm_view = ConfirmDeliveryView(
-                self.channel, self.product_type, self.robux_amount, self.price, 
-                self.buyer, delivery_image
-            )
-            
-            await interaction.response.send_message(embed=confirm_embed, view=confirm_view, ephemeral=True)
-            
-        except Exception as e:
-            await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
-
-    @discord.ui.button(label="ยกเลิก ❌", style=discord.ButtonStyle.danger, emoji="❌", custom_id="cancel_order_btn")
-    async def cancel_order(self, interaction: discord.Interaction, button: Button):
-        """ปุ่มยกเลิกคำสั่งซื้อ"""
-        try:
-            await interaction.response.send_message("❌ คำสั่งซื้อถูกยกเลิก", ephemeral=True)
-            await interaction.message.delete()
-        except Exception as e:
-            await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
-
 class ConfirmDeliveryView(View):
     def __init__(self, channel, product_type, robux_amount, price, buyer, delivery_image):
         super().__init__(timeout=300)
@@ -742,35 +672,35 @@ class ConfirmDeliveryView(View):
                     view=None
                 )
                 return
-                
+
             self.delivered = True
-            
+
             if self.buyer:
                 ticket_customer_data[str(self.channel.id)] = self.buyer.name
                 save_ticket_customer_data()
-            
+
             receipt_color = 0xFFA500
             if self.product_type == "Group":
                 receipt_color = 0x00FFFF
             elif self.product_type == "Limited":
                 receipt_color = 0x00FF00
-            
+
             current_time = get_thailand_time()
-            
+
             receipt_embed = discord.Embed(
                 title=f"🍣 ใบเสร็จการสั่งซื้อ ({self.product_type}) 🍣",
                 color=receipt_color
             )
-            
+
             receipt_embed.add_field(name="😊 ผู้ซื้อ", value=self.buyer.mention if self.buyer else "ไม่ทราบ", inline=False)
             receipt_embed.add_field(name="💸 จำนวน Robux", value=f"{self.robux_amount:,}", inline=True)
             receipt_embed.add_field(name="💰 ราคาตามเรท", value=f"{self.price:,.0f} บาท", inline=True)
-            
+
             if self.delivery_image:
                 receipt_embed.set_image(url=self.delivery_image)
-            
+
             receipt_embed.set_footer(text=f"จัดส่งสินค้าสำเร็จ 🤗 • {current_time.strftime('%d/%m/%y, %H:%M')}")
-            
+
             # ===== SEND TO BUYER'S DM =====
             if self.buyer:
                 try:
@@ -783,21 +713,21 @@ class ConfirmDeliveryView(View):
                     dm_embed.add_field(name="📦 สินค้า", value=self.product_type, inline=True)
                     dm_embed.add_field(name="💸 จำนวน Robux", value=f"{self.robux_amount:,}", inline=True)
                     dm_embed.add_field(name="💰 ราคา", value=f"{self.price:,.0f} บาท", inline=True)
-                    
+
                     if self.delivery_image:
                         dm_embed.set_image(url=self.delivery_image)
-                    
+
                     dm_embed.add_field(
-                        name="📝 หมายเหตุ", 
-                        value="หากมีปัญหากรุณาติดต่อแอดมิน @wforr นะคะ", 
+                        name="📝 หมายเหตุ",
+                        value="หากมีปัญหากรุณาติดต่อแอดมินในเซิร์ฟเวอร์",
                         inline=False
                     )
-                    dm_embed.set_footer(text="Sushi Shop • ขอบคุณที่ใช้บริการค่ะ 💖")
-                    
+                    dm_embed.set_footer(text="Sushi Shop • ขอบคุณที่ไว้วางใจ 💖")
+
                     # Send to DM
                     await self.buyer.send(embed=dm_embed)
                     print(f"✅ ส่งใบเสร็จไปยัง DM ของ {self.buyer.name} เรียบร้อย")
-                    
+
                 except discord.Forbidden:
                     print(f"⚠️ ไม่สามารถส่ง DM ไปยัง {self.buyer.name} (ผู้ใช้ปิดรับ DM)")
                     # Try to notify in channel that DM failed
@@ -805,25 +735,25 @@ class ConfirmDeliveryView(View):
                 except Exception as e:
                     print(f"❌ เกิดข้อผิดพลาดในการส่ง DM: {e}")
             # ===== END DM SENDING =====
-            
+
             log_channel = bot.get_channel(SALES_LOG_CHANNEL_ID)
             if log_channel:
                 try:
                     await log_channel.send(embed=receipt_embed)
-                    print(f"✅ บันทึกใบเสร็จการสั่งซื้อ: {self.product_type}")
+                    print(f"✅ บันทึกใบเสร็จการสั่งซื้อในห้องบันทึกการขาย: {self.product_type}")
                 except:
                     print(f"⚠️ ไม่สามารถส่งใบเสร็จไปยังห้องบันทึกการขาย")
-            
+
             await self.channel.send(embed=receipt_embed)
-            
-            await self.channel.send("✅ **ส่งสินค้าเรียบร้อยแล้ว!**")
-            
+
+            await self.channel.send("✅ **ส่งสินค้าเรียบร้อยแล้ว!** กรุณาใช้คำสั่ง `!ty` เพื่อยืนยันการส่งสินค้าและเปลี่ยนชื่อตั๋ว")
+
             await interaction.response.edit_message(
                 content="✅ บันทึกการส่งสินค้าเรียบร้อยแล้ว",
                 embed=None,
                 view=None
             )
-            
+
             ticket_activity[self.channel.id] = {
                 'last_activity': current_time,
                 'ty_used': False,
@@ -831,7 +761,7 @@ class ConfirmDeliveryView(View):
                 'delivery_time': current_time,
                 'buyer_id': self.buyer.id if self.buyer else None
             }
-            
+
         except Exception as e:
             print(f"❌ เกิดข้อผิดพลาดในการยืนยันการส่งสินค้า: {e}")
             try:
@@ -851,22 +781,6 @@ class ConfirmDeliveryView(View):
                 "📝 กรุณาแนบไฟล์หลักฐานการส่งสินค้าใหม่ แล้วกดปุ่ม 'ส่งสินค้าแล้ว ✅' อีกครั้ง",
                 ephemeral=True
             )
-        except Exception as e:
-            await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
-
-# =======================================================================================
-# ✅ View สำหรับ QR Code
-# =======================================================================================
-class QRView(View):
-    def __init__(self):
-        super().__init__(timeout=None)
-        
-    @discord.ui.button(label="คัดลอกเลขบัญชี", style=discord.ButtonStyle.success, emoji="📋", custom_id="copy_bank_account_btn")
-    async def copy_bank_account(self, interaction: discord.Interaction, button: Button):
-        """ปุ่มคัดลอกเลขบัญชี"""
-        try:
-            bank_info = "120-239181-3 SCB !!อย่าลืมโน๊ตสลิป ซื้อโรบัคกับ Sushi Shop"
-            await interaction.response.send_message(f"```{bank_info}```", ephemeral=True)
         except Exception as e:
             await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
 
@@ -1338,7 +1252,7 @@ async def handle_open_ticket(interaction, category_name, modal_class, stock_type
             )
             welcome_embed.add_field(
                 name="คำแนะนำ:",
-                value="• ระบุสิ่งที่ต้องการซื้อ\n• ใช้คำสั่ง !gp ตามด้วยจำนวนเพื่อเช็คราคา 🎉",
+                value="• ระบุสิ่งที่ต้องการซื้อ\n• ใช้คำสั่ง !gp ตามด้วยเลขเพื่อเช็คราคา 🎉",
                 inline=False
             )
         else:
@@ -1349,12 +1263,12 @@ async def handle_open_ticket(interaction, category_name, modal_class, stock_type
             )
             welcome_embed.add_field(
                 name="คำแนะนำ:",
-                value="• ระบุจำนวนที่ต้องการซื้อ\n• รอทีมงานตรวจสอบข้อมูลค่ะ 🎉",
+                value="• ระบุจำนวนที่ต้องการซื้อ\n• รอแอดมินตรวจสอบข้อมูลค่ะ 🎉",
                 inline=False
             )
             
         welcome_embed.set_footer(text="Sushi Shop บริการรับกดเกมพาส")
-        welcome_embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
+        welcome_embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/1361004239043821610/1473323355791949948/Sushi_SCB.png")
 
         view = TicketActionView(channel, user, modal_class)
         await channel.send(embed=welcome_embed, view=view)
@@ -3587,5 +3501,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
         traceback.print_exc()
+
 
 
