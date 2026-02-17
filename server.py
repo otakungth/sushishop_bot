@@ -1,5 +1,4 @@
-# ใน main.py - เพิ่มตรง import ตอนต้นไฟล์
-from server import app, run as run_server
+
 
 # และในส่วน __main__ ตอนท้ายไฟล์:
 if __name__ == "__main__":
@@ -20,3 +19,4 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
         traceback.print_exc()
+
