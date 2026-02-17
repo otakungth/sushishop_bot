@@ -511,7 +511,7 @@ async def save_ticket_transcript(channel, action_by=None, robux_amount=None, cus
         return False, str(e)
 
 # =======================================================================================
-# ✅ ฟังก์ชันจัดการตั๋วหลัง !ty
+# ✅ ฟังก์ชันจัดการตั๋วหลัง !ty (FIXED)
 # =======================================================================================
 
 async def handle_ticket_after_ty(channel, user, robux_amount=None, customer_name=None):
@@ -869,7 +869,7 @@ class QRView(View):
             await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
 
 # =======================================================================================
-# ✅ View สำหรับการดำเนินการในตั๋ว
+# ✅ View สำหรับการดำเนินการในตั๋ว (FIXED - Added stock display)
 # =======================================================================================
 class TicketActionView(View):
     def __init__(self, channel, user, modal_class):
@@ -1229,7 +1229,7 @@ class GoToTicketView(View):
         )
 
 # =======================================================================================
-# ✅ ฟังก์ชันจัดการการเปิดตั๋ว
+# ✅ ฟังก์ชันจัดการการเปิดตั๋ว (FIXED - Added stock in welcome embed)
 # =======================================================================================
 async def handle_open_ticket(interaction, category_name, modal_class, stock_type):
     global gamepass_stock, group_stock
@@ -1297,10 +1297,14 @@ async def handle_open_ticket(interaction, category_name, modal_class, stock_type
         ticket_customer_data[str(channel.id)] = user.name
         save_ticket_customer_data()
         
+        # Store current stock values in ticket data for reference
         if stock_type == "gamepass":
             gamepass_stock -= 1
+            ticket_robux_data[str(channel.id)] = str(gamepass_stock + 1)  # Store the stock at time of opening
         else:
             group_stock -= 1
+            ticket_robux_data[str(channel.id)] = str(group_stock + 1)  # Store the stock at time of opening
+        save_ticket_robux_data()
         
         # Force update main channel after stock change
         await update_main_channel_with_new_view()
@@ -1331,7 +1335,7 @@ async def handle_open_ticket(interaction, category_name, modal_class, stock_type
         if stock_type == "gamepass":
             welcome_embed.add_field(
                 name="บริการกดเกมพาสเรท: 6",
-                value=f"📦 Stock: **{gamepass_stock}**",
+                value=f"📦 Stock คงเหลือ: **{gamepass_stock}**\n(จำนวนที่เปิดตั๋ว: 1)",
                 inline=False
             )
             welcome_embed.add_field(
@@ -1342,7 +1346,7 @@ async def handle_open_ticket(interaction, category_name, modal_class, stock_type
         else:
             welcome_embed.add_field(
                 name="บริการโรบัคกลุ่ม",
-                value=f"📦 Stock: **{group_stock}**",
+                value=f"📦 Stock คงเหลือ: **{group_stock}**\n(จำนวนที่เปิดตั๋ว: 1)",
                 inline=False
             )
             welcome_embed.add_field(
@@ -1918,7 +1922,7 @@ async def check_user_level(interaction: discord.Interaction):
         await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการเช็คเลเวล", ephemeral=True)
 
 # =======================================================================================
-# ✅ คำสั่ง !ty - FIXED with proper error handling
+# ✅ คำสั่ง !ty - FIXED with proper error handling and buyer detection
 # =======================================================================================
 
 @bot.command()
@@ -1958,6 +1962,13 @@ async def ty(ctx):
                     buyer = ctx.guild.get_member(user_id)
                 except ValueError:
                     pass
+        
+        # If we couldn't get buyer from channel name, try to find from recent messages
+        if not buyer:
+            async for msg in ctx.channel.history(limit=50):
+                if not msg.author.bot and msg.author != ctx.guild.me:
+                    buyer = msg.author
+                    break
         
         # Get stored data
         robux_amount = ticket_robux_data.get(str(ctx.channel.id))
@@ -2116,7 +2127,7 @@ async def check_stale_tickets():
             del ticket_activity[channel_id]
 
 # =======================================================================================
-# ✅ คำสั่ง !stock - FIXED to force view update
+# ✅ คำสั่ง !stock - FIXED to force view update and show in tickets
 # =======================================================================================
 
 @bot.command()
@@ -2191,6 +2202,9 @@ async def stock(ctx, stock_type: str = None, amount: str = None):
                 # Force update main channel with fresh view
                 await update_main_channel_with_new_view()
                 
+                # Also update any open tickets with stock info
+                await update_tickets_with_stock(ctx.guild)
+                
                 await asyncio.sleep(5)
                 try:
                     await response_msg.delete()
@@ -2245,6 +2259,9 @@ async def stock(ctx, stock_type: str = None, amount: str = None):
                 # Force update main channel with fresh view
                 await update_main_channel_with_new_view()
                 
+                # Also update any open tickets with stock info
+                await update_tickets_with_stock(ctx.guild)
+                
                 await asyncio.sleep(5)
                 try:
                     await response_msg.delete()
@@ -2278,7 +2295,64 @@ async def stock(ctx, stock_type: str = None, amount: str = None):
             pass
 
 # =======================================================================================
-# ✅ คำสั่ง !sushi - FIXED to force view update
+# ✅ ฟังก์ชันอัพเดท stock ในตั๋วที่เปิดอยู่
+# =======================================================================================
+async def update_tickets_with_stock(guild):
+    """อัพเดท stock ในตั๋วที่เปิดอยู่ทั้งหมด"""
+    try:
+        gamepass_category = discord.utils.get(guild.categories, name="🍣Sushi Gamepass 🍣")
+        group_category = discord.utils.get(guild.categories, name="💰Robux Group💰")
+        
+        # Update gamepass tickets
+        if gamepass_category:
+            for channel in gamepass_category.text_channels:
+                if channel.name.startswith("ticket-"):
+                    # Find the welcome embed and update it
+                    async for msg in channel.history(limit=10):
+                        if msg.author == bot.user and msg.embeds:
+                            embed = msg.embeds[0]
+                            if embed.title == "🍣 Sushi Shop 🍣":
+                                # Update stock field
+                                for i, field in enumerate(embed.fields):
+                                    if field.name == "บริการกดเกมพาสเรท: 6":
+                                        embed.set_field_at(
+                                            i,
+                                            name="บริการกดเกมพาสเรท: 6",
+                                            value=f"📦 Stock คงเหลือ: **{gamepass_stock}**\n(จำนวนที่เปิดตั๋ว: 1)",
+                                            inline=False
+                                        )
+                                        await msg.edit(embed=embed)
+                                        break
+                                break
+        
+        # Update group tickets
+        if group_category:
+            for channel in group_category.text_channels:
+                if channel.name.startswith("ticket-"):
+                    # Find the welcome embed and update it
+                    async for msg in channel.history(limit=10):
+                        if msg.author == bot.user and msg.embeds:
+                            embed = msg.embeds[0]
+                            if embed.title == "🍣 Sushi Shop 🍣":
+                                # Update stock field
+                                for i, field in enumerate(embed.fields):
+                                    if field.name == "บริการโรบัคกลุ่ม":
+                                        embed.set_field_at(
+                                            i,
+                                            name="บริการโรบัคกลุ่ม",
+                                            value=f"📦 Stock คงเหลือ: **{group_stock}**\n(จำนวนที่เปิดตั๋ว: 1)",
+                                            inline=False
+                                        )
+                                        await msg.edit(embed=embed)
+                                        break
+                                break
+                                
+        print("✅ อัพเดท stock ในตั๋วเรียบร้อย")
+    except Exception as e:
+        print(f"❌ เกิดข้อผิดพลาดในการอัพเดท stock ในตั๋ว: {e}")
+
+# =======================================================================================
+# ✅ คำสั่ง !sushi - FIXED to force view update and channel name change
 # =======================================================================================
 
 @bot.command()
@@ -2566,8 +2640,11 @@ async def od(ctx, *, expression: str):
         if channel_name.startswith("ticket-"):
             parts = channel_name.split('-')
             if len(parts) >= 3:
-                user_id = int(parts[-1])
-                buyer = ctx.guild.get_member(user_id)
+                try:
+                    user_id = int(parts[-1])
+                    buyer = ctx.guild.get_member(user_id)
+                except:
+                    pass
         
         if not buyer:
             async for msg in ctx.channel.history(limit=20):
@@ -2635,8 +2712,11 @@ async def odg(ctx, *, expression: str):
         if channel_name.startswith("ticket-"):
             parts = channel_name.split('-')
             if len(parts) >= 3:
-                user_id = int(parts[-1])
-                buyer = ctx.guild.get_member(user_id)
+                try:
+                    user_id = int(parts[-1])
+                    buyer = ctx.guild.get_member(user_id)
+                except:
+                    pass
         
         if not buyer:
             async for msg in ctx.channel.history(limit=20):
@@ -2699,8 +2779,11 @@ async def odl(ctx, item_name: str, value: str):
         if channel_name.startswith("ticket-"):
             parts = channel_name.split('-')
             if len(parts) >= 3:
-                user_id = int(parts[-1])
-                buyer = ctx.guild.get_member(user_id)
+                try:
+                    user_id = int(parts[-1])
+                    buyer = ctx.guild.get_member(user_id)
+                except:
+                    pass
         
         if not buyer:
             async for msg in ctx.channel.history(limit=20):
