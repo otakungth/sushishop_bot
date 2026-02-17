@@ -55,9 +55,24 @@ LEVELS = {
     9: {"exp": 1000000, "role_id": 1406309272786047106}
 }
 
-# ==================== FILE HANDLERS ====================
-def load_json(file, default): return json.load(open(file, 'r', encoding='utf-8')) if os.path.exists(file) else default
-def save_json(file, data): json.dump(data, open(file, 'w', encoding='utf-8'), ensure_ascii=False, indent=2)
+# ==================== FILE HANDLERS (FIXED) ====================
+def load_json(file, default): 
+    try:
+        if os.path.exists(file):
+            with open(file, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        return default
+    except:
+        return default
+
+def save_json(file, data): 
+    try:
+        with open(file, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception as e:
+        print(f"❌ Error saving {file}: {e}")
+        return False
 
 # ==================== RATE LIMITER ====================
 class RateLimiter:
@@ -79,6 +94,7 @@ class MyBot(commands.Bot):
         self.last_update_time, self.is_reacting_to_credit_channel, self.commands_synced = 0, False, False
         self.stock_lock, self.api_rate_limiter, self.react_rate_limiter, self.channel_edit_rate_limiter = asyncio.Lock(), RateLimiter(), RateLimiter(1, 0.5), RateLimiter(1, 5)
         self.ticket_counter = load_json(ticket_counter_file, {"counter": 1, "date": get_thailand_time().strftime("%d%m%y")})
+        self.stock_message = None  # Store stock message for updating
     
     async def setup_hook(self):
         global user_data, ticket_transcripts, ticket_robux_data, ticket_customer_data
@@ -116,18 +132,16 @@ async def add_exp(user_id, exp_amount, guild):
         if new_level > 0 and (new_role := guild.get_role(LEVELS[new_level]["role_id"])) and new_role not in member.roles: await member.add_roles(new_role)
     return new_level, user_data[user_id]["exp"]
 
-# ==================== CHANNEL NAME UPDATE ====================
+# ==================== CHANNEL NAME UPDATE (FIXED) ====================
 async def update_channel_name():
     """เปลี่ยนชื่อช่องหลักตามสถานะร้าน"""
     try:
-        if time.time() - bot.last_update_time < 60: return
         channel = bot.get_channel(MAIN_CHANNEL_ID)
         if channel:
-            new_name = "〔🟢เปิด〕กดสั่งซื้อที่นี่" if shop_open else "〔🔴〕ปิดชั่วคราว"
+            new_name = "〔🟢เปิด〕กดสั่งซื้อที่นี่" if shop_open else "〔🔴ปิดชั่วคราว〕"
             if channel.name != new_name:
                 await bot.channel_edit_rate_limiter.acquire()
                 await channel.edit(name=new_name)
-                bot.last_update_time = time.time()
                 print(f"✅ เปลี่ยนชื่อช่องเป็น: {new_name}")
     except Exception as e: print(f"❌ Error updating channel name: {e}")
 
@@ -189,7 +203,7 @@ async def update_main_channel():
         print("✅ Sent new main channel message")
     except Exception as e: print(f"❌ Error updating main channel: {e}")
 
-# ==================== TICKET HANDLER ====================
+# ==================== TICKET HANDLER (FIXED) ====================
 async def handle_open_ticket(interaction, category_name, stock_type):
     global gamepass_stock, group_stock
     try:
@@ -238,7 +252,7 @@ async def handle_open_ticket(interaction, category_name, stock_type):
         
         if admin_role: await channel.send(content=f"{admin_role.mention} มีตั๋วใหม่!")
         
-        # ===== WELCOME MESSAGE WITH FORM BUTTON =====
+        # ===== WELCOME MESSAGE WITH FORM BUTTON (FIXED) =====
         embed = discord.Embed(title="🍣 Sushi Shop 🍣", description="ยินดีต้อนรับสู่ร้าน Sushi Shop!\n\nกรุณากรอกแบบฟอร์มด้านล่างเพื่อดำเนินการสั่งซื้อ", color=0x00FF99)
         embed.add_field(name="👤 ผู้ซื้อ", value=interaction.user.mention, inline=False)
         embed.add_field(name="🛠️ ทีมงาน", value=admin_role.mention if admin_role else "รอพนักงานติดต่อ", inline=False)
@@ -255,28 +269,35 @@ async def handle_open_ticket(interaction, category_name, stock_type):
         ticket_view = View(timeout=None)
         
         if stock_type == "gamepass":
-            form_btn = Button(label="📝 กรอกแบบฟอร์มเกมพาส", style=discord.ButtonStyle.primary, emoji="📝", custom_id="gamepass_form")
-            async def form_cb(i): await i.response.send_modal(GamepassTicketModal())
+            form_btn = Button(label="📝 กรอกแบบฟอร์มเกมพาส", style=discord.ButtonStyle.primary, emoji="📝", custom_id=f"gamepass_form_{channel.id}")
+            async def form_cb(i): 
+                if i.channel.id == channel.id:
+                    await i.response.send_modal(GamepassTicketModal())
             form_btn.callback = form_cb
         else:
-            form_btn = Button(label="📝 กรอกแบบฟอร์ม Group", style=discord.ButtonStyle.primary, emoji="📝", custom_id="group_form")
-            async def form_cb(i): await i.response.send_modal(GroupTicketModal())
+            form_btn = Button(label="📝 กรอกแบบฟอร์ม Group", style=discord.ButtonStyle.primary, emoji="📝", custom_id=f"group_form_{channel.id}")
+            async def form_cb(i): 
+                if i.channel.id == channel.id:
+                    await i.response.send_modal(GroupTicketModal())
             form_btn.callback = form_cb
         
-        close_btn = Button(label="🔒 ปิดตั๋ว", style=discord.ButtonStyle.danger, emoji="🔒", custom_id="close_ticket")
+        close_btn = Button(label="🔒 ปิดตั๋ว", style=discord.ButtonStyle.danger, emoji="🔒", custom_id=f"close_ticket_{channel.id}")
         async def close_cb(i):
-            if admin_role and admin_role in i.user.roles:
-                await save_ticket_transcript(channel, i.user)
-                await i.response.send_message("📪 กำลังปิดตั๋ว...")
-                await asyncio.sleep(2)
-                await channel.delete()
-            else: await i.response.send_message("❌ คุณไม่มีสิทธิ์ปิดตั๋วนี้", ephemeral=True)
+            if i.channel.id == channel.id:
+                if admin_role and admin_role in i.user.roles:
+                    await save_ticket_transcript(channel, i.user)
+                    await i.response.send_message("📪 กำลังปิดตั๋ว...")
+                    await asyncio.sleep(2)
+                    await channel.delete()
+                else: await i.response.send_message("❌ คุณไม่มีสิทธิ์ปิดตั๋วนี้", ephemeral=True)
         close_btn.callback = close_cb
         
         ticket_view.add_item(form_btn).add_item(close_btn)
         await channel.send(embed=embed, view=ticket_view)
         
-    except Exception as e: print(f"❌ Error opening ticket: {e}")
+    except Exception as e: 
+        print(f"❌ Error opening ticket: {e}")
+        traceback.print_exc()
 
 # ==================== SAVE TICKET TRANSCRIPT ====================
 async def save_ticket_transcript(channel, action_by=None, robux_amount=None, customer_name=None):
@@ -301,7 +322,7 @@ async def save_ticket_transcript(channel, action_by=None, robux_amount=None, cus
         return True, filename
     except Exception as e: print(f"❌ Error saving transcript: {e}"); return False, str(e)
 
-# ==================== HANDLE TICKET AFTER TY ====================
+# ==================== HANDLE TICKET AFTER TY (FIXED) ====================
 async def handle_ticket_after_ty(channel, user, robux_amount=None, customer_name=None):
     try:
         print(f"📝 กำลังจัดการตั๋วหลัง !ty: {channel.name}")
@@ -324,14 +345,11 @@ async def handle_ticket_after_ty(channel, user, robux_amount=None, customer_name
         if save_success:
             try:
                 await bot.channel_edit_rate_limiter.acquire()
-                await channel.edit(name=filename)
+                await channel.edit(name=filename[:100])  # Discord channel name max 100 chars
                 print(f"✅ เปลี่ยนชื่อห้องเป็น: {filename}")
             except Exception as e: print(f"⚠️ ไม่สามารถเปลี่ยนชื่อห้อง: {e}")
         
-        # Send credit message
-        credit_view = View(timeout=None)
-        credit_view.add_item(discord.ui.Button(label="ให้เครดิต ⭐", style=discord.ButtonStyle.link, url="https://discord.com/channels/1360990259311018077/1363250076549382246", emoji="⭐"))
-        
+        # Send credit message (FIXED)
         credit_embed = discord.Embed(
             title="✅ ส่งของเรียบร้อยแล้ว",
             description="สินค้าถูกจัดส่งเรียบร้อยแล้ว!\n\n**ขอบคุณที่ใช้บริการร้าน Sushi Shop 🍣**\nฝากกดเครดิตให้ด้วยนะคะ ⭐\n\n⚠️ **หมายเหตุ:** ตั๋วนี้จะถูกย้ายไปเก็บถาวรใน 10 นาที",
@@ -339,14 +357,24 @@ async def handle_ticket_after_ty(channel, user, robux_amount=None, customer_name
         )
         credit_embed.set_footer(text="Sushi Shop • ขอบคุณที่ใช้บริการ")
         
-        await channel.send(embed=credit_embed, view=credit_view)
+        await channel.send(embed=credit_embed)
         print(f"✅ ส่งข้อความให้เครดิตเรียบร้อย")
+        
+        # Send to credit channel
+        credit_channel = bot.get_channel(CREDIT_CHANNEL_ID)
+        if credit_channel:
+            credit_msg = await credit_channel.send(f"🎉 {user.mention if user else 'ลูกค้า'} ได้รับสินค้าเรียบร้อย! กรุณากด ❤️ และ 🍣 เพื่อให้เครดิต")
+            await credit_msg.add_reaction("❤️")
+            await credit_msg.add_reaction("🍣")
         
         # Schedule moving to archive after 10 minutes
         bot.loop.create_task(move_to_archive_after_delay(channel, user, 600))
         
         return True
-    except Exception as e: print(f"❌ Error in handle_ticket_after_ty: {e}"); return False
+    except Exception as e: 
+        print(f"❌ Error in handle_ticket_after_ty: {e}")
+        traceback.print_exc()
+        return False
 
 async def move_to_archive_after_delay(channel, user, delay_seconds):
     try:
@@ -414,7 +442,7 @@ class GamepassTicketModal(Modal, title="📋 แบบฟอร์มกดเ�
             cancel_btn.callback = cancel_cb
             view.add_item(cancel_btn)
             
-            await i.response.send_message(embed=embed, view=view, ephemeral=False)
+            await i.response.send_message(embed=embed, view=view)
         except Exception as e: await i.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
 
 class GroupTicketModal(Modal, title="📋 แบบฟอร์มสั่งซื้อ Robux Group"):
@@ -437,7 +465,7 @@ class GroupTicketModal(Modal, title="📋 แบบฟอร์มสั่ง�
             cancel_btn.callback = cancel_cb
             view.add_item(cancel_btn)
             
-            await i.response.send_message(embed=embed, view=view, ephemeral=False)
+            await i.response.send_message(embed=embed, view=view)
         except ValueError: await i.response.send_message("❌ กรุณากรอกจำนวนโรบัคเป็นตัวเลข", ephemeral=True)
 
 # ==================== DELIVERY VIEW ====================
@@ -450,6 +478,8 @@ class DeliveryView(View):
         cancel_btn = Button(label="ยกเลิก ❌", style=discord.ButtonStyle.danger, emoji="❌", custom_id=f"cancel_{channel.id}")
         
         async def deliver_cb(i):
+            if i.channel.id != self.channel.id:
+                return
             if not i.user.guild_permissions.administrator and i.guild.get_role(1361016912259055896) not in i.user.roles:
                 await i.response.send_message("❌ คุณไม่มีสิทธิ์ใช้ปุ่มนี้", ephemeral=True)
                 return
@@ -516,13 +546,15 @@ class DeliveryView(View):
             await i.response.send_message(embed=embed, view=confirm_view, ephemeral=True)
         
         async def cancel_cb(i):
+            if i.channel.id != self.channel.id:
+                return
             await i.response.send_message("❌ คำสั่งซื้อถูกยกเลิก", ephemeral=True)
             await i.message.delete()
         
         deliver_btn.callback, cancel_btn.callback = deliver_cb, cancel_cb
         self.add_item(deliver_btn).add_item(cancel_btn)
 
-# ==================== COMMANDS ====================
+# ==================== COMMANDS (FIXED) ====================
 @bot.command()
 @admin_only()
 async def open(ctx):
@@ -543,20 +575,6 @@ async def close(ctx):
     shop_open = False
     await ctx.message.delete()
     embed = discord.Embed(title="🔴 ปิดร้านเรียบร้อย", description="ร้าน Sushi Shop ปิดให้บริการชั่วคราว", color=0xFF0000)
-    msg = await ctx.send(embed=embed)
-    await asyncio.sleep(3)
-    await msg.delete()
-    await update_channel_name()
-    await update_main_channel()
-
-@bot.command()
-@admin_only()
-async def sushi(ctx):
-    global shop_open
-    shop_open = not shop_open
-    await ctx.message.delete()
-    status = "✅ ร้านเปิด" if shop_open else "🔴 ร้านปิด"
-    embed = discord.Embed(title="🏪 สถานะร้าน", description=f"**{status}**", color=0x00FF00 if shop_open else 0xFF0000)
     msg = await ctx.send(embed=embed)
     await asyncio.sleep(3)
     await msg.delete()
@@ -752,6 +770,7 @@ async def ty(ctx):
         
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดใน !ty: {e}")
+        traceback.print_exc()
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=5)
 
 @bot.command()
@@ -956,8 +975,7 @@ async def help_command(ctx):
         "`!level` - เช็คเลเวลและ EXP ของคุณ\n\n"
         "**คำสั่งผู้ดูแลระบบเท่านั้น:**\n"
         "`!open` - เปิดร้าน (เปลี่ยนชื่อเป็น 〔🟢เปิด〕กดสั่งซื้อที่นี่)\n"
-        "`!close` - ปิดร้าน (เปลี่ยนชื่อเป็น 〔🔴〕ปิดชั่วคราว)\n"
-        "`!sushi` - สลับสถานะร้าน\n"
+        "`!close` - ปิดร้าน (เปลี่ยนชื่อเป็น 〔🔴ปิดชั่วคราว〕)\n"
         "`!stock` - ตรวจสอบและตั้งค่า stock\n"
         "`!group <on/off>` - เปิด/ปิด Group ticket\n"
         "`!ty` - ส่งของเรียบร้อย (ใช้ในตั๋ว)\n"
@@ -1078,7 +1096,7 @@ async def on_ready():
     activity_text = f"ร้าน Sushi Shop | GP: {gamepass_stock} | Group: {group_stock}"
     await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=activity_text))
     
-    # Register persistent views (placeholder)
+    # Register persistent views
     bot.add_view(View(timeout=None))
     
     update_presence.start()
