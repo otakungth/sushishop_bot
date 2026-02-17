@@ -291,8 +291,6 @@ class MyBot(commands.Bot):
         print(f"✅ โหลดข้อมูล robux_amount: {len(ticket_robux_data)} tickets")
         print(f"✅ โหลดข้อมูลชื่อลูกค้า: {len(ticket_customer_data)} tickets")
         print(f"✅ โหลดตัวนับตั๋ว: {self.ticket_counter}")
-        
-        # Don't sync here - wait for on_ready
 
 # =======================================================================================
 # ✅ สร้าง instance
@@ -650,6 +648,76 @@ async def move_to_transcript_after_delay(channel, user, robux_amount, customer_n
 # ✅ View สำหรับส่งสินค้า
 # =======================================================================================
 
+class DeliveryView(View):
+    def __init__(self, channel, product_type, robux_amount, price, buyer):
+        super().__init__(timeout=None)
+        self.channel = channel
+        self.product_type = product_type
+        self.robux_amount = robux_amount
+        self.price = price
+        self.buyer = buyer
+        self.delivered = False
+
+    @discord.ui.button(label="ส่งสินค้าแล้ว ✅", style=discord.ButtonStyle.success, emoji="✅", custom_id="deliver_product_btn")
+    async def deliver_product(self, interaction: discord.Interaction, button: Button):
+        """ปุ่มส่งสินค้า (เฉพาะแอดมิน)"""
+        try:
+            admin_role = interaction.guild.get_role(1361016912259055896)
+            if not admin_role or admin_role not in interaction.user.roles:
+                await interaction.response.send_message("❌ คุณไม่มีสิทธิ์ใช้ปุ่มนี้", ephemeral=True)
+                return
+
+            if self.delivered:
+                await interaction.response.edit_message(
+                    content="✅ สินค้าถูกส่งเรียบร้อยแล้ว",
+                    embed=None,
+                    view=None
+                )
+                return
+
+            delivery_image = None
+            async for message in self.channel.history(limit=10):
+                if message.author == interaction.user and message.attachments:
+                    for attachment in message.attachments:
+                        if any(attachment.filename.lower().endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.gif']):
+                            delivery_image = attachment.url
+                            break
+                    if delivery_image:
+                        break
+
+            if not delivery_image:
+                await interaction.response.send_message(
+                    "❌ ผู้ส่งสินค้าต้องแนบไฟล์หลักฐานการส่งสินค้าก่อน !",
+                    ephemeral=True
+                )
+                return
+
+            confirm_embed = discord.Embed(
+                title="📦 ยืนยันการส่งสินค้า",
+                description="ยืนยันหลักฐานการส่งสินค้านี้หรือไม่?",
+                color=0x00FF00
+            )
+            confirm_embed.set_image(url=delivery_image)
+            
+            confirm_view = ConfirmDeliveryView(
+                self.channel, self.product_type, self.robux_amount, self.price, 
+                self.buyer, delivery_image
+            )
+            
+            await interaction.response.send_message(embed=confirm_embed, view=confirm_view, ephemeral=True)
+            
+        except Exception as e:
+            await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
+
+    @discord.ui.button(label="ยกเลิก ❌", style=discord.ButtonStyle.danger, emoji="❌", custom_id="cancel_order_btn")
+    async def cancel_order(self, interaction: discord.Interaction, button: Button):
+        """ปุ่มยกเลิกคำสั่งซื้อ"""
+        try:
+            await interaction.response.send_message("❌ คำสั่งซื้อถูกยกเลิก", ephemeral=True)
+            await interaction.message.delete()
+        except Exception as e:
+            await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
+
 class ConfirmDeliveryView(View):
     def __init__(self, channel, product_type, robux_amount, price, buyer, delivery_image):
         super().__init__(timeout=300)
@@ -672,35 +740,35 @@ class ConfirmDeliveryView(View):
                     view=None
                 )
                 return
-
+                
             self.delivered = True
-
+            
             if self.buyer:
                 ticket_customer_data[str(self.channel.id)] = self.buyer.name
                 save_ticket_customer_data()
-
+            
             receipt_color = 0xFFA500
             if self.product_type == "Group":
                 receipt_color = 0x00FFFF
             elif self.product_type == "Limited":
                 receipt_color = 0x00FF00
-
+            
             current_time = get_thailand_time()
-
+            
             receipt_embed = discord.Embed(
                 title=f"🍣 ใบเสร็จการสั่งซื้อ ({self.product_type}) 🍣",
                 color=receipt_color
             )
-
+            
             receipt_embed.add_field(name="😊 ผู้ซื้อ", value=self.buyer.mention if self.buyer else "ไม่ทราบ", inline=False)
             receipt_embed.add_field(name="💸 จำนวน Robux", value=f"{self.robux_amount:,}", inline=True)
             receipt_embed.add_field(name="💰 ราคาตามเรท", value=f"{self.price:,.0f} บาท", inline=True)
-
+            
             if self.delivery_image:
                 receipt_embed.set_image(url=self.delivery_image)
-
+            
             receipt_embed.set_footer(text=f"จัดส่งสินค้าสำเร็จ 🤗 • {current_time.strftime('%d/%m/%y, %H:%M')}")
-
+            
             # ===== SEND TO BUYER'S DM =====
             if self.buyer:
                 try:
@@ -713,21 +781,21 @@ class ConfirmDeliveryView(View):
                     dm_embed.add_field(name="📦 สินค้า", value=self.product_type, inline=True)
                     dm_embed.add_field(name="💸 จำนวน Robux", value=f"{self.robux_amount:,}", inline=True)
                     dm_embed.add_field(name="💰 ราคา", value=f"{self.price:,.0f} บาท", inline=True)
-
+                    
                     if self.delivery_image:
                         dm_embed.set_image(url=self.delivery_image)
-
+                    
                     dm_embed.add_field(
-                        name="📝 หมายเหตุ",
-                        value="หากมีปัญหากรุณาติดต่อแอดมินในเซิร์ฟเวอร์",
+                        name="📝 หมายเหตุ", 
+                        value="หากมีปัญหากรุณาติดต่อแอดมินในเซิร์ฟเวอร์", 
                         inline=False
                     )
                     dm_embed.set_footer(text="Sushi Shop • ขอบคุณที่ไว้วางใจ 💖")
-
+                    
                     # Send to DM
                     await self.buyer.send(embed=dm_embed)
                     print(f"✅ ส่งใบเสร็จไปยัง DM ของ {self.buyer.name} เรียบร้อย")
-
+                    
                 except discord.Forbidden:
                     print(f"⚠️ ไม่สามารถส่ง DM ไปยัง {self.buyer.name} (ผู้ใช้ปิดรับ DM)")
                     # Try to notify in channel that DM failed
@@ -735,7 +803,7 @@ class ConfirmDeliveryView(View):
                 except Exception as e:
                     print(f"❌ เกิดข้อผิดพลาดในการส่ง DM: {e}")
             # ===== END DM SENDING =====
-
+            
             log_channel = bot.get_channel(SALES_LOG_CHANNEL_ID)
             if log_channel:
                 try:
@@ -743,17 +811,17 @@ class ConfirmDeliveryView(View):
                     print(f"✅ บันทึกใบเสร็จการสั่งซื้อในห้องบันทึกการขาย: {self.product_type}")
                 except:
                     print(f"⚠️ ไม่สามารถส่งใบเสร็จไปยังห้องบันทึกการขาย")
-
+            
             await self.channel.send(embed=receipt_embed)
-
+            
             await self.channel.send("✅ **ส่งสินค้าเรียบร้อยแล้ว!** กรุณาใช้คำสั่ง `!ty` เพื่อยืนยันการส่งสินค้าและเปลี่ยนชื่อตั๋ว")
-
+            
             await interaction.response.edit_message(
                 content="✅ บันทึกการส่งสินค้าเรียบร้อยแล้ว",
                 embed=None,
                 view=None
             )
-
+            
             ticket_activity[self.channel.id] = {
                 'last_activity': current_time,
                 'ty_used': False,
@@ -761,7 +829,7 @@ class ConfirmDeliveryView(View):
                 'delivery_time': current_time,
                 'buyer_id': self.buyer.id if self.buyer else None
             }
-
+            
         except Exception as e:
             print(f"❌ เกิดข้อผิดพลาดในการยืนยันการส่งสินค้า: {e}")
             try:
@@ -781,6 +849,22 @@ class ConfirmDeliveryView(View):
                 "📝 กรุณาแนบไฟล์หลักฐานการส่งสินค้าใหม่ แล้วกดปุ่ม 'ส่งสินค้าแล้ว ✅' อีกครั้ง",
                 ephemeral=True
             )
+        except Exception as e:
+            await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
+
+# =======================================================================================
+# ✅ View สำหรับ QR Code - FIXED (MISSING CLASS)
+# =======================================================================================
+class QRView(View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        
+    @discord.ui.button(label="คัดลอกเลขบัญชี", style=discord.ButtonStyle.success, emoji="📋", custom_id="copy_bank_account_btn")
+    async def copy_bank_account(self, interaction: discord.Interaction, button: Button):
+        """ปุ่มคัดลอกเลขบัญชี SCB"""
+        try:
+            bank_info = "120-239181-3 : ธนาคาร SCB"
+            await interaction.response.send_message(f"```{bank_info}```", ephemeral=True)
         except Exception as e:
             await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
 
@@ -832,7 +916,7 @@ class GiveCreditView(discord.ui.View):
         
         self.add_item(
             discord.ui.Button(
-                label="ให้เครดิต", 
+                label="ให้เครดิต ⭐", 
                 url="https://discord.com/channels/1360990259311018077/1363250076549382246", 
                 style=discord.ButtonStyle.link,
                 emoji="⭐"
@@ -1252,7 +1336,7 @@ async def handle_open_ticket(interaction, category_name, modal_class, stock_type
             )
             welcome_embed.add_field(
                 name="คำแนะนำ:",
-                value="• ระบุสิ่งที่ต้องการซื้อ\n• ใช้คำสั่ง !gp ตามด้วยเลขเพื่อเช็คราคา 🎉",
+                value="• ระบุสิ่งที่ต้องการซื้อ\n• ใช้คำสั่ง !gp ตามด้วยจำนวนเพื่อเช็คราคา 🎉",
                 inline=False
             )
         else:
@@ -1263,12 +1347,12 @@ async def handle_open_ticket(interaction, category_name, modal_class, stock_type
             )
             welcome_embed.add_field(
                 name="คำแนะนำ:",
-                value="• ระบุจำนวนที่ต้องการซื้อ\n• รอแอดมินตรวจสอบข้อมูลค่ะ 🎉",
+                value="• ระบุจำนวนที่ต้องการซื้อ\n• รอทีมงานตรวจสอบข้อมูลค่ะ 🎉",
                 inline=False
             )
             
         welcome_embed.set_footer(text="Sushi Shop บริการรับกดเกมพาส")
-        welcome_embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/1361004239043821610/1473323355791949948/Sushi_SCB.png")
+        welcome_embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
 
         view = TicketActionView(channel, user, modal_class)
         await channel.send(embed=welcome_embed, view=view)
@@ -1446,7 +1530,7 @@ async def stock(ctx, stock_type: str = None, amount: str = None):
             pass
 
 # =======================================================================================
-# ✅ คำสั่ง !od, !odg, !odl (FIXED - added update_main_channel)
+# ✅ คำสั่ง !od, !odg, !odl
 # =======================================================================================
 
 @bot.command()
@@ -1512,7 +1596,6 @@ async def od(ctx, *, expression: str):
         delivery_view = DeliveryView(ctx.channel, "Gamepass", robux, price, buyer)
         await ctx.send(embed=order_embed, view=delivery_view)
 
-        # FIX: Update main channel after stock change
         await update_main_channel()
 
     except Exception as e:
@@ -1582,7 +1665,6 @@ async def odg(ctx, *, expression: str):
         delivery_view = DeliveryView(ctx.channel, "Group", robux, price, buyer)
         await ctx.send(embed=order_embed, view=delivery_view)
 
-        # FIX: Update main channel after stock change
         await update_main_channel()
 
     except Exception as e:
@@ -1646,9 +1728,8 @@ async def odl(ctx, item_name: str, value: str):
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
 
 # =======================================================================================
-# ✅ คำสั่ง !qr
+# ✅ คำสั่ง !qr - FIXED with new image URL
 # =======================================================================================
-
 @bot.command()
 @admin_only()
 async def qr(ctx):
@@ -1673,12 +1754,13 @@ async def qr(ctx):
         inline=False
     )
     
-    qr_url = "https://media.discordapp.net/attachments/1361004239043821610/1444373113319198840/160-1-43871-9_1.png?ex=692d2189&is=692bd009&hm=dd539f3a1acd87cb62430c3b7e13fe44c03cec7b86087ad84397a874b5ee0c8b&=&format=webp&quality=lossless&width=1161&height=1058"
+    # Updated QR code URL - using your new image
+    qr_url = "https://media.discordapp.net/attachments/1361004239043821610/1473323355791949948/Sushi_SCB.png?ex=6995cacd&is=6994794d&hm=54c27e2f93d1db856673d38ec5c2aaada236ab682cd4a4184f6fa76721e27b09&=&format=webp&quality=lossless&width=1161&height=1107"
     embed.set_image(url=qr_url)
     
     qr_view = QRView()
     await ctx.send(embed=embed, view=qr_view)
-    
+
 # =======================================================================================
 # ✅ อัพเดทช่องหลัก
 # =======================================================================================
@@ -1997,7 +2079,7 @@ async def update_slash_commands_context():
         print(f"⚠️ เกิดข้อผิดพลาดในการอัพเดท contexts: {e}")
 
 # =======================================================================================
-# ✅ Tasks (FIXED - update_presence_task shows current stock)
+# ✅ Tasks
 # =======================================================================================
 
 @tasks.loop(minutes=30)
@@ -2017,11 +2099,11 @@ async def check_stale_tickets_task():
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดใน check_stale_tickets_task: {e}")
 
-@tasks.loop(minutes=1)  # FIX: Changed to 1 minute for faster updates
+@tasks.loop(minutes=1)  # Changed to 1 minute for faster updates
 async def update_presence_task():
     """อัพเดทสถานะบอททุก 1 นาที"""
     try:
-        # FIX: Use current stock values, not hardcoded 50000
+        # Use current stock values
         activity_text = f"ร้าน Sushi Shop | GP: {gamepass_stock} | Group: {group_stock}"
         
         await bot.change_presence(
@@ -2058,11 +2140,11 @@ async def on_ready():
     update_bot_status(True, guild_count, user_count)
     print(f"📊 สถิติ: {guild_count} เซิร์ฟเวอร์, {user_count} ผู้ใช้")
     
-    # ✅ รอ 2 นาทีก่อนอัพเดท contexts
+    # รอ 2 นาทีก่อนอัพเดท contexts
     print("⏳ จะเริ่มอัพเดท contexts ใน 120 วินาที...")
     bot.loop.create_task(update_slash_commands_context())
     
-    # ✅ Sync commands (ครั้งเดียว)
+    # Sync commands (ครั้งเดียว)
     if not bot.commands_synced:
         try:
             print("🔄 กำลัง sync commands...")
@@ -2072,7 +2154,7 @@ async def on_ready():
         except Exception as e:
             print(f"❌ เกิดข้อผิดพลาดในการ sync: {e}")
     
-    # FIX: Set initial presence with current stock
+    # Set initial presence with current stock
     activity_text = f"ร้าน Sushi Shop | GP: {gamepass_stock} | Group: {group_stock}"
     await bot.change_presence(
         activity=discord.Activity(
@@ -2083,6 +2165,7 @@ async def on_ready():
     
     print("✅ ตั้งค่าสถานะเรียบร้อย")
     
+    # Register persistent views
     bot.add_view(MainShopView())
     bot.add_view(QRView())
     print("✅ ลงทะเบียน Views เรียบร้อย")
@@ -2251,7 +2334,7 @@ async def check_user_level(interaction: discord.Interaction):
         await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการเช็คเลเวล", ephemeral=True)
 
 # =======================================================================================
-# ✅ คำสั่ง !ty
+# ✅ คำสั่ง !ty - FIXED with auto-delete
 # =======================================================================================
 
 @bot.command()
@@ -2900,7 +2983,7 @@ async def rate(ctx, rate_type: str = None, low_rate: str = None, high_rate: str 
                 pass
 
 # =======================================================================================
-# ✅ คำสั่งเปิดปิดร้าน
+# ✅ คำสั่งเปิดปิดร้าน - FIXED with auto-delete and button colors
 # =======================================================================================
 @bot.command()
 @admin_only()
@@ -2920,8 +3003,18 @@ async def sushi(ctx):
         color=0x00FF00 if shop_open else 0xFF0000
     )
     
+    # Send status message
     status_msg = await ctx.send(embed=embed)
     
+    # Auto-delete after 3 seconds
+    await asyncio.sleep(3)
+    try:
+        await status_msg.delete()
+        print("✅ ลบข้อความสถานะร้านเรียบร้อยแล้ว")
+    except:
+        pass
+    
+    # Update channel name
     try:
         channel = bot.get_channel(MAIN_CHANNEL_ID)
         if channel:
@@ -2937,14 +3030,8 @@ async def sushi(ctx):
     except Exception as e:
         print(f"⚠️ ไม่สามารถเปลี่ยนชื่อช่อง: {e}")
     
+    # Force update main channel with new button states
     await update_main_channel()
-    
-    await asyncio.sleep(3)
-    try:
-        await status_msg.delete()
-        print("✅ ลบข้อความสถานะร้านเรียบร้อยแล้ว")
-    except:
-        print("❌ ไม่สามารถลบข้อความสถานะร้าน")
 
 # =======================================================================================
 # ✅ คำสั่งเปิดปิด Group Ticket
@@ -2966,7 +3053,12 @@ async def group(ctx, status: str = None):
             description=f"**{current_status}**",
             color=0x00FF00 if group_ticket_enabled else 0xFF0000
         )
-        await ctx.send(embed=embed)
+        status_msg = await ctx.send(embed=embed)
+        await asyncio.sleep(3)
+        try:
+            await status_msg.delete()
+        except:
+            pass
     elif status.lower() in ["on", "enable", "เปิด"]:
         group_ticket_enabled = True
         embed = discord.Embed(
@@ -2974,7 +3066,12 @@ async def group(ctx, status: str = None):
             description="เปิดปุ่ม Group Ticket เรียบร้อยแล้ว",
             color=0x00FF00
         )
-        await ctx.send(embed=embed)
+        status_msg = await ctx.send(embed=embed)
+        await asyncio.sleep(3)
+        try:
+            await status_msg.delete()
+        except:
+            pass
     elif status.lower() in ["off", "disable", "ปิด"]:
         group_ticket_enabled = False
         embed = discord.Embed(
@@ -2982,14 +3079,24 @@ async def group(ctx, status: str = None):
             description="ปิดปุ่ม Group Ticket เรียบร้อยแล้ว",
             color=0xFF0000
         )
-        await ctx.send(embed=embed)
+        status_msg = await ctx.send(embed=embed)
+        await asyncio.sleep(3)
+        try:
+            await status_msg.delete()
+        except:
+            pass
     else:
         embed = discord.Embed(
             title="❌ การใช้งานไม่ถูกต้อง",
             description="**การใช้งาน:** !group [on/off] หรือ !group [enable/disable] หรือ !group [เปิด/ปิด]",
             color=0xFF0000
         )
-        await ctx.send(embed=embed)
+        status_msg = await ctx.send(embed=embed)
+        await asyncio.sleep(5)
+        try:
+            await status_msg.delete()
+        except:
+            pass
     
     await update_main_channel()
 
@@ -3312,40 +3419,19 @@ async def help_cmd(interaction: discord.Interaction):
 async def gp(ctx, *, expression: str):
     """คำสั่งคำนวณราคา Gamepass (Text Command)"""
     try:
-        print(f"🔍 DEBUG gp command called with: {expression}")
-        print(f"🔍 DEBUG gamepass_rate = {gamepass_rate}")
-        
         expr = expression.replace(",", "").lower().replace("x", "*").replace("÷", "/")
-        print(f"🔍 DEBUG cleaned expression: {expr}")
 
         if not re.match(r"^[\d\s\+\-\*\/\(\)]+$", expr):
-            print(f"❌ DEBUG invalid characters in expression")
             await ctx.send("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", delete_after=10)
             return
 
         robux = int(eval(expr))
-        print(f"🔍 DEBUG calculated robux: {robux}")
-        
         price = robux / gamepass_rate
         price_str = f"{price:,.0f} บาท"
-        print(f"🔍 DEBUG calculated price: {price_str}")
 
         await ctx.send(f"🎮 Gamepass {robux:,} Robux = **{price_str}** (เรท {gamepass_rate})")
-        print(f"✅ DEBUG gp command completed successfully")
 
-    except ZeroDivisionError:
-        print(f"❌ DEBUG ZeroDivisionError - gamepass_rate is 0!")
-        await ctx.send(f"❌ เรท Gamepass ไม่ถูกต้อง (เป็น 0) กรุณาแจ้งแอดมิน", delete_after=10)
-    except ValueError as e:
-        print(f"❌ DEBUG ValueError: {e}")
-        await ctx.send(f"❌ กรุณากรอกตัวเลขที่ถูกต้อง", delete_after=10)
-    except SyntaxError as e:
-        print(f"❌ DEBUG SyntaxError: {e}")
-        await ctx.send(f"❌ รูปแบบไม่ถูกต้อง กรุณาตรวจสอบเครื่องหมาย + - * /", delete_after=10)
     except Exception as e:
-        print(f"❌ DEBUG Unexpected error in gp command: {type(e).__name__}: {e}")
-        import traceback
-        traceback.print_exc()
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
 
 @bot.command()
@@ -3441,7 +3527,7 @@ async def tax(ctx, *, expression: str):
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
 
 # =======================================================================================
-# ✅ เริ่มต้นบอท WITH RATE LIMIT PROTECTION (FIXED)
+# ✅ เริ่มต้นบอท WITH RATE LIMIT PROTECTION
 # =======================================================================================
 if __name__ == "__main__":
     try:
@@ -3459,9 +3545,7 @@ if __name__ == "__main__":
         time.sleep(30)
         
         # ===== RATE LIMIT PROTECTION =====
-        import asyncio
         from discord.errors import HTTPException, GatewayNotFound
-        from requests.exceptions import ConnectionError
         
         max_retries = 5
         retry_count = 0
@@ -3484,13 +3568,6 @@ if __name__ == "__main__":
                     print(f"❌ Discord connection error: {e}")
                     raise e
                     
-            except ConnectionError as e:
-                wait_time = base_wait * (2 ** retry_count)
-                print(f"🔌 Connection error! Waiting {wait_time} seconds...")
-                print(f"⚠️ Error: {e}")
-                time.sleep(wait_time)
-                retry_count += 1
-                
             except Exception as e:
                 print(f"❌ Unexpected error: {e}")
                 raise e
@@ -3501,6 +3578,3 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
         traceback.print_exc()
-
-
-
