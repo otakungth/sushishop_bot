@@ -732,116 +732,116 @@ class ConfirmDeliveryView(View):
         self.delivered = False
 
     @discord.ui.button(label="ยืนยัน ✅", style=discord.ButtonStyle.success, emoji="✅", custom_id="confirm_delivery_btn")
-async def confirm_delivery(self, interaction: discord.Interaction, button: Button):
-    """ยืนยันการส่งสินค้า"""
-    try:
-        if self.delivered:
-            await interaction.response.edit_message(
-                content="✅ สินค้าถูกส่งเรียบร้อยแล้ว",
-                embed=None,
-                view=None
-            )
-            return
-            
-        self.delivered = True
-        
-        if self.buyer:
-            ticket_customer_data[str(self.channel.id)] = self.buyer.name
-            save_ticket_customer_data()
-        
-        receipt_color = 0xFFA500
-        if self.product_type == "Group":
-            receipt_color = 0x00FFFF
-        elif self.product_type == "Limited":
-            receipt_color = 0x00FF00
-        
-        current_time = get_thailand_time()
-        
-        receipt_embed = discord.Embed(
-            title=f"🍣 ใบเสร็จการสั่งซื้อ ({self.product_type}) 🍣",
-            color=receipt_color
-        )
-        
-        receipt_embed.add_field(name="😊 ผู้ซื้อ", value=self.buyer.mention if self.buyer else "ไม่ทราบ", inline=False)
-        receipt_embed.add_field(name="💸 จำนวน Robux", value=f"{self.robux_amount:,}", inline=True)
-        receipt_embed.add_field(name="💰 ราคาตามเรท", value=f"{self.price:,.0f} บาท", inline=True)
-        
-        if self.delivery_image:
-            receipt_embed.set_image(url=self.delivery_image)
-        
-        receipt_embed.set_footer(text=f"จัดส่งสินค้าสำเร็จ 🤗 • {current_time.strftime('%d/%m/%y, %H:%M')}")
-        
-        # ===== SEND TO BUYER'S DM =====
-        if self.buyer:
-            try:
-                # Create DM embed (without @mentions)
-                dm_embed = discord.Embed(
-                    title=f"🧾 ใบเสร็จการซื้อสินค้า ({self.product_type})",
-                    description="ขอบคุณที่ใช้บริการ Sushi Shop นะคะ 🍣",
-                    color=receipt_color
-                )
-                dm_embed.add_field(name="📦 สินค้า", value=self.product_type, inline=True)
-                dm_embed.add_field(name="💸 จำนวน Robux", value=f"{self.robux_amount:,}", inline=True)
-                dm_embed.add_field(name="💰 ราคา", value=f"{self.price:,.0f} บาท", inline=True)
-                
-                if self.delivery_image:
-                    dm_embed.set_image(url=self.delivery_image)
-                
-                dm_embed.add_field(
-                    name="📝 หมายเหตุ", 
-                    value="หากมีปัญหากรุณาติดต่อแอดมินในเซิร์ฟเวอร์", 
-                    inline=False
-                )
-                dm_embed.set_footer(text="Sushi Shop • ขอบคุณที่ไว้วางใจ 💖")
-                
-                # Send to DM
-                await self.buyer.send(embed=dm_embed)
-                print(f"✅ ส่งใบเสร็จไปยัง DM ของ {self.buyer.name} เรียบร้อย")
-                
-            except discord.Forbidden:
-                print(f"⚠️ ไม่สามารถส่ง DM ไปยัง {self.buyer.name} (ผู้ใช้ปิดรับ DM)")
-                # Try to notify in channel that DM failed
-                await self.channel.send(f"⚠️ ไม่สามารถส่งใบเสร็จทาง DM ให้ {self.buyer.mention} ได้ (ผู้ใช้ปิดรับข้อความจากคนอื่น)", delete_after=10)
-            except Exception as e:
-                print(f"❌ เกิดข้อผิดพลาดในการส่ง DM: {e}")
-        # ===== END DM SENDING =====
-        
-        log_channel = bot.get_channel(SALES_LOG_CHANNEL_ID)
-        if log_channel:
-            try:
-                await log_channel.send(embed=receipt_embed)
-                print(f"✅ บันทึกใบเสร็จการสั่งซื้อในห้องบันทึกการขาย: {self.product_type}")
-            except:
-                print(f"⚠️ ไม่สามารถส่งใบเสร็จไปยังห้องบันทึกการขาย")
-        
-        await self.channel.send(embed=receipt_embed)
-        
-        await self.channel.send("✅ **ส่งสินค้าเรียบร้อยแล้ว!** กรุณาใช้คำสั่ง `!ty` เพื่อยืนยันการส่งสินค้าและเปลี่ยนชื่อตั๋ว")
-        
-        await interaction.response.edit_message(
-            content="✅ บันทึกการส่งสินค้าเรียบร้อยแล้ว",
-            embed=None,
-            view=None
-        )
-        
-        ticket_activity[self.channel.id] = {
-            'last_activity': current_time,
-            'ty_used': False,
-            'delivery_confirmed': True,
-            'delivery_time': current_time,
-            'buyer_id': self.buyer.id if self.buyer else None
-        }
-        
-    except Exception as e:
-        print(f"❌ เกิดข้อผิดพลาดในการยืนยันการส่งสินค้า: {e}")
+    async def confirm_delivery(self, interaction: discord.Interaction, button: Button):
+        """ยืนยันการส่งสินค้า"""
         try:
+            if self.delivered:
+                await interaction.response.edit_message(
+                    content="✅ สินค้าถูกส่งเรียบร้อยแล้ว",
+                    embed=None,
+                    view=None
+                )
+                return
+                
+            self.delivered = True
+            
+            if self.buyer:
+                ticket_customer_data[str(self.channel.id)] = self.buyer.name
+                save_ticket_customer_data()
+            
+            receipt_color = 0xFFA500
+            if self.product_type == "Group":
+                receipt_color = 0x00FFFF
+            elif self.product_type == "Limited":
+                receipt_color = 0x00FF00
+            
+            current_time = get_thailand_time()
+            
+            receipt_embed = discord.Embed(
+                title=f"🍣 ใบเสร็จการสั่งซื้อ ({self.product_type}) 🍣",
+                color=receipt_color
+            )
+            
+            receipt_embed.add_field(name="😊 ผู้ซื้อ", value=self.buyer.mention if self.buyer else "ไม่ทราบ", inline=False)
+            receipt_embed.add_field(name="💸 จำนวน Robux", value=f"{self.robux_amount:,}", inline=True)
+            receipt_embed.add_field(name="💰 ราคาตามเรท", value=f"{self.price:,.0f} บาท", inline=True)
+            
+            if self.delivery_image:
+                receipt_embed.set_image(url=self.delivery_image)
+            
+            receipt_embed.set_footer(text=f"จัดส่งสินค้าสำเร็จ 🤗 • {current_time.strftime('%d/%m/%y, %H:%M')}")
+            
+            # ===== SEND TO BUYER'S DM =====
+            if self.buyer:
+                try:
+                    # Create DM embed (without @mentions)
+                    dm_embed = discord.Embed(
+                        title=f"🧾 ใบเสร็จการซื้อสินค้า ({self.product_type})",
+                        description="ขอบคุณที่ใช้บริการ Sushi Shop นะคะ 🍣",
+                        color=receipt_color
+                    )
+                    dm_embed.add_field(name="📦 สินค้า", value=self.product_type, inline=True)
+                    dm_embed.add_field(name="💸 จำนวน Robux", value=f"{self.robux_amount:,}", inline=True)
+                    dm_embed.add_field(name="💰 ราคา", value=f"{self.price:,.0f} บาท", inline=True)
+                    
+                    if self.delivery_image:
+                        dm_embed.set_image(url=self.delivery_image)
+                    
+                    dm_embed.add_field(
+                        name="📝 หมายเหตุ", 
+                        value="หากมีปัญหากรุณาติดต่อแอดมิน @wforr นะคะ", 
+                        inline=False
+                    )
+                    dm_embed.set_footer(text="Sushi Shop • ขอบคุณที่ใช้บริการค่ะ 💖")
+                    
+                    # Send to DM
+                    await self.buyer.send(embed=dm_embed)
+                    print(f"✅ ส่งใบเสร็จไปยัง DM ของ {self.buyer.name} เรียบร้อย")
+                    
+                except discord.Forbidden:
+                    print(f"⚠️ ไม่สามารถส่ง DM ไปยัง {self.buyer.name} (ผู้ใช้ปิดรับ DM)")
+                    # Try to notify in channel that DM failed
+                    await self.channel.send(f"⚠️ ไม่สามารถส่งใบเสร็จทาง DM ให้ {self.buyer.mention} ได้ (ผู้ใช้ปิดรับข้อความจากคนอื่น)", delete_after=10)
+                except Exception as e:
+                    print(f"❌ เกิดข้อผิดพลาดในการส่ง DM: {e}")
+            # ===== END DM SENDING =====
+            
+            log_channel = bot.get_channel(SALES_LOG_CHANNEL_ID)
+            if log_channel:
+                try:
+                    await log_channel.send(embed=receipt_embed)
+                    print(f"✅ บันทึกใบเสร็จการสั่งซื้อ: {self.product_type}")
+                except:
+                    print(f"⚠️ ไม่สามารถส่งใบเสร็จไปยังห้องบันทึกการขาย")
+            
+            await self.channel.send(embed=receipt_embed)
+            
+            await self.channel.send("✅ **ส่งสินค้าเรียบร้อยแล้ว!**")
+            
             await interaction.response.edit_message(
-                content="✅ ส่งสินค้าเรียบร้อยแล้ว (บันทึกบางส่วนไม่สมบูรณ์)",
+                content="✅ บันทึกการส่งสินค้าเรียบร้อยแล้ว",
                 embed=None,
                 view=None
             )
-        except:
-            pass
+            
+            ticket_activity[self.channel.id] = {
+                'last_activity': current_time,
+                'ty_used': False,
+                'delivery_confirmed': True,
+                'delivery_time': current_time,
+                'buyer_id': self.buyer.id if self.buyer else None
+            }
+            
+        except Exception as e:
+            print(f"❌ เกิดข้อผิดพลาดในการยืนยันการส่งสินค้า: {e}")
+            try:
+                await interaction.response.edit_message(
+                    content="✅ ส่งสินค้าเรียบร้อยแล้ว (บันทึกบางส่วนไม่สมบูรณ์)",
+                    embed=None,
+                    view=None
+                )
+            except:
+                pass
 
     @discord.ui.button(label="แก้ไข", style=discord.ButtonStyle.secondary, emoji="✏️", custom_id="edit_delivery_btn")
     async def edit_delivery(self, interaction: discord.Interaction, button: Button):
@@ -863,9 +863,9 @@ class QRView(View):
         
     @discord.ui.button(label="คัดลอกเลขบัญชี", style=discord.ButtonStyle.success, emoji="📋", custom_id="copy_bank_account_btn")
     async def copy_bank_account(self, interaction: discord.Interaction, button: Button):
-        """ปุ่มคัดลอกเลขบัญชี SCB"""
+        """ปุ่มคัดลอกเลขบัญชี"""
         try:
-            bank_info = "120-239181-3 : ธนาคาร SCB"
+            bank_info = "120-239181-3 SCB !!อย่าลืมโน๊ตสลิป ซื้อโรบัคกับ Sushi Shop"
             await interaction.response.send_message(f"```{bank_info}```", ephemeral=True)
         except Exception as e:
             await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
@@ -918,7 +918,7 @@ class GiveCreditView(discord.ui.View):
         
         self.add_item(
             discord.ui.Button(
-                label="ให้เครดิต ⭐", 
+                label="ให้เครดิต", 
                 url="https://discord.com/channels/1360990259311018077/1363250076549382246", 
                 style=discord.ButtonStyle.link,
                 emoji="⭐"
@@ -3587,4 +3587,5 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
         traceback.print_exc()
+
 
