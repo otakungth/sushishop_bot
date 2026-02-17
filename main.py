@@ -808,13 +808,13 @@ class ConfirmDeliveryView(View):
             if log_channel:
                 try:
                     await log_channel.send(embed=receipt_embed)
-                    print(f"✅ บันทึกใบเสร็จการสั่งซื้อในห้องบันทึกการขาย: {self.product_type}")
+                    print(f"✅ บันทึกใบเสร็จการสั่งซื้อ: {self.product_type}")
                 except:
                     print(f"⚠️ ไม่สามารถส่งใบเสร็จไปยังห้องบันทึกการขาย")
             
             await self.channel.send(embed=receipt_embed)
             
-            await self.channel.send("✅ **ส่งสินค้าเรียบร้อยแล้ว!** กรุณาใช้คำสั่ง `!ty` เพื่อยืนยันการส่งสินค้าและเปลี่ยนชื่อตั๋ว")
+            await self.channel.send("✅ **ส่งสินค้าเรียบร้อยแล้ว!**")
             
             await interaction.response.edit_message(
                 content="✅ บันทึกการส่งสินค้าเรียบร้อยแล้ว",
@@ -853,7 +853,7 @@ class ConfirmDeliveryView(View):
             await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
 
 # =======================================================================================
-# ✅ View สำหรับ QR Code - FIXED (MISSING CLASS)
+# ✅ View สำหรับ QR Code
 # =======================================================================================
 class QRView(View):
     def __init__(self):
@@ -1303,7 +1303,7 @@ async def handle_open_ticket(interaction, category_name, modal_class, stock_type
             group_stock -= 1
         
         # Force update main channel after stock change
-        await update_main_channel()
+        await update_main_channel_with_new_view()
             
         await interaction.edit_original_response(
             content="📩 เปิดตั๋วเรียบร้อย!",
@@ -1366,516 +1366,6 @@ async def handle_open_ticket(interaction, category_name, modal_class, stock_type
                 await interaction.edit_original_response(content="❌ เกิดข้อผิดพลาดในการเปิดตั๋ว")
             except:
                 pass
-
-# =======================================================================================
-# ✅ คำสั่ง !stock (FIXED)
-# =======================================================================================
-
-@bot.command()
-@admin_only()
-async def stock(ctx, stock_type: str = None, amount: str = None):
-    global gamepass_stock, group_stock
-    
-    try:
-        await ctx.message.delete()
-    except:
-        pass
-    
-    if stock_type is None:
-        embed = discord.Embed(
-            title="📊 สต๊อกสินค้า",
-            color=0x00FF99
-        )
-        embed.add_field(
-            name="🎮 Gamepass Stock", 
-            value=f"**{gamepass_stock:,}**", 
-            inline=True
-        )
-        embed.add_field(
-            name="👥 Group Stock", 
-            value=f"**{group_stock:,}**", 
-            inline=True
-        )
-        response_msg = await ctx.send(embed=embed)
-        await asyncio.sleep(10)
-        try:
-            await response_msg.delete()
-        except:
-            pass
-        
-    elif stock_type.lower() in ["gp", "gamepass", "เกมพาส"]:
-        if amount is None:
-            embed = discord.Embed(
-                title="🎮 Gamepass Stock",
-                description=f"**{gamepass_stock:,}**",
-                color=0x00FF99
-            )
-            response_msg = await ctx.send(embed=embed)
-            await asyncio.sleep(10)
-            try:
-                await response_msg.delete()
-            except:
-                pass
-        else:
-            amount_clean = amount.replace(",", "")
-            try:
-                async with bot.stock_lock:
-                    amount_int = int(amount_clean)
-                    if amount_int < 0:
-                        error_msg = await ctx.send("❌ จำนวน stock ต้องมากกว่าหรือเท่ากับ 0")
-                        await asyncio.sleep(5)
-                        try:
-                            await error_msg.delete()
-                        except:
-                            pass
-                        return
-                    
-                    gamepass_stock = amount_int
-                
-                embed = discord.Embed(
-                    title="✅ ตั้งค่า Stock เรียบร้อย",
-                    description=f"ตั้งค่า สต๊อกเกมพาส เป็น **{gamepass_stock:,}** เรียบร้อยแล้ว",
-                    color=0x00FF00
-                )
-                
-                response_msg = await ctx.send(embed=embed)
-                
-                # FIX: Force update main channel immediately
-                await update_main_channel()
-                
-                await asyncio.sleep(5)
-                try:
-                    await response_msg.delete()
-                except:
-                    pass
-                    
-            except ValueError:
-                error_msg = await ctx.send("❌ กรุณากรอกจำนวน stock เป็นตัวเลขที่ถูกต้อง")
-                await asyncio.sleep(5)
-                try:
-                    await error_msg.delete()
-                except:
-                    pass
-    
-    elif stock_type.lower() in ["g", "group", "กรุ๊ป"]:
-        if amount is None:
-            embed = discord.Embed(
-                title="👥 Group Stock",
-                description=f"**{group_stock:,}**",
-                color=0x00FF99
-            )
-            response_msg = await ctx.send(embed=embed)
-            await asyncio.sleep(10)
-            try:
-                await response_msg.delete()
-            except:
-                pass
-        else:
-            amount_clean = amount.replace(",", "")
-            try:
-                async with bot.stock_lock:
-                    amount_int = int(amount_clean)
-                    if amount_int < 0:
-                        error_msg = await ctx.send("❌ จำนวน stock ต้องมากกว่าหรือเท่ากับ 0")
-                        await asyncio.sleep(5)
-                        try:
-                            await error_msg.delete()
-                        except:
-                            pass
-                        return
-                    
-                    group_stock = amount_int
-                
-                embed = discord.Embed(
-                    title="✅ ตั้งค่า Stock เรียบร้อย",
-                    description=f"ตั้งค่า สต๊อกโรบัคกลุ่ม เป็น **{group_stock:,}** เรียบร้อยแล้ว",
-                    color=0x00FF00
-                )
-                
-                response_msg = await ctx.send(embed=embed)
-                
-                # FIX: Force update main channel immediately
-                await update_main_channel()
-                
-                await asyncio.sleep(5)
-                try:
-                    await response_msg.delete()
-                except:
-                    pass
-                    
-            except ValueError:
-                error_msg = await ctx.send("❌ กรุณากรอกจำนวน stock เป็นตัวเลขที่ถูกต้อง")
-                await asyncio.sleep(5)
-                try:
-                    await error_msg.delete()
-                except:
-                    pass
-    
-    else:
-        embed = discord.Embed(
-            title="❌ การใช้งานไม่ถูกต้อง",
-            description=(
-                "**การใช้งาน:**\n"
-                "`!stock` - เช็ค stock ทั้งหมด\n"
-                "`!stock gp <จำนวน>` - ตั้งค่า Gamepass stock\n" 
-                "`!stock group <จำนวน>` - ตั้งค่า Group stock"
-            ),
-            color=0xFF0000
-        )
-        response_msg = await ctx.send(embed=embed)
-        await asyncio.sleep(10)
-        try:
-            await response_msg.delete()
-        except:
-            pass
-
-# =======================================================================================
-# ✅ คำสั่ง !od, !odg, !odl
-# =======================================================================================
-
-@bot.command()
-@admin_only()
-async def od(ctx, *, expression: str):
-    global gamepass_stock
-    
-    try:
-        if not ctx.channel.name.startswith("ticket-"):
-            await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
-            return
-
-        expr = expression.replace(",", "").lower().replace("x", "*").replace("÷", "/")
-
-        if not re.match(r"^[\d\s\+\-\*\/\(\)]+$", expr):
-            await ctx.send("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", delete_after=10)
-            return
-
-        robux = int(eval(expr))
-        price = robux / gamepass_rate
-        price_str = f"{price:,.0f} บาท"
-
-        buyer = None
-        channel_name = ctx.channel.name
-        if channel_name.startswith("ticket-"):
-            parts = channel_name.split('-')
-            if len(parts) >= 3:
-                user_id = int(parts[-1])
-                buyer = ctx.guild.get_member(user_id)
-        
-        if not buyer:
-            async for msg in ctx.channel.history(limit=20):
-                if msg.author != ctx.author and not msg.author.bot and msg.author != ctx.guild.me:
-                    buyer = msg.author
-                    break
-
-        exp_to_add = robux
-        if buyer:
-            new_level, total_exp = await add_exp(buyer.id, exp_to_add, ctx.guild)
-            print(f"✅ เพิ่ม {exp_to_add} EXP ให้ {buyer.display_name} (เลเวล {new_level}, รวม {total_exp} EXP)")
-        else:
-            print("⚠️ ไม่พบผู้ซื้อในการเพิ่ม EXP")
-
-        async with bot.stock_lock:
-            gamepass_stock -= robux
-            if gamepass_stock < 0:
-                gamepass_stock = 0
-        
-        current_time = get_thailand_time()
-        
-        order_embed = discord.Embed(
-            title="🍣คำสั่งซื้อสินค้า🍣",
-            color=0xFFA500
-        )
-        order_embed.add_field(name="📦 ประเภทสินค้า", value="Gamepass", inline=False)
-        order_embed.add_field(name="💸 จำนวน Robux", value=f"{robux:,}", inline=True)
-        order_embed.add_field(name="💰 ราคาตามเรท", value=f"{price:,.0f} บาท", inline=True)
-        order_embed.set_footer(text=f"รับออร์เดอร์แล้ว 🤗 • {current_time.strftime('%d/%m/%y, %H:%M')}")
-        
-        ticket_robux_data[str(ctx.channel.id)] = str(robux)
-        save_ticket_robux_data()
-        
-        delivery_view = DeliveryView(ctx.channel, "Gamepass", robux, price, buyer)
-        await ctx.send(embed=order_embed, view=delivery_view)
-
-        await update_main_channel()
-
-    except Exception as e:
-        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
-
-@bot.command()
-@admin_only()
-async def odg(ctx, *, expression: str):
-    global group_stock
-    
-    try:
-        if not ctx.channel.name.startswith("ticket-"):
-            await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
-            return
-
-        expr = expression.replace(",", "").lower().replace("x", "*").replace("÷", "/")
-
-        if not re.match(r"^[\d\s\+\-\*\/\(\)]+$", expr):
-            await ctx.send("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", delete_after=10)
-            return
-
-        robux = int(eval(expr))
-        rate = group_rate_low if robux < 1500 else group_rate_high
-        price = robux / rate
-        price_str = f"{price:,.0f} บาท"
-
-        buyer = None
-        channel_name = ctx.channel.name
-        if channel_name.startswith("ticket-"):
-            parts = channel_name.split('-')
-            if len(parts) >= 3:
-                user_id = int(parts[-1])
-                buyer = ctx.guild.get_member(user_id)
-        
-        if not buyer:
-            async for msg in ctx.channel.history(limit=20):
-                if msg.author != ctx.author and not msg.author.bot and msg.author != ctx.guild.me:
-                    buyer = msg.author
-                    break
-
-        exp_to_add = robux
-        if buyer:
-            new_level, total_exp = await add_exp(buyer.id, exp_to_add, ctx.guild)
-            print(f"✅ เพิ่ม {exp_to_add} EXP ให้ {buyer.display_name} (เลเวล {new_level}, รวม {total_exp} EXP)")
-        else:
-            print("⚠️ ไม่พบผู้ซื้อในการเพิ่ม EXP")
-
-        async with bot.stock_lock:
-            group_stock -= robux
-            if group_stock < 0:
-                group_stock = 0
-        
-        current_time = get_thailand_time()
-        
-        order_embed = discord.Embed(
-            title="🍣คำสั่งซื้อสินค้า🍣",
-            color=0x00FFFF
-        )
-        order_embed.add_field(name="📦 ประเภทสินค้า", value="Group", inline=False)
-        order_embed.add_field(name="💸 จำนวน Robux", value=f"{robux:,}", inline=True)
-        order_embed.add_field(name="💰 ราคาตามเรท", value=f"{price:,.0f} บาท", inline=True)
-        order_embed.set_footer(text=f"รับออร์เดอร์แล้ว 🤗 • {current_time.strftime('%d/%m/%y, %H:%M')}")
-        
-        ticket_robux_data[str(ctx.channel.id)] = str(robux)
-        save_ticket_robux_data()
-        
-        delivery_view = DeliveryView(ctx.channel, "Group", robux, price, buyer)
-        await ctx.send(embed=order_embed, view=delivery_view)
-
-        await update_main_channel()
-
-    except Exception as e:
-        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
-
-@bot.command()
-@admin_only()
-async def odl(ctx, item_name: str, value: str):
-    try:
-        if not ctx.channel.name.startswith("ticket-"):
-            await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
-            return
-
-        value_clean = value.replace(",", "")
-        
-        if not re.match(r"^\d+$", value_clean):
-            await ctx.send("❌ กรุณากรอกราคาเป็นตัวเลขที่ถูกต้อง", delete_after=10)
-            return
-
-        item_value = int(value_clean)
-
-        buyer = None
-        channel_name = ctx.channel.name
-        if channel_name.startswith("ticket-"):
-            parts = channel_name.split('-')
-            if len(parts) >= 3:
-                user_id = int(parts[-1])
-                buyer = ctx.guild.get_member(user_id)
-        
-        if not buyer:
-            async for msg in ctx.channel.history(limit=20):
-                if msg.author != ctx.author and not msg.author.bot and msg.author != ctx.guild.me:
-                    buyer = msg.author
-                    break
-
-        exp_to_add = item_value
-        if buyer:
-            new_level, total_exp = await add_exp(buyer.id, exp_to_add, ctx.guild)
-            print(f"✅ เพิ่ม {exp_to_add} EXP ให้ {buyer.display_name} (เลเวล {new_level}, รวม {total_exp} EXP)")
-        else:
-            print("⚠️ ไม่พบผู้ซื้อในการเพิ่ม EXP")
-
-        current_time = get_thailand_time()
-        
-        order_embed = discord.Embed(
-            title="🍣คำสั่งซื้อสินค้า🍣",
-            color=0x00FF00
-        )
-        order_embed.add_field(name="📦 ประเภทสินค้า", value="Limited", inline=False)
-        order_embed.add_field(name="🎁 ชื่อไอเทม", value=item_name, inline=True)
-        order_embed.add_field(name="💰 ราคา", value=f"{item_value:,} บาท", inline=True)
-        order_embed.set_footer(text=f"รับออร์เดอร์แล้ว 🤗 • {current_time.strftime('%d/%m/%y, %H:%M')}")
-        
-        ticket_robux_data[str(ctx.channel.id)] = str(item_value)
-        save_ticket_robux_data()
-        
-        delivery_view = DeliveryView(ctx.channel, "Limited", 0, item_value, buyer)
-        await ctx.send(embed=order_embed, view=delivery_view)
-
-    except Exception as e:
-        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
-
-# =======================================================================================
-# ✅ คำสั่ง !qr - FIXED with new image URL
-# =======================================================================================
-@bot.command()
-@admin_only()
-async def qr(ctx):
-    try:
-        await ctx.message.delete()
-    except:
-        pass
-    
-    embed = discord.Embed(
-        title="⚠️โน๊ตใต้สลิประบุชื่อสินค้าที่ซื้อด้วย⚠️ ช่องทางการโอนเงิน",
-        color=0x00CCFF
-    )
-    
-    embed.add_field(
-        name="1. ชื่อบัญชี (ธนาคาร SCB)", 
-        value="**หจก. วอเตอร์ เทค เซลล์ แอนด์ เซอร์วิส**", 
-        inline=False
-    )
-    embed.add_field(
-        name="2. เลขบัญชี", 
-        value="**120-239181-3**", 
-        inline=False
-    )
-    
-    # Updated QR code URL - using your new image
-    qr_url = "https://media.discordapp.net/attachments/1361004239043821610/1473323355791949948/Sushi_SCB.png?ex=6995cacd&is=6994794d&hm=54c27e2f93d1db856673d38ec5c2aaada236ab682cd4a4184f6fa76721e27b09&=&format=webp&quality=lossless&width=1161&height=1107"
-    embed.set_image(url=qr_url)
-    
-    qr_view = QRView()
-    await ctx.send(embed=embed, view=qr_view)
-
-# =======================================================================================
-# ✅ อัพเดทช่องหลัก
-# =======================================================================================
-
-async def update_main_channel():
-    """อัพเดทข้อความในช่องหลักโดยการ edit ข้อความเดิม"""
-    try:
-        current_time = time.time()
-        if current_time - bot.last_update_time < 300:  # 5 นาที
-            print(f"⏳ รอเพื่อป้องกัน rate limit ใน update_main_channel...")
-            return
-            
-        channel = bot.get_channel(MAIN_CHANNEL_ID)
-        if not channel:
-            print("❌ ไม่พบช่องหลัก")
-            return
-
-        target_message = None
-        async for msg in channel.history(limit=100):
-            if msg.author == bot.user and msg.embeds:
-                if msg.embeds and len(msg.embeds) > 0:
-                    embed_title = msg.embeds[0].title or ""
-                    if "Sushi Shop" in embed_title:
-                        target_message = msg
-                        break
-            await asyncio.sleep(0.1)  # ป้องกัน rate limit
-        
-        embed = discord.Embed(
-            title="🍣 Sushi Shop 🍣 เปิดให้บริการ",
-            color=0xFFA500
-        )
-        
-        async with bot.stock_lock:
-            gamepass_status = "🟢" if gamepass_stock > 0 else "🔴"
-            group_status = "🟢" if group_stock > 0 else "🔴"
-            shop_status = "🟢 เปิด" if shop_open else "🔴 ปิดชั่วคราว"
-            
-            embed.add_field(
-                name=f"🎮 กดเกมพาส | 📊 Stock: {gamepass_stock} {gamepass_status}",
-                value=(
-                    "```\n"
-                    f"เรท: {gamepass_rate} | โรแท้ยัดกลุ่มได้\n"
-                    "เช็คราคา: !gp <จำนวน>\n"
-                    "```"
-                ),
-                inline=False
-            )
-            
-            embed.add_field(
-                name=f"👥 โรบัคกลุ่ม | 📊 Stock: {group_stock} {group_status}", 
-                value=(
-                    "```\n"
-                    f"เรท: {group_rate_low} | 500+ บาท เรท {group_rate_high}\n"
-                    "⚠️ต้องเข้ากลุ่ม 15 วันก่อนซื้อ⚠️\n"
-                    "```"
-                ),
-                inline=False
-            )
-        
-        embed.add_field(
-            name="🏪 สถานะร้าน",
-            value=f"```\n{shop_status}\n```",
-            inline=False
-        )
-        
-        embed.set_footer(
-            text="Sushi Shop • รับกดเกมพาสและอื่น ๆ",
-            icon_url="https://media.discordapp.net/attachments/717757556889747657/1403684950770847754/noFilter.png"
-        )
-        
-        embed.set_thumbnail(url="https://media.discordapp.net/attachments/717757556889747657/1403684950770847754/noFilter.png")
-
-        if target_message:
-            try:
-                await bot.channel_edit_rate_limiter.acquire()
-                await target_message.edit(embed=embed, view=MainShopView())
-                bot.last_update_time = current_time
-                print(f"✅ อัพเดท embed หลักเรียบร้อยแล้ว (แก้ไขข้อความ ID: {target_message.id})")
-            except discord.NotFound:
-                print("❌ ไม่พบข้อความเดิม ส่งข้อความใหม่")
-                try:
-                    await channel.send(embed=embed, view=MainShopView())
-                    bot.last_update_time = current_time
-                except Exception as e:
-                    print(f"❌ ไม่สามารถส่งข้อความใหม่: {e}")
-            except discord.HTTPException as e:
-                if e.status == 429:
-                    retry_after = e.retry_after if hasattr(e, 'retry_after') else 60
-                    print(f"⏳ Discord rate limit ใน edit: รอ {retry_after} วินาที")
-                    bot.last_update_time = current_time
-                    await asyncio.sleep(retry_after)
-                else:
-                    print(f"❌ ไม่สามารถ edit ข้อความ: {e}")
-                    try:
-                        await channel.send(embed=embed, view=MainShopView())
-                        bot.last_update_time = current_time
-                    except:
-                        pass
-            except Exception as e:
-                print(f"❌ ไม่สามารถ edit ข้อความ: {e}")
-                try:
-                    await channel.send(embed=embed, view=MainShopView())
-                    bot.last_update_time = current_time
-                except:
-                    pass
-        else:
-            try:
-                await channel.send(embed=embed, view=MainShopView())
-                bot.last_update_time = current_time
-                print("✅ สร้าง embed หลักใหม่เรียบร้อยแล้ว")
-            except Exception as e:
-                print(f"❌ ไม่สามารถส่ง embed หลักใหม่: {e}")
-        
-    except Exception as e:
-        print(f"❌ เกิดข้อผิดพลาดในการอัปเดตช่องหลัก: {e}")
 
 # =======================================================================================
 # ✅ Main Shop View (FIXED - Button colors update correctly)
@@ -2004,6 +1494,100 @@ class MainShopView(View):
 
     async def check_level(self, interaction: discord.Interaction):
         await check_user_level(interaction)
+
+# =======================================================================================
+# ✅ ฟังก์ชันอัพเดท main channel ด้วย View ใหม่ (FIXED)
+# =======================================================================================
+
+async def update_main_channel_with_new_view():
+    """Force update main channel with fresh view"""
+    try:
+        channel = bot.get_channel(MAIN_CHANNEL_ID)
+        if not channel:
+            return
+
+        # Create fresh embed
+        embed = discord.Embed(
+            title="🍣 Sushi Shop 🍣 เปิดให้บริการ",
+            color=0xFFA500
+        )
+        
+        async with bot.stock_lock:
+            gamepass_status = "🟢" if gamepass_stock > 0 else "🔴"
+            group_status = "🟢" if group_stock > 0 else "🔴"
+            shop_status = "🟢 เปิด" if shop_open else "🔴 ปิดชั่วคราว"
+            
+            embed.add_field(
+                name=f"🎮 กดเกมพาส | 📊 Stock: {gamepass_stock} {gamepass_status}",
+                value=(
+                    "```\n"
+                    f"เรท: {gamepass_rate} | โรแท้ยัดกลุ่มได้\n"
+                    "เช็คราคา: !gp <จำนวน>\n"
+                    "```"
+                ),
+                inline=False
+            )
+            
+            embed.add_field(
+                name=f"👥 โรบัคกลุ่ม | 📊 Stock: {group_stock} {group_status}", 
+                value=(
+                    "```\n"
+                    f"เรท: {group_rate_low} | 500+ บาท เรท {group_rate_high}\n"
+                    "⚠️ต้องเข้ากลุ่ม 15 วันก่อนซื้อ⚠️\n"
+                    "```"
+                ),
+                inline=False
+            )
+        
+        embed.add_field(
+            name="🏪 สถานะร้าน",
+            value=f"```\n{shop_status}\n```",
+            inline=False
+        )
+        
+        embed.set_footer(
+            text="Sushi Shop • รับกดเกมพาสและอื่น ๆ",
+            icon_url="https://media.discordapp.net/attachments/717757556889747657/1403684950770847754/noFilter.png"
+        )
+        
+        embed.set_thumbnail(url="https://media.discordapp.net/attachments/717757556889747657/1403684950770847754/noFilter.png")
+
+        # Create fresh view
+        new_view = MainShopView()
+        
+        # Find and update existing message
+        target_message = None
+        async for msg in channel.history(limit=100):
+            if msg.author == bot.user and msg.embeds:
+                target_message = msg
+                break
+            await asyncio.sleep(0.1)
+        
+        if target_message:
+            try:
+                await bot.channel_edit_rate_limiter.acquire()
+                await target_message.edit(embed=embed, view=new_view)
+                print("✅ Updated main channel with fresh view")
+            except Exception as e:
+                print(f"❌ Could not edit message, sending new one: {e}")
+                await channel.send(embed=embed, view=new_view)
+        else:
+            await channel.send(embed=embed, view=new_view)
+            print("✅ Sent new main channel message with fresh view")
+        
+    except Exception as e:
+        print(f"❌ Error updating main channel with new view: {e}")
+
+# =======================================================================================
+# ✅ อัพเดทช่องหลัก (Original function now uses new method)
+# =======================================================================================
+
+async def update_main_channel():
+    """อัพเดทข้อความในช่องหลัก"""
+    try:
+        await update_main_channel_with_new_view()
+    except Exception as e:
+        print(f"❌ เกิดข้อผิดพลาดในการอัปเดตช่องหลัก: {e}")
 
 # =======================================================================================
 # ✅ ฟังก์ชันอัพเดท contexts (แบบช้าๆ ป้องกัน rate limit)
@@ -2178,7 +1762,7 @@ async def on_ready():
     print("✅ เริ่ม Tasks อัตโนมัติเรียบร้อย")
     
     await update_channel_name()
-    await update_main_channel()
+    await update_main_channel_with_new_view()
     
     # รอ 5 นาทีก่อนกด react เพื่อป้องกัน rate limit
     print("⏳ รอ 5 นาทีก่อนกด react ในห้องเครดิต...")
@@ -2334,7 +1918,7 @@ async def check_user_level(interaction: discord.Interaction):
         await interaction.response.send_message("❌ เกิดข้อผิดพลาดในการเช็คเลเวล", ephemeral=True)
 
 # =======================================================================================
-# ✅ คำสั่ง !ty - FIXED with auto-delete
+# ✅ คำสั่ง !ty - FIXED with proper error handling
 # =======================================================================================
 
 @bot.command()
@@ -2344,18 +1928,26 @@ async def ty(ctx):
     try:
         await ctx.message.delete()
     except:
-        pass
+        pass  # If deletion fails, continue anyway
     
-    if ctx.channel.name.startswith("ticket-"):
+    if not ctx.channel.name.startswith("ticket-"):
+        await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
+        return
+    
+    try:
         global gamepass_stock, group_stock
         
-        if ctx.channel.category and "gamepass" in ctx.channel.category.name.lower():
-            async with bot.stock_lock:
-                gamepass_stock += 1
-        elif ctx.channel.category and "group" in ctx.channel.category.name.lower():
-            async with bot.stock_lock:
-                group_stock += 1
+        # Determine ticket type and update stock
+        if ctx.channel.category:
+            category_name = ctx.channel.category.name.lower()
+            if "gamepass" in category_name:
+                async with bot.stock_lock:
+                    gamepass_stock += 1
+            elif "group" in category_name or "robux" in category_name:
+                async with bot.stock_lock:
+                    group_stock += 1
 
+        # Get buyer information
         buyer = None
         channel_name = ctx.channel.name
         if channel_name.startswith("ticket-"):
@@ -2364,23 +1956,23 @@ async def ty(ctx):
                 try:
                     user_id = int(parts[-1])
                     buyer = ctx.guild.get_member(user_id)
-                except:
+                except ValueError:
                     pass
         
-        robux_amount = None
-        if str(ctx.channel.id) in ticket_robux_data:
-            robux_amount = ticket_robux_data[str(ctx.channel.id)]
+        # Get stored data
+        robux_amount = ticket_robux_data.get(str(ctx.channel.id))
+        customer_name = ticket_customer_data.get(str(ctx.channel.id))
         
-        customer_name = None
-        if str(ctx.channel.id) in ticket_customer_data:
-            customer_name = ticket_customer_data[str(ctx.channel.id)]
-        
+        # Handle the ticket after !ty
         handle_success = await handle_ticket_after_ty(ctx.channel, buyer, robux_amount, customer_name)
         
-        # ===== SEND DM NOTIFICATION =====
+        if not handle_success:
+            await ctx.send("❌ เกิดข้อผิดพลาดในการจัดการตั๋ว กรุณาลองใหม่อีกครั้ง", delete_after=5)
+            return
+        
+        # Send DM notification if successful
         if handle_success and buyer:
             try:
-                # Create thank you embed
                 thank_you_embed = discord.Embed(
                     title="✅ การสั่งซื้อเสร็จสมบูรณ์",
                     description="สินค้าของคุณถูกจัดส่งเรียบร้อยแล้ว! ขอบคุณที่ใช้บริการ Sushi Shop นะคะ 🍣",
@@ -2400,12 +1992,8 @@ async def ty(ctx):
                 print(f"⚠️ ไม่สามารถส่ง DM ไปยัง {buyer.name} (ผู้ใช้ปิดรับ DM)")
             except Exception as e:
                 print(f"❌ เกิดข้อผิดพลาดในการส่ง DM: {e}")
-        # ===== END DM NOTIFICATION =====
         
-        if not handle_success:
-            await ctx.send("❌ เกิดข้อผิดพลาดในการจัดการตั๋ว กรุณาลองใหม่อีกครั้ง", delete_after=5)
-            return
-
+        # Clean up stored data
         if str(ctx.channel.id) in ticket_robux_data:
             del ticket_robux_data[str(ctx.channel.id)]
             save_ticket_robux_data()
@@ -2414,6 +2002,7 @@ async def ty(ctx):
             del ticket_customer_data[str(ctx.channel.id)]
             save_ticket_customer_data()
         
+        # Update activity tracking
         if buyer:
             ticket_activity[ctx.channel.id] = {
                 'last_activity': get_thailand_time(),
@@ -2422,10 +2011,12 @@ async def ty(ctx):
                 'buyer_id': buyer.id
             }
         
-        await update_main_channel()
+        # Update main channel display
+        await update_main_channel_with_new_view()
         
-    else:
-        await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
+    except Exception as e:
+        print(f"❌ เกิดข้อผิดพลาดใน !ty: {e}")
+        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=5)
 
 # =======================================================================================
 # ✅ ระบบติดตามกิจกรรมในตั๋ว
@@ -2523,6 +2114,660 @@ async def check_stale_tickets():
     for channel_id in channels_to_remove:
         if channel_id in ticket_activity:
             del ticket_activity[channel_id]
+
+# =======================================================================================
+# ✅ คำสั่ง !stock - FIXED to force view update
+# =======================================================================================
+
+@bot.command()
+@admin_only()
+async def stock(ctx, stock_type: str = None, amount: str = None):
+    global gamepass_stock, group_stock
+    
+    try:
+        await ctx.message.delete()
+    except:
+        pass
+    
+    if stock_type is None:
+        embed = discord.Embed(
+            title="📊 สต๊อกสินค้า",
+            color=0x00FF99
+        )
+        embed.add_field(
+            name="🎮 Gamepass Stock", 
+            value=f"**{gamepass_stock:,}**", 
+            inline=True
+        )
+        embed.add_field(
+            name="👥 Group Stock", 
+            value=f"**{group_stock:,}**", 
+            inline=True
+        )
+        response_msg = await ctx.send(embed=embed)
+        await asyncio.sleep(10)
+        try:
+            await response_msg.delete()
+        except:
+            pass
+        
+    elif stock_type.lower() in ["gp", "gamepass", "เกมพาส"]:
+        if amount is None:
+            embed = discord.Embed(
+                title="🎮 Gamepass Stock",
+                description=f"**{gamepass_stock:,}**",
+                color=0x00FF99
+            )
+            response_msg = await ctx.send(embed=embed)
+            await asyncio.sleep(10)
+            try:
+                await response_msg.delete()
+            except:
+                pass
+        else:
+            amount_clean = amount.replace(",", "")
+            try:
+                async with bot.stock_lock:
+                    amount_int = int(amount_clean)
+                    if amount_int < 0:
+                        error_msg = await ctx.send("❌ จำนวน stock ต้องมากกว่าหรือเท่ากับ 0")
+                        await asyncio.sleep(5)
+                        try:
+                            await error_msg.delete()
+                        except:
+                            pass
+                        return
+                    
+                    gamepass_stock = amount_int
+                
+                embed = discord.Embed(
+                    title="✅ ตั้งค่า Stock เรียบร้อย",
+                    description=f"ตั้งค่า สต๊อกเกมพาส เป็น **{gamepass_stock:,}** เรียบร้อยแล้ว",
+                    color=0x00FF00
+                )
+                
+                response_msg = await ctx.send(embed=embed)
+                
+                # Force update main channel with fresh view
+                await update_main_channel_with_new_view()
+                
+                await asyncio.sleep(5)
+                try:
+                    await response_msg.delete()
+                except:
+                    pass
+                    
+            except ValueError:
+                error_msg = await ctx.send("❌ กรุณากรอกจำนวน stock เป็นตัวเลขที่ถูกต้อง")
+                await asyncio.sleep(5)
+                try:
+                    await error_msg.delete()
+                except:
+                    pass
+    
+    elif stock_type.lower() in ["g", "group", "กรุ๊ป"]:
+        if amount is None:
+            embed = discord.Embed(
+                title="👥 Group Stock",
+                description=f"**{group_stock:,}**",
+                color=0x00FF99
+            )
+            response_msg = await ctx.send(embed=embed)
+            await asyncio.sleep(10)
+            try:
+                await response_msg.delete()
+            except:
+                pass
+        else:
+            amount_clean = amount.replace(",", "")
+            try:
+                async with bot.stock_lock:
+                    amount_int = int(amount_clean)
+                    if amount_int < 0:
+                        error_msg = await ctx.send("❌ จำนวน stock ต้องมากกว่าหรือเท่ากับ 0")
+                        await asyncio.sleep(5)
+                        try:
+                            await error_msg.delete()
+                        except:
+                            pass
+                        return
+                    
+                    group_stock = amount_int
+                
+                embed = discord.Embed(
+                    title="✅ ตั้งค่า Stock เรียบร้อย",
+                    description=f"ตั้งค่า สต๊อกโรบัคกลุ่ม เป็น **{group_stock:,}** เรียบร้อยแล้ว",
+                    color=0x00FF00
+                )
+                
+                response_msg = await ctx.send(embed=embed)
+                
+                # Force update main channel with fresh view
+                await update_main_channel_with_new_view()
+                
+                await asyncio.sleep(5)
+                try:
+                    await response_msg.delete()
+                except:
+                    pass
+                    
+            except ValueError:
+                error_msg = await ctx.send("❌ กรุณากรอกจำนวน stock เป็นตัวเลขที่ถูกต้อง")
+                await asyncio.sleep(5)
+                try:
+                    await error_msg.delete()
+                except:
+                    pass
+    
+    else:
+        embed = discord.Embed(
+            title="❌ การใช้งานไม่ถูกต้อง",
+            description=(
+                "**การใช้งาน:**\n"
+                "`!stock` - เช็ค stock ทั้งหมด\n"
+                "`!stock gp <จำนวน>` - ตั้งค่า Gamepass stock\n" 
+                "`!stock group <จำนวน>` - ตั้งค่า Group stock"
+            ),
+            color=0xFF0000
+        )
+        response_msg = await ctx.send(embed=embed)
+        await asyncio.sleep(10)
+        try:
+            await response_msg.delete()
+        except:
+            pass
+
+# =======================================================================================
+# ✅ คำสั่ง !sushi - FIXED to force view update
+# =======================================================================================
+
+@bot.command()
+@admin_only()
+async def sushi(ctx):
+    global shop_open
+    shop_open = not shop_open
+
+    try:
+        await ctx.message.delete()
+    except:
+        pass
+
+    status = "✅ ร้านเปิด" if shop_open else "❌ ร้านปิด"
+    embed = discord.Embed(
+        title="🏪 สถานะร้าน",
+        description=f"**{status}**",
+        color=0x00FF00 if shop_open else 0xFF0000
+    )
+    
+    # Send status message
+    status_msg = await ctx.send(embed=embed)
+    
+    # Auto-delete after 3 seconds
+    await asyncio.sleep(3)
+    try:
+        await status_msg.delete()
+        print("✅ ลบข้อความสถานะร้านเรียบร้อยแล้ว")
+    except:
+        pass
+    
+    # Update channel name
+    try:
+        channel = bot.get_channel(MAIN_CHANNEL_ID)
+        if channel:
+            if shop_open:
+                new_name = "〔🟢เปิด〕กดสั่งซื้อที่นี่"
+            else:
+                new_name = "〔🔴〕ปิดชั่วคราว"
+            
+            if channel.name != new_name:
+                await bot.channel_edit_rate_limiter.acquire()
+                await channel.edit(name=new_name)
+                print(f"✅ เปลี่ยนชื่อช่องเป็น: {new_name}")
+    except Exception as e:
+        print(f"⚠️ ไม่สามารถเปลี่ยนชื่อช่อง: {e}")
+    
+    # Force update main channel with fresh view
+    await update_main_channel_with_new_view()
+
+# =======================================================================================
+# ✅ คำสั่ง !group - FIXED to force view update
+# =======================================================================================
+
+@bot.command()
+@admin_only()
+async def group(ctx, status: str = None):
+    global group_ticket_enabled
+    
+    try:
+        await ctx.message.delete()
+    except:
+        pass
+    
+    if status is None:
+        current_status = "✅ เปิด" if group_ticket_enabled else "❌ ปิด"
+        embed = discord.Embed(
+            title="👥 สถานะ Group Ticket",
+            description=f"**{current_status}**",
+            color=0x00FF00 if group_ticket_enabled else 0xFF0000
+        )
+        status_msg = await ctx.send(embed=embed)
+        await asyncio.sleep(3)
+        try:
+            await status_msg.delete()
+        except:
+            pass
+    elif status.lower() in ["on", "enable", "เปิด"]:
+        group_ticket_enabled = True
+        embed = discord.Embed(
+            title="✅ เปิดปุ่ม Group Ticket",
+            description="เปิดปุ่ม Group Ticket เรียบร้อยแล้ว",
+            color=0x00FF00
+        )
+        status_msg = await ctx.send(embed=embed)
+        await asyncio.sleep(3)
+        try:
+            await status_msg.delete()
+        except:
+            pass
+    elif status.lower() in ["off", "disable", "ปิด"]:
+        group_ticket_enabled = False
+        embed = discord.Embed(
+            title="❌ ปิดปุ่ม Group Ticket",
+            description="ปิดปุ่ม Group Ticket เรียบร้อยแล้ว",
+            color=0xFF0000
+        )
+        status_msg = await ctx.send(embed=embed)
+        await asyncio.sleep(3)
+        try:
+            await status_msg.delete()
+        except:
+            pass
+    else:
+        embed = discord.Embed(
+            title="❌ การใช้งานไม่ถูกต้อง",
+            description="**การใช้งาน:** !group [on/off] หรือ !group [enable/disable] หรือ !group [เปิด/ปิด]",
+            color=0xFF0000
+        )
+        status_msg = await ctx.send(embed=embed)
+        await asyncio.sleep(5)
+        try:
+            await status_msg.delete()
+        except:
+            pass
+    
+    # Force update main channel with fresh view
+    await update_main_channel_with_new_view()
+
+# =======================================================================================
+# ✅ คำสั่ง !rate - FIXED to force view update
+# =======================================================================================
+
+@bot.command()
+@admin_only()
+async def rate(ctx, rate_type: str = None, low_rate: str = None, high_rate: str = None):
+    """คำสั่งเปลี่ยนเรท Gamepass หรือ Group"""
+    global gamepass_rate, group_rate_low, group_rate_high
+    
+    try:
+        await ctx.message.delete()
+    except:
+        pass
+    
+    if rate_type is None:
+        embed = discord.Embed(
+            title="📊 อัตราแลกเปลี่ยนปัจจุบัน",
+            color=0x00FF99
+        )
+        embed.add_field(
+            name="🎮 Gamepass Rate", 
+            value=f"**{gamepass_rate}**", 
+            inline=True
+        )
+        embed.add_field(
+            name="👥 Group Rate", 
+            value=f"**{group_rate_low} - {group_rate_high}**", 
+            inline=True
+        )
+        embed.set_footer(text="ใช้ !rate <rate> หรือ !rate group <low> <high> เพื่อเปลี่ยนเรท")
+        response_msg = await ctx.send(embed=embed)
+        await asyncio.sleep(10)
+        try:
+            await response_msg.delete()
+        except:
+            pass
+        
+    elif rate_type.lower() == "group":
+        if low_rate is None or high_rate is None:
+            embed = discord.Embed(
+                title="❌ การใช้งานไม่ถูกต้อง",
+                description="**การใช้งาน:** `!rate group <low_rate> <high_rate>`",
+                color=0xFF0000
+            )
+            response_msg = await ctx.send(embed=embed)
+            await asyncio.sleep(10)
+            try:
+                await response_msg.delete()
+            except:
+                pass
+            return
+        
+        try:
+            new_low = float(low_rate)
+            new_high = float(high_rate)
+            
+            if new_low <= 0 or new_high <= 0:
+                error_msg = await ctx.send("❌ เรทต้องมากกว่า 0")
+                await asyncio.sleep(5)
+                try:
+                    await error_msg.delete()
+                except:
+                    pass
+                return
+            
+            group_rate_low = new_low
+            group_rate_high = new_high
+            
+            embed = discord.Embed(
+                title="✅ เปลี่ยนเรท Group เรียบร้อย",
+                description=f"ตั้งค่าเรท Group เป็น **{group_rate_low} - {group_rate_high}** เรียบร้อยแล้ว",
+                color=0x00FF00
+            )
+            response_msg = await ctx.send(embed=embed)
+            
+            await update_main_channel_with_new_view()
+            
+            await asyncio.sleep(5)
+            try:
+                await response_msg.delete()
+            except:
+                pass
+                
+        except ValueError:
+            error_msg = await ctx.send("❌ กรุณากรอกเรทเป็นตัวเลขที่ถูกต้อง")
+            await asyncio.sleep(5)
+            try:
+                await error_msg.delete()
+            except:
+                pass
+    
+    else:
+        try:
+            new_rate = float(rate_type)
+            
+            if new_rate <= 0:
+                error_msg = await ctx.send("❌ เรทต้องมากกว่า 0")
+                await asyncio.sleep(5)
+                try:
+                    await error_msg.delete()
+                except:
+                    pass
+                return
+            
+            gamepass_rate = new_rate
+            
+            embed = discord.Embed(
+                title="✅ เปลี่ยนเรท Gamepass เรียบร้อย",
+                description=f"ตั้งค่าเรท Gamepass เป็น **{gamepass_rate}** เรียบร้อยแล้ว",
+                color=0x00FF00
+            )
+            response_msg = await ctx.send(embed=embed)
+            
+            await update_main_channel_with_new_view()
+            
+            await asyncio.sleep(5)
+            try:
+                await response_msg.delete()
+            except:
+                pass
+                
+        except ValueError:
+            embed = discord.Embed(
+                title="❌ การใช้งานไม่ถูกต้อง",
+                description=(
+                    "**การใช้งาน:**\n"
+                    "`!rate <rate>` - เปลี่ยนเรท Gamepass\n"
+                    "`!rate group <low> <high>` - เปลี่ยนเรท Group"
+                ),
+                color=0xFF0000
+            )
+            response_msg = await ctx.send(embed=embed)
+            await asyncio.sleep(10)
+            try:
+                await response_msg.delete()
+            except:
+                pass
+
+# =======================================================================================
+# ✅ คำสั่ง !od, !odg, !odl
+# =======================================================================================
+
+@bot.command()
+@admin_only()
+async def od(ctx, *, expression: str):
+    global gamepass_stock
+    
+    try:
+        if not ctx.channel.name.startswith("ticket-"):
+            await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
+            return
+
+        expr = expression.replace(",", "").lower().replace("x", "*").replace("÷", "/")
+
+        if not re.match(r"^[\d\s\+\-\*\/\(\)]+$", expr):
+            await ctx.send("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", delete_after=10)
+            return
+
+        robux = int(eval(expr))
+        price = robux / gamepass_rate
+        price_str = f"{price:,.0f} บาท"
+
+        buyer = None
+        channel_name = ctx.channel.name
+        if channel_name.startswith("ticket-"):
+            parts = channel_name.split('-')
+            if len(parts) >= 3:
+                user_id = int(parts[-1])
+                buyer = ctx.guild.get_member(user_id)
+        
+        if not buyer:
+            async for msg in ctx.channel.history(limit=20):
+                if msg.author != ctx.author and not msg.author.bot and msg.author != ctx.guild.me:
+                    buyer = msg.author
+                    break
+
+        exp_to_add = robux
+        if buyer:
+            new_level, total_exp = await add_exp(buyer.id, exp_to_add, ctx.guild)
+            print(f"✅ เพิ่ม {exp_to_add} EXP ให้ {buyer.display_name} (เลเวล {new_level}, รวม {total_exp} EXP)")
+        else:
+            print("⚠️ ไม่พบผู้ซื้อในการเพิ่ม EXP")
+
+        async with bot.stock_lock:
+            gamepass_stock -= robux
+            if gamepass_stock < 0:
+                gamepass_stock = 0
+        
+        current_time = get_thailand_time()
+        
+        order_embed = discord.Embed(
+            title="🍣คำสั่งซื้อสินค้า🍣",
+            color=0xFFA500
+        )
+        order_embed.add_field(name="📦 ประเภทสินค้า", value="Gamepass", inline=False)
+        order_embed.add_field(name="💸 จำนวน Robux", value=f"{robux:,}", inline=True)
+        order_embed.add_field(name="💰 ราคาตามเรท", value=f"{price:,.0f} บาท", inline=True)
+        order_embed.set_footer(text=f"รับออร์เดอร์แล้ว 🤗 • {current_time.strftime('%d/%m/%y, %H:%M')}")
+        
+        ticket_robux_data[str(ctx.channel.id)] = str(robux)
+        save_ticket_robux_data()
+        
+        delivery_view = DeliveryView(ctx.channel, "Gamepass", robux, price, buyer)
+        await ctx.send(embed=order_embed, view=delivery_view)
+
+        await update_main_channel_with_new_view()
+
+    except Exception as e:
+        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
+
+@bot.command()
+@admin_only()
+async def odg(ctx, *, expression: str):
+    global group_stock
+    
+    try:
+        if not ctx.channel.name.startswith("ticket-"):
+            await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
+            return
+
+        expr = expression.replace(",", "").lower().replace("x", "*").replace("÷", "/")
+
+        if not re.match(r"^[\d\s\+\-\*\/\(\)]+$", expr):
+            await ctx.send("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", delete_after=10)
+            return
+
+        robux = int(eval(expr))
+        rate = group_rate_low if robux < 1500 else group_rate_high
+        price = robux / rate
+        price_str = f"{price:,.0f} บาท"
+
+        buyer = None
+        channel_name = ctx.channel.name
+        if channel_name.startswith("ticket-"):
+            parts = channel_name.split('-')
+            if len(parts) >= 3:
+                user_id = int(parts[-1])
+                buyer = ctx.guild.get_member(user_id)
+        
+        if not buyer:
+            async for msg in ctx.channel.history(limit=20):
+                if msg.author != ctx.author and not msg.author.bot and msg.author != ctx.guild.me:
+                    buyer = msg.author
+                    break
+
+        exp_to_add = robux
+        if buyer:
+            new_level, total_exp = await add_exp(buyer.id, exp_to_add, ctx.guild)
+            print(f"✅ เพิ่ม {exp_to_add} EXP ให้ {buyer.display_name} (เลเวล {new_level}, รวม {total_exp} EXP)")
+        else:
+            print("⚠️ ไม่พบผู้ซื้อในการเพิ่ม EXP")
+
+        async with bot.stock_lock:
+            group_stock -= robux
+            if group_stock < 0:
+                group_stock = 0
+        
+        current_time = get_thailand_time()
+        
+        order_embed = discord.Embed(
+            title="🍣คำสั่งซื้อสินค้า🍣",
+            color=0x00FFFF
+        )
+        order_embed.add_field(name="📦 ประเภทสินค้า", value="Group", inline=False)
+        order_embed.add_field(name="💸 จำนวน Robux", value=f"{robux:,}", inline=True)
+        order_embed.add_field(name="💰 ราคาตามเรท", value=f"{price:,.0f} บาท", inline=True)
+        order_embed.set_footer(text=f"รับออร์เดอร์แล้ว 🤗 • {current_time.strftime('%d/%m/%y, %H:%M')}")
+        
+        ticket_robux_data[str(ctx.channel.id)] = str(robux)
+        save_ticket_robux_data()
+        
+        delivery_view = DeliveryView(ctx.channel, "Group", robux, price, buyer)
+        await ctx.send(embed=order_embed, view=delivery_view)
+
+        await update_main_channel_with_new_view()
+
+    except Exception as e:
+        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
+
+@bot.command()
+@admin_only()
+async def odl(ctx, item_name: str, value: str):
+    try:
+        if not ctx.channel.name.startswith("ticket-"):
+            await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
+            return
+
+        value_clean = value.replace(",", "")
+        
+        if not re.match(r"^\d+$", value_clean):
+            await ctx.send("❌ กรุณากรอกราคาเป็นตัวเลขที่ถูกต้อง", delete_after=10)
+            return
+
+        item_value = int(value_clean)
+
+        buyer = None
+        channel_name = ctx.channel.name
+        if channel_name.startswith("ticket-"):
+            parts = channel_name.split('-')
+            if len(parts) >= 3:
+                user_id = int(parts[-1])
+                buyer = ctx.guild.get_member(user_id)
+        
+        if not buyer:
+            async for msg in ctx.channel.history(limit=20):
+                if msg.author != ctx.author and not msg.author.bot and msg.author != ctx.guild.me:
+                    buyer = msg.author
+                    break
+
+        exp_to_add = item_value
+        if buyer:
+            new_level, total_exp = await add_exp(buyer.id, exp_to_add, ctx.guild)
+            print(f"✅ เพิ่ม {exp_to_add} EXP ให้ {buyer.display_name} (เลเวล {new_level}, รวม {total_exp} EXP)")
+        else:
+            print("⚠️ ไม่พบผู้ซื้อในการเพิ่ม EXP")
+
+        current_time = get_thailand_time()
+        
+        order_embed = discord.Embed(
+            title="🍣คำสั่งซื้อสินค้า🍣",
+            color=0x00FF00
+        )
+        order_embed.add_field(name="📦 ประเภทสินค้า", value="Limited", inline=False)
+        order_embed.add_field(name="🎁 ชื่อไอเทม", value=item_name, inline=True)
+        order_embed.add_field(name="💰 ราคา", value=f"{item_value:,} บาท", inline=True)
+        order_embed.set_footer(text=f"รับออร์เดอร์แล้ว 🤗 • {current_time.strftime('%d/%m/%y, %H:%M')}")
+        
+        ticket_robux_data[str(ctx.channel.id)] = str(item_value)
+        save_ticket_robux_data()
+        
+        delivery_view = DeliveryView(ctx.channel, "Limited", 0, item_value, buyer)
+        await ctx.send(embed=order_embed, view=delivery_view)
+
+    except Exception as e:
+        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
+
+# =======================================================================================
+# ✅ คำสั่ง !qr - FIXED with new image URL
+# =======================================================================================
+@bot.command()
+@admin_only()
+async def qr(ctx):
+    try:
+        await ctx.message.delete()
+    except:
+        pass
+    
+    embed = discord.Embed(
+        title="⚠️โน๊ตใต้สลิประบุชื่อสินค้าที่ซื้อด้วย⚠️ ช่องทางการโอนเงิน",
+        color=0x00CCFF
+    )
+    
+    embed.add_field(
+        name="1. ชื่อบัญชี (ธนาคาร SCB)", 
+        value="**หจก. วอเตอร์ เทค เซลล์ แอนด์ เซอร์วิส**", 
+        inline=False
+    )
+    embed.add_field(
+        name="2. เลขบัญชี", 
+        value="**120-239181-3**", 
+        inline=False
+    )
+    
+    # Updated QR code URL - using your new image
+    qr_url = "https://media.discordapp.net/attachments/1361004239043821610/1473323355791949948/Sushi_SCB.png?ex=6995cacd&is=6994794d&hm=54c27e2f93d1db856673d38ec5c2aaada236ab682cd4a4184f6fa76721e27b09&=&format=webp&quality=lossless&width=1161&height=1107"
+    embed.set_image(url=qr_url)
+    
+    qr_view = QRView()
+    await ctx.send(embed=embed, view=qr_view)
 
 # =======================================================================================
 # ✅ คำสั่งจัดการข้อมูล
@@ -2845,262 +3090,6 @@ async def help_command(ctx):
     await ctx.send(embed=help_embed, delete_after=30)
 
 # =======================================================================================
-# ✅ คำสั่งเปลี่ยนเรท
-# =======================================================================================
-@bot.command()
-@admin_only()
-async def rate(ctx, rate_type: str = None, low_rate: str = None, high_rate: str = None):
-    """คำสั่งเปลี่ยนเรท Gamepass หรือ Group"""
-    global gamepass_rate, group_rate_low, group_rate_high
-    
-    try:
-        await ctx.message.delete()
-    except:
-        pass
-    
-    if rate_type is None:
-        embed = discord.Embed(
-            title="📊 อัตราแลกเปลี่ยนปัจจุบัน",
-            color=0x00FF99
-        )
-        embed.add_field(
-            name="🎮 Gamepass Rate", 
-            value=f"**{gamepass_rate}**", 
-            inline=True
-        )
-        embed.add_field(
-            name="👥 Group Rate", 
-            value=f"**{group_rate_low} - {group_rate_high}**", 
-            inline=True
-        )
-        embed.set_footer(text="ใช้ !rate <rate> หรือ !rate group <low> <high> เพื่อเปลี่ยนเรท")
-        response_msg = await ctx.send(embed=embed)
-        await asyncio.sleep(10)
-        try:
-            await response_msg.delete()
-        except:
-            pass
-        
-    elif rate_type.lower() == "group":
-        if low_rate is None or high_rate is None:
-            embed = discord.Embed(
-                title="❌ การใช้งานไม่ถูกต้อง",
-                description="**การใช้งาน:** `!rate group <low_rate> <high_rate>`",
-                color=0xFF0000
-            )
-            response_msg = await ctx.send(embed=embed)
-            await asyncio.sleep(10)
-            try:
-                await response_msg.delete()
-            except:
-                pass
-            return
-        
-        try:
-            new_low = float(low_rate)
-            new_high = float(high_rate)
-            
-            if new_low <= 0 or new_high <= 0:
-                error_msg = await ctx.send("❌ เรทต้องมากกว่า 0")
-                await asyncio.sleep(5)
-                try:
-                    await error_msg.delete()
-                except:
-                    pass
-                return
-            
-            group_rate_low = new_low
-            group_rate_high = new_high
-            
-            embed = discord.Embed(
-                title="✅ เปลี่ยนเรท Group เรียบร้อย",
-                description=f"ตั้งค่าเรท Group เป็น **{group_rate_low} - {group_rate_high}** เรียบร้อยแล้ว",
-                color=0x00FF00
-            )
-            response_msg = await ctx.send(embed=embed)
-            
-            await update_main_channel()
-            
-            await asyncio.sleep(5)
-            try:
-                await response_msg.delete()
-            except:
-                pass
-                
-        except ValueError:
-            error_msg = await ctx.send("❌ กรุณากรอกเรทเป็นตัวเลขที่ถูกต้อง")
-            await asyncio.sleep(5)
-            try:
-                await error_msg.delete()
-            except:
-                pass
-    
-    else:
-        try:
-            new_rate = float(rate_type)
-            
-            if new_rate <= 0:
-                error_msg = await ctx.send("❌ เรทต้องมากกว่า 0")
-                await asyncio.sleep(5)
-                try:
-                    await error_msg.delete()
-                except:
-                    pass
-                return
-            
-            gamepass_rate = new_rate
-            
-            embed = discord.Embed(
-                title="✅ เปลี่ยนเรท Gamepass เรียบร้อย",
-                description=f"ตั้งค่าเรท Gamepass เป็น **{gamepass_rate}** เรียบร้อยแล้ว",
-                color=0x00FF00
-            )
-            response_msg = await ctx.send(embed=embed)
-            
-            await update_main_channel()
-            
-            await asyncio.sleep(5)
-            try:
-                await response_msg.delete()
-            except:
-                pass
-                
-        except ValueError:
-            embed = discord.Embed(
-                title="❌ การใช้งานไม่ถูกต้อง",
-                description=(
-                    "**การใช้งาน:**\n"
-                    "`!rate <rate>` - เปลี่ยนเรท Gamepass\n"
-                    "`!rate group <low> <high>` - เปลี่ยนเรท Group"
-                ),
-                color=0xFF0000
-            )
-            response_msg = await ctx.send(embed=embed)
-            await asyncio.sleep(10)
-            try:
-                await response_msg.delete()
-            except:
-                pass
-
-# =======================================================================================
-# ✅ คำสั่งเปิดปิดร้าน - FIXED with auto-delete and button colors
-# =======================================================================================
-@bot.command()
-@admin_only()
-async def sushi(ctx):
-    global shop_open
-    shop_open = not shop_open
-
-    try:
-        await ctx.message.delete()
-    except:
-        pass
-
-    status = "✅ ร้านเปิด" if shop_open else "❌ ร้านปิด"
-    embed = discord.Embed(
-        title="🏪 สถานะร้าน",
-        description=f"**{status}**",
-        color=0x00FF00 if shop_open else 0xFF0000
-    )
-    
-    # Send status message
-    status_msg = await ctx.send(embed=embed)
-    
-    # Auto-delete after 3 seconds
-    await asyncio.sleep(3)
-    try:
-        await status_msg.delete()
-        print("✅ ลบข้อความสถานะร้านเรียบร้อยแล้ว")
-    except:
-        pass
-    
-    # Update channel name
-    try:
-        channel = bot.get_channel(MAIN_CHANNEL_ID)
-        if channel:
-            if shop_open:
-                new_name = "〔🟢เปิด〕กดสั่งซื้อที่นี่"
-            else:
-                new_name = "〔🔴〕ปิดชั่วคราว"
-            
-            if channel.name != new_name:
-                await bot.channel_edit_rate_limiter.acquire()
-                await channel.edit(name=new_name)
-                print(f"✅ เปลี่ยนชื่อช่องเป็น: {new_name}")
-    except Exception as e:
-        print(f"⚠️ ไม่สามารถเปลี่ยนชื่อช่อง: {e}")
-    
-    # Force update main channel with new button states
-    await update_main_channel()
-
-# =======================================================================================
-# ✅ คำสั่งเปิดปิด Group Ticket
-# =======================================================================================
-@bot.command()
-@admin_only()
-async def group(ctx, status: str = None):
-    global group_ticket_enabled
-    
-    try:
-        await ctx.message.delete()
-    except:
-        pass
-    
-    if status is None:
-        current_status = "✅ เปิด" if group_ticket_enabled else "❌ ปิด"
-        embed = discord.Embed(
-            title="👥 สถานะ Group Ticket",
-            description=f"**{current_status}**",
-            color=0x00FF00 if group_ticket_enabled else 0xFF0000
-        )
-        status_msg = await ctx.send(embed=embed)
-        await asyncio.sleep(3)
-        try:
-            await status_msg.delete()
-        except:
-            pass
-    elif status.lower() in ["on", "enable", "เปิด"]:
-        group_ticket_enabled = True
-        embed = discord.Embed(
-            title="✅ เปิดปุ่ม Group Ticket",
-            description="เปิดปุ่ม Group Ticket เรียบร้อยแล้ว",
-            color=0x00FF00
-        )
-        status_msg = await ctx.send(embed=embed)
-        await asyncio.sleep(3)
-        try:
-            await status_msg.delete()
-        except:
-            pass
-    elif status.lower() in ["off", "disable", "ปิด"]:
-        group_ticket_enabled = False
-        embed = discord.Embed(
-            title="❌ ปิดปุ่ม Group Ticket",
-            description="ปิดปุ่ม Group Ticket เรียบร้อยแล้ว",
-            color=0xFF0000
-        )
-        status_msg = await ctx.send(embed=embed)
-        await asyncio.sleep(3)
-        try:
-            await status_msg.delete()
-        except:
-            pass
-    else:
-        embed = discord.Embed(
-            title="❌ การใช้งานไม่ถูกต้อง",
-            description="**การใช้งาน:** !group [on/off] หรือ !group [enable/disable] หรือ !group [เปิด/ปิด]",
-            color=0xFF0000
-        )
-        status_msg = await ctx.send(embed=embed)
-        await asyncio.sleep(5)
-        try:
-            await status_msg.delete()
-        except:
-            pass
-    
-    await update_main_channel()
-
-# =======================================================================================
 # ✅ คำสั่ง !level
 # =======================================================================================
 @bot.command()
@@ -3135,7 +3124,7 @@ async def setup(ctx):
         color=0x00FF00
     )
     await ctx.send(embed=embed)
-    await update_main_channel()
+    await update_main_channel_with_new_view()
 
 @bot.command()
 @admin_only()
@@ -3145,7 +3134,7 @@ async def restart(ctx):
     except:
         pass
     
-    await update_main_channel()
+    await update_main_channel_with_new_view()
     embed = discord.Embed(
         title="🔄 รีสตาร์ทระบบปุ่มเรียบร้อยแล้ว",
         color=0x00FF00
