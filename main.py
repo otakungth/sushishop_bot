@@ -732,81 +732,116 @@ class ConfirmDeliveryView(View):
         self.delivered = False
 
     @discord.ui.button(label="ยืนยัน ✅", style=discord.ButtonStyle.success, emoji="✅", custom_id="confirm_delivery_btn")
-    async def confirm_delivery(self, interaction: discord.Interaction, button: Button):
-        """ยืนยันการส่งสินค้า"""
-        try:
-            if self.delivered:
-                await interaction.response.edit_message(
-                    content="✅ สินค้าถูกส่งเรียบร้อยแล้ว",
-                    embed=None,
-                    view=None
-                )
-                return
-                
-            self.delivered = True
-            
-            if self.buyer:
-                ticket_customer_data[str(self.channel.id)] = self.buyer.name
-                save_ticket_customer_data()
-            
-            receipt_color = 0xFFA500
-            if self.product_type == "Group":
-                receipt_color = 0x00FFFF
-            elif self.product_type == "Limited":
-                receipt_color = 0x00FF00
-            
-            current_time = get_thailand_time()
-            
-            receipt_embed = discord.Embed(
-                title=f"🍣 ใบเสร็จการสั่งซื้อ ({self.product_type}) 🍣",
-                color=receipt_color
-            )
-            
-            receipt_embed.add_field(name="😊 ผู้ซื้อ", value=self.buyer.mention if self.buyer else "ไม่ทราบ", inline=False)
-            receipt_embed.add_field(name="💸 จำนวน Robux", value=f"{self.robux_amount:,}", inline=True)
-            receipt_embed.add_field(name="💰 ราคาตามเรท", value=f"{self.price:,.0f} บาท", inline=True)
-            
-            if self.delivery_image:
-                receipt_embed.set_image(url=self.delivery_image)
-            
-            receipt_embed.set_footer(text=f"จัดส่งสินค้าสำเร็จ 🤗 • {current_time.strftime('%d/%m/%y, %H:%M')}")
-            
-            log_channel = bot.get_channel(SALES_LOG_CHANNEL_ID)
-            if log_channel:
-                try:
-                    await log_channel.send(embed=receipt_embed)
-                    print(f"✅ บันทึกใบเสร็จการสั่งซื้อในห้องบันทึกการขาย: {self.product_type}")
-                except:
-                    print(f"⚠️ ไม่สามารถส่งใบเสร็จไปยังห้องบันทึกการขาย")
-            
-            await self.channel.send(embed=receipt_embed)
-            
-            await self.channel.send("✅ **ส่งสินค้าเรียบร้อยแล้ว!** กรุณาใช้คำสั่ง `!ty` เพื่อยืนยันการส่งสินค้าและเปลี่ยนชื่อตั๋ว")
-            
+async def confirm_delivery(self, interaction: discord.Interaction, button: Button):
+    """ยืนยันการส่งสินค้า"""
+    try:
+        if self.delivered:
             await interaction.response.edit_message(
-                content="✅ บันทึกการส่งสินค้าเรียบร้อยแล้ว",
+                content="✅ สินค้าถูกส่งเรียบร้อยแล้ว",
                 embed=None,
                 view=None
             )
+            return
             
-            ticket_activity[self.channel.id] = {
-                'last_activity': current_time,
-                'ty_used': False,
-                'delivery_confirmed': True,
-                'delivery_time': current_time,
-                'buyer_id': self.buyer.id if self.buyer else None
-            }
-            
-        except Exception as e:
-            print(f"❌ เกิดข้อผิดพลาดในการยืนยันการส่งสินค้า: {e}")
+        self.delivered = True
+        
+        if self.buyer:
+            ticket_customer_data[str(self.channel.id)] = self.buyer.name
+            save_ticket_customer_data()
+        
+        receipt_color = 0xFFA500
+        if self.product_type == "Group":
+            receipt_color = 0x00FFFF
+        elif self.product_type == "Limited":
+            receipt_color = 0x00FF00
+        
+        current_time = get_thailand_time()
+        
+        receipt_embed = discord.Embed(
+            title=f"🍣 ใบเสร็จการสั่งซื้อ ({self.product_type}) 🍣",
+            color=receipt_color
+        )
+        
+        receipt_embed.add_field(name="😊 ผู้ซื้อ", value=self.buyer.mention if self.buyer else "ไม่ทราบ", inline=False)
+        receipt_embed.add_field(name="💸 จำนวน Robux", value=f"{self.robux_amount:,}", inline=True)
+        receipt_embed.add_field(name="💰 ราคาตามเรท", value=f"{self.price:,.0f} บาท", inline=True)
+        
+        if self.delivery_image:
+            receipt_embed.set_image(url=self.delivery_image)
+        
+        receipt_embed.set_footer(text=f"จัดส่งสินค้าสำเร็จ 🤗 • {current_time.strftime('%d/%m/%y, %H:%M')}")
+        
+        # ===== SEND TO BUYER'S DM =====
+        if self.buyer:
             try:
-                await interaction.response.edit_message(
-                    content="✅ ส่งสินค้าเรียบร้อยแล้ว (บันทึกบางส่วนไม่สมบูรณ์)",
-                    embed=None,
-                    view=None
+                # Create DM embed (without @mentions)
+                dm_embed = discord.Embed(
+                    title=f"🧾 ใบเสร็จการซื้อสินค้า ({self.product_type})",
+                    description="ขอบคุณที่ใช้บริการ Sushi Shop นะคะ 🍣",
+                    color=receipt_color
                 )
+                dm_embed.add_field(name="📦 สินค้า", value=self.product_type, inline=True)
+                dm_embed.add_field(name="💸 จำนวน Robux", value=f"{self.robux_amount:,}", inline=True)
+                dm_embed.add_field(name="💰 ราคา", value=f"{self.price:,.0f} บาท", inline=True)
+                
+                if self.delivery_image:
+                    dm_embed.set_image(url=self.delivery_image)
+                
+                dm_embed.add_field(
+                    name="📝 หมายเหตุ", 
+                    value="หากมีปัญหากรุณาติดต่อแอดมินในเซิร์ฟเวอร์", 
+                    inline=False
+                )
+                dm_embed.set_footer(text="Sushi Shop • ขอบคุณที่ไว้วางใจ 💖")
+                
+                # Send to DM
+                await self.buyer.send(embed=dm_embed)
+                print(f"✅ ส่งใบเสร็จไปยัง DM ของ {self.buyer.name} เรียบร้อย")
+                
+            except discord.Forbidden:
+                print(f"⚠️ ไม่สามารถส่ง DM ไปยัง {self.buyer.name} (ผู้ใช้ปิดรับ DM)")
+                # Try to notify in channel that DM failed
+                await self.channel.send(f"⚠️ ไม่สามารถส่งใบเสร็จทาง DM ให้ {self.buyer.mention} ได้ (ผู้ใช้ปิดรับข้อความจากคนอื่น)", delete_after=10)
+            except Exception as e:
+                print(f"❌ เกิดข้อผิดพลาดในการส่ง DM: {e}")
+        # ===== END DM SENDING =====
+        
+        log_channel = bot.get_channel(SALES_LOG_CHANNEL_ID)
+        if log_channel:
+            try:
+                await log_channel.send(embed=receipt_embed)
+                print(f"✅ บันทึกใบเสร็จการสั่งซื้อในห้องบันทึกการขาย: {self.product_type}")
             except:
-                pass
+                print(f"⚠️ ไม่สามารถส่งใบเสร็จไปยังห้องบันทึกการขาย")
+        
+        await self.channel.send(embed=receipt_embed)
+        
+        await self.channel.send("✅ **ส่งสินค้าเรียบร้อยแล้ว!** กรุณาใช้คำสั่ง `!ty` เพื่อยืนยันการส่งสินค้าและเปลี่ยนชื่อตั๋ว")
+        
+        await interaction.response.edit_message(
+            content="✅ บันทึกการส่งสินค้าเรียบร้อยแล้ว",
+            embed=None,
+            view=None
+        )
+        
+        ticket_activity[self.channel.id] = {
+            'last_activity': current_time,
+            'ty_used': False,
+            'delivery_confirmed': True,
+            'delivery_time': current_time,
+            'buyer_id': self.buyer.id if self.buyer else None
+        }
+        
+    except Exception as e:
+        print(f"❌ เกิดข้อผิดพลาดในการยืนยันการส่งสินค้า: {e}")
+        try:
+            await interaction.response.edit_message(
+                content="✅ ส่งสินค้าเรียบร้อยแล้ว (บันทึกบางส่วนไม่สมบูรณ์)",
+                embed=None,
+                view=None
+            )
+        except:
+            pass
 
     @discord.ui.button(label="แก้ไข", style=discord.ButtonStyle.secondary, emoji="✏️", custom_id="edit_delivery_btn")
     async def edit_delivery(self, interaction: discord.Interaction, button: Button):
@@ -2345,6 +2380,31 @@ async def ty(ctx):
         
         handle_success = await handle_ticket_after_ty(ctx.channel, buyer, robux_amount, customer_name)
         
+        # ===== SEND DM NOTIFICATION =====
+        if handle_success and buyer:
+            try:
+                # Create thank you embed
+                thank_you_embed = discord.Embed(
+                    title="✅ การสั่งซื้อเสร็จสมบูรณ์",
+                    description="สินค้าของคุณถูกจัดส่งเรียบร้อยแล้ว! ขอบคุณที่ใช้บริการ Sushi Shop นะคะ 🍣",
+                    color=0x00FF00
+                )
+                thank_you_embed.add_field(
+                    name="📌 หมายเหตุ",
+                    value="หากมีปัญหาหรือข้อสงสัย สามารถติดต่อแอดมินในเซิร์ฟเวอร์ได้เลยค่ะ",
+                    inline=False
+                )
+                thank_you_embed.set_footer(text="Sushi Shop • ขอบคุณที่ไว้วางใจ 💖")
+                
+                await buyer.send(embed=thank_you_embed)
+                print(f"✅ ส่งข้อความยืนยันไปยัง DM ของ {buyer.name} เรียบร้อย")
+                
+            except discord.Forbidden:
+                print(f"⚠️ ไม่สามารถส่ง DM ไปยัง {buyer.name} (ผู้ใช้ปิดรับ DM)")
+            except Exception as e:
+                print(f"❌ เกิดข้อผิดพลาดในการส่ง DM: {e}")
+        # ===== END DM NOTIFICATION =====
+        
         if not handle_success:
             await ctx.send("❌ เกิดข้อผิดพลาดในการจัดการตั๋ว กรุณาลองใหม่อีกครั้ง", delete_after=5)
             return
@@ -2365,7 +2425,6 @@ async def ty(ctx):
                 'buyer_id': buyer.id
             }
         
-        # FIX: Update main channel after stock change
         await update_main_channel()
         
     else:
@@ -3339,19 +3398,40 @@ async def help_cmd(interaction: discord.Interaction):
 async def gp(ctx, *, expression: str):
     """คำสั่งคำนวณราคา Gamepass (Text Command)"""
     try:
+        print(f"🔍 DEBUG gp command called with: {expression}")
+        print(f"🔍 DEBUG gamepass_rate = {gamepass_rate}")
+        
         expr = expression.replace(",", "").lower().replace("x", "*").replace("÷", "/")
+        print(f"🔍 DEBUG cleaned expression: {expr}")
 
         if not re.match(r"^[\d\s\+\-\*\/\(\)]+$", expr):
+            print(f"❌ DEBUG invalid characters in expression")
             await ctx.send("❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", delete_after=10)
             return
 
         robux = int(eval(expr))
+        print(f"🔍 DEBUG calculated robux: {robux}")
+        
         price = robux / gamepass_rate
         price_str = f"{price:,.0f} บาท"
+        print(f"🔍 DEBUG calculated price: {price_str}")
 
         await ctx.send(f"🎮 Gamepass {robux:,} Robux = **{price_str}** (เรท {gamepass_rate})")
+        print(f"✅ DEBUG gp command completed successfully")
 
+    except ZeroDivisionError:
+        print(f"❌ DEBUG ZeroDivisionError - gamepass_rate is 0!")
+        await ctx.send(f"❌ เรท Gamepass ไม่ถูกต้อง (เป็น 0) กรุณาแจ้งแอดมิน", delete_after=10)
+    except ValueError as e:
+        print(f"❌ DEBUG ValueError: {e}")
+        await ctx.send(f"❌ กรุณากรอกตัวเลขที่ถูกต้อง", delete_after=10)
+    except SyntaxError as e:
+        print(f"❌ DEBUG SyntaxError: {e}")
+        await ctx.send(f"❌ รูปแบบไม่ถูกต้อง กรุณาตรวจสอบเครื่องหมาย + - * /", delete_after=10)
     except Exception as e:
+        print(f"❌ DEBUG Unexpected error in gp command: {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
 
 @bot.command()
@@ -3507,3 +3587,4 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
         traceback.print_exc()
+
