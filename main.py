@@ -239,7 +239,7 @@ async def update_main_channel():
         elif gamepass_stock <= 0:
             gamepass_btn = Button(label="สินค้าหมด", style=discord.ButtonStyle.danger, emoji="🎮", disabled=True, custom_id="gamepass_btn")
         else:
-            gamepass_btn = Button(label="เปิดตั๋วกดเกมพาส", style=discord.ButtonStyle.success, emoji="🎮", disabled=False, custom_id="gamepass_btn")
+            gamepass_btn = Button(label="เปิดตั๋วกดเกมพาส", style=discord.ButtonStyle.success, emoji="🎮", custom_id="gamepass_btn")
         
         # Group button
         if not shop_open:
@@ -249,7 +249,7 @@ async def update_main_channel():
         elif group_stock <= 0:
             group_btn = Button(label="สินค้าหมด", style=discord.ButtonStyle.danger, emoji="👥", disabled=True, custom_id="group_btn")
         else:
-            group_btn = Button(label="เปิดตั๋ว Group", style=discord.ButtonStyle.success, emoji="👥", disabled=False, custom_id="group_btn")
+            group_btn = Button(label="เปิดตั๋ว Group", style=discord.ButtonStyle.success, emoji="👥", custom_id="group_btn")
         
         notes_btn = Button(label="จดวันที่เข้ากลุ่ม", style=discord.ButtonStyle.secondary, emoji="📝", custom_id="notes_btn")
         level_btn = Button(label="ดูเลเวลของคุณ", style=discord.ButtonStyle.primary, emoji="⭐", custom_id="level_btn")
@@ -394,7 +394,7 @@ async def handle_open_ticket(interaction, category_name, stock_type):
         # Create welcome embed
         embed = discord.Embed(
             title="🍣 Sushi Shop 🍣", 
-            description="ยินดีต้อนรับสู่ร้าน Sushi Shop!\n\nกรุณากรอกแบบฟอร์มด้านล่างเพื่อดำเนินการสั่งซื้อ", 
+            description="ยินดีต้อนรับร้าน Sushi Shop\n\nโปรดกรอกแบบฟอร์มเพื่อสั่งไอเทม", 
             color=0x00FF99
         )
         embed.add_field(name="👤 ผู้ซื้อ", value=interaction.user.mention, inline=False)
@@ -924,6 +924,7 @@ class DeliveryView(View):
 @bot.command()
 @admin_only()
 async def open(ctx):
+    """เปิดร้าน"""
     global shop_open
     shop_open = True
     
@@ -931,6 +932,10 @@ async def open(ctx):
         await ctx.message.delete()
     except:
         pass
+    
+    # Update channel name and main message
+    await update_channel_name()
+    await update_main_channel()
     
     embed = discord.Embed(
         title="✅ เปิดร้านเรียบร้อย", 
@@ -945,13 +950,11 @@ async def open(ctx):
         await msg.delete()
     except:
         pass
-    
-    await update_channel_name()
-    await update_main_channel()
 
 @bot.command()
 @admin_only()
 async def close(ctx):
+    """ปิดร้าน"""
     global shop_open
     shop_open = False
     
@@ -959,6 +962,10 @@ async def close(ctx):
         await ctx.message.delete()
     except:
         pass
+    
+    # Update channel name and main message
+    await update_channel_name()
+    await update_main_channel()
     
     embed = discord.Embed(
         title="🔴 ปิดร้านเรียบร้อย", 
@@ -973,13 +980,11 @@ async def close(ctx):
         await msg.delete()
     except:
         pass
-    
-    await update_channel_name()
-    await update_main_channel()
 
 @bot.command()
 @admin_only()
 async def stock(ctx, stock_type=None, amount=None):
+    """ตรวจสอบและตั้งค่า stock"""
     global gamepass_stock, group_stock
     
     try:
@@ -988,7 +993,7 @@ async def stock(ctx, stock_type=None, amount=None):
         pass
     
     if not stock_type:
-        embed = discord.Embed(title="📊 สต๊อกสินค้า", color=0x00FF99)
+        embed = discord.Embed(title="📊 สต๊อกโรบัค", color=0x00FF99)
         embed.add_field(name="🎮 Gamepass Stock", value=f"**{gamepass_stock:,}**", inline=True)
         embed.add_field(name="👥 Group Stock", value=f"**{group_stock:,}**", inline=True)
         msg = await ctx.send(embed=embed)
@@ -1008,19 +1013,22 @@ async def stock(ctx, stock_type=None, amount=None):
             except:
                 pass
         else:
-            gamepass_stock = int(amount.replace(",", ""))
-            embed = discord.Embed(
-                title="✅ ตั้งค่า Stock เรียบร้อย", 
-                description=f"ตั้งค่า สต๊อกเกมพาส เป็น **{gamepass_stock:,}** เรียบร้อยแล้ว", 
-                color=0x00FF00
-            )
-            msg = await ctx.send(embed=embed)
-            await asyncio.sleep(3)
             try:
-                await msg.delete()
-            except:
-                pass
-            await update_main_channel()
+                gamepass_stock = int(amount.replace(",", ""))
+                embed = discord.Embed(
+                    title="✅ ตั้งค่า Stock เรียบร้อย", 
+                    description=f"ตั้งค่า สต๊อกเกมพาส เป็น **{gamepass_stock:,}** เรียบร้อยแล้ว", 
+                    color=0x00FF00
+                )
+                msg = await ctx.send(embed=embed)
+                await asyncio.sleep(3)
+                try:
+                    await msg.delete()
+                except:
+                    pass
+                await update_main_channel()
+            except ValueError:
+                await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง", delete_after=5)
             
     elif stock_type.lower() in ["g", "group", "กรุ๊ป"]:
         if amount is None:
@@ -1032,19 +1040,22 @@ async def stock(ctx, stock_type=None, amount=None):
             except:
                 pass
         else:
-            group_stock = int(amount.replace(",", ""))
-            embed = discord.Embed(
-                title="✅ ตั้งค่า Stock เรียบร้อย", 
-                description=f"ตั้งค่า สต๊อกโรบัคกลุ่ม เป็น **{group_stock:,}** เรียบร้อยแล้ว", 
-                color=0x00FF00
-            )
-            msg = await ctx.send(embed=embed)
-            await asyncio.sleep(3)
             try:
-                await msg.delete()
-            except:
-                pass
-            await update_main_channel()
+                group_stock = int(amount.replace(",", ""))
+                embed = discord.Embed(
+                    title="✅ ตั้งค่า Stock เรียบร้อย", 
+                    description=f"ตั้งค่า สต๊อกโรบัคกลุ่ม เป็น **{group_stock:,}** เรียบร้อยแล้ว", 
+                    color=0x00FF00
+                )
+                msg = await ctx.send(embed=embed)
+                await asyncio.sleep(3)
+                try:
+                    await msg.delete()
+                except:
+                    pass
+                await update_main_channel()
+            except ValueError:
+                await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง", delete_after=5)
     else:
         embed = discord.Embed(
             title="❌ การใช้งานไม่ถูกต้อง", 
@@ -1061,6 +1072,7 @@ async def stock(ctx, stock_type=None, amount=None):
 @bot.command()
 @admin_only()
 async def group(ctx, status=None):
+    """เปิด/ปิด Group ticket"""
     global group_ticket_enabled
     
     try:
@@ -1111,10 +1123,23 @@ async def group(ctx, status=None):
         except:
             pass
         await update_main_channel()
+    else:
+        embed = discord.Embed(
+            title="❌ การใช้งานไม่ถูกต้อง", 
+            description="**การใช้งาน:**\n`!group` - เช็คสถานะ\n`!group on` - เปิด Group ticket\n`!group off` - ปิด Group ticket", 
+            color=0xFF0000
+        )
+        msg = await ctx.send(embed=embed)
+        await asyncio.sleep(5)
+        try:
+            await msg.delete()
+        except:
+            pass
 
 @bot.command()
 @admin_only()
 async def rate(ctx, rate_type=None, low_rate=None, high_rate=None):
+    """ตั้งค่าเรท"""
     global gamepass_rate, group_rate_low, group_rate_high
     
     try:
@@ -1123,7 +1148,7 @@ async def rate(ctx, rate_type=None, low_rate=None, high_rate=None):
         pass
     
     if rate_type is None:
-        embed = discord.Embed(title="📊 อัตราแลกเปลี่ยนปัจจุบัน", color=0x00FF99)
+        embed = discord.Embed(title="📊 เรทโรกลุ่มปัจจุบัน", color=0x00FF99)
         embed.add_field(name="🎮 Gamepass Rate", value=f"**{gamepass_rate}**", inline=True)
         embed.add_field(name="👥 Group Rate", value=f"**{group_rate_low} - {group_rate_high}**", inline=True)
         msg = await ctx.send(embed=embed)
@@ -1148,35 +1173,41 @@ async def rate(ctx, rate_type=None, low_rate=None, high_rate=None):
                 pass
             return
         
-        group_rate_low = float(low_rate)
-        group_rate_high = float(high_rate)
-        embed = discord.Embed(
-            title="✅ เปลี่ยนเรท Group เรียบร้อย", 
-            description=f"ตั้งค่าเรท Group เป็น **{group_rate_low} - {group_rate_high}** เรียบร้อยแล้ว", 
-            color=0x00FF00
-        )
-        msg = await ctx.send(embed=embed)
-        await asyncio.sleep(3)
         try:
-            await msg.delete()
-        except:
-            pass
-        await update_main_channel()
+            group_rate_low = float(low_rate)
+            group_rate_high = float(high_rate)
+            embed = discord.Embed(
+                title="✅ เปลี่ยนเรท Group เรียบร้อย", 
+                description=f"ตั้งค่าเรท Group เป็น **{group_rate_low} - {group_rate_high}** เรียบร้อยแล้ว", 
+                color=0x00FF00
+            )
+            msg = await ctx.send(embed=embed)
+            await asyncio.sleep(3)
+            try:
+                await msg.delete()
+            except:
+                pass
+            await update_main_channel()
+        except ValueError:
+            await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง", delete_after=5)
         
     else:
-        gamepass_rate = float(rate_type)
-        embed = discord.Embed(
-            title="✅ เปลี่ยนเรท Gamepass เรียบร้อย", 
-            description=f"ตั้งค่าเรท Gamepass เป็น **{gamepass_rate}** เรียบร้อยแล้ว", 
-            color=0x00FF00
-        )
-        msg = await ctx.send(embed=embed)
-        await asyncio.sleep(3)
         try:
-            await msg.delete()
-        except:
-            pass
-        await update_main_channel()
+            gamepass_rate = float(rate_type)
+            embed = discord.Embed(
+                title="✅ เปลี่ยนเรท Gamepass เรียบร้อย", 
+                description=f"ตั้งค่าเรท Gamepass เป็น **{gamepass_rate}** เรียบร้อยแล้ว", 
+                color=0x00FF00
+            )
+            msg = await ctx.send(embed=embed)
+            await asyncio.sleep(3)
+            try:
+                await msg.delete()
+            except:
+                pass
+            await update_main_channel()
+        except ValueError:
+            await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง", delete_after=5)
 
 @bot.command()
 @admin_only()
@@ -1272,9 +1303,11 @@ async def ty(ctx):
 @bot.command()
 @admin_only()
 async def od(ctx, *, expr):
+    """รับออเดอร์ Gamepass"""
     global gamepass_stock, gamepass_rate
     
     if not ctx.channel.name.startswith("ticket-"):
+        await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
         return
     
     try:
@@ -1330,9 +1363,11 @@ async def od(ctx, *, expr):
 @bot.command()
 @admin_only()
 async def odg(ctx, *, expr):
+    """รับออเดอร์ Group"""
     global group_stock, group_rate_low, group_rate_high
     
     if not ctx.channel.name.startswith("ticket-"):
+        await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
         return
     
     try:
@@ -1387,8 +1422,8 @@ async def odg(ctx, *, expr):
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
 
 @bot.command()
-@admin_only()
 async def qr(ctx):
+    """แสดง QR Code"""
     try:
         await ctx.message.delete()
     except:
@@ -1423,6 +1458,7 @@ async def qr(ctx):
 
 @bot.command()
 async def gp(ctx, *, expr):
+    """คำนวณราคา Gamepass"""
     global gamepass_rate
     
     try:
@@ -1434,6 +1470,7 @@ async def gp(ctx, *, expr):
 
 @bot.command()
 async def g(ctx, *, expr):
+    """คำนวณราคา Group"""
     global group_rate_low, group_rate_high
     
     try:
@@ -1446,6 +1483,7 @@ async def g(ctx, *, expr):
 
 @bot.command()
 async def gpb(ctx, *, expr):
+    """คำนวณ Robux จากเงินบาท (Gamepass)"""
     global gamepass_rate
     
     try:
@@ -1456,6 +1494,7 @@ async def gpb(ctx, *, expr):
 
 @bot.command()
 async def gb(ctx, *, expr):
+    """คำนวณ Robux จากเงินบาท (Group)"""
     global group_rate_low, group_rate_high
     
     try:
@@ -1467,6 +1506,7 @@ async def gb(ctx, *, expr):
 
 @bot.command()
 async def tax(ctx, *, expr):
+    """คำนวณภาษี"""
     try:
         expr = expr.replace(" ", "")
         if re.match(r"^\d+$", expr):
@@ -1486,6 +1526,7 @@ async def tax(ctx, *, expr):
 
 @bot.command()
 async def level(ctx, member=None):
+    """เช็คเลเวล"""
     if isinstance(member, str):
         member = ctx.guild.get_member_named(member) or ctx.author
     elif member is None:
@@ -1532,26 +1573,30 @@ async def level(ctx, member=None):
 
 @bot.command()
 async def love(ctx):
+    """คำสั่ง love"""
     await ctx.send("# LOVE YOU<:sushiheart:1410484970291466300>")
 
 @bot.command()
 async def say(ctx, *, message):
+    """คำสั่ง say"""
     await ctx.send(f"# {message.upper()} <:sushiheart:1410484970291466300>")
 
 @bot.command()
 @admin_only()
 async def setup(ctx):
+    """ตั้งค่าระบบ"""
     try:
         await ctx.message.delete()
     except:
         pass
     
-    await ctx.send(embed=discord.Embed(title="✅ ตั้งค่าระบบเรียบร้อยแล้ว", color=0x00FF00))
     await update_main_channel()
+    await ctx.send(embed=discord.Embed(title="✅ ตั้งค่าระบบเรียบร้อยแล้ว", color=0x00FF00))
 
 @bot.command()
 @admin_only()
 async def restart(ctx):
+    """รีสตาร์ทปุ่ม"""
     try:
         await ctx.message.delete()
     except:
@@ -1562,32 +1607,38 @@ async def restart(ctx):
 
 @bot.command(name='help')
 async def help_command(ctx):
+    """แสดงคำสั่งทั้งหมด"""
     embed = discord.Embed(title="🍣 Sushi Shop - คำสั่งทั้งหมด", color=0x00FF99)
     embed.description = (
-        "**คำสั่ง Text Commands (ใช้ ! ในเซิร์ฟเวอร์):**\n"
+        "**คำสั่งทั่วไป:**\n"
         "`!gp <จำนวน>` - คำนวณราคา Gamepass\n"
         "`!g <จำนวน>` - คำนวณราคา Group\n"
         "`!gpb <จำนวน>` - คำนวณ Robux จากเงิน (Gamepass)\n"
         "`!gb <จำนวน>` - คำนวณ Robux จากเงิน (Group)\n"
-        "`!tax <จำนวน>` - คำนวณ Robux หลังหักภาษี\n\n"
-        "**คำสั่ง Slash Commands (ใช้ / ได้ทั้งเซิร์ฟเวอร์และ DM):**\n"
+        "`!tax <จำนวน>` - คำนวณ Robux หลังหักภาษี\n"
+        "`!level` - เช็คเลเวลและ EXP ของคุณ\n"
+        "`!love` - แสดงหัวใจ\n"
+        "`!say <ข้อความ>` - บอทพูดตาม\n\n"
+        "**คำสั่ง Slash Commands:**\n"
         "`/gamepass <จำนวน>` - คำนวณราคา Gamepass\n"
         "`/group <จำนวน>` - คำนวณราคา Group\n"
         "`/baht_gamepass <จำนวน>` - คำนวณ Robux จากเงิน (Gamepass)\n"
         "`/baht_group <จำนวน>` - คำนวณ Robux จากเงิน (Group)\n"
         "`/tax <จำนวน>` - คำนวณ Robux หลังหักภาษี\n"
         "`/help` - แสดงคำสั่งที่ใช้ได้\n\n"
-        "**คำสั่งทั่วไป:**\n"
-        "`!level` - เช็คเลเวลและ EXP ของคุณ\n\n"
         "**คำสั่งผู้ดูแลระบบเท่านั้น:**\n"
-        "`!open` - เปิดร้าน (เปลี่ยนชื่อเป็น 〔🟢เปิด〕กดสั่งซื้อที่นี่)\n"
-        "`!close` - ปิดร้าน (เปลี่ยนชื่อเป็น 〔🔴ปิดชั่วคราว〕)\n"
+        "`!open` - เปิดร้าน\n"
+        "`!close` - ปิดร้าน\n"
         "`!stock` - ตรวจสอบและตั้งค่า stock\n"
         "`!group <on/off>` - เปิด/ปิด Group ticket\n"
+        "`!rate <เรท>` - ตั้งค่าเรท Gamepass\n"
+        "`!rate group <ต่ำ> <สูง>` - ตั้งค่าเรท Group\n"
         "`!ty` - ส่งของเรียบร้อย (ใช้ในตั๋ว)\n"
         "`!qr` - แสดง QR Code\n"
-        "`!od <จำนวน>` - สั่งซื้อ Gamepass\n"
-        "`!odg <จำนวน>` - สั่งซื้อ Group"
+        "`!od <จำนวน>` - รับออเดอร์ Gamepass\n"
+        "`!odg <จำนวน>` - รับออเดอร์ Group\n"
+        "`!setup` - ตั้งค่าระบบ\n"
+        "`!restart` - รีสตาร์ทปุ่ม"
     )
     await ctx.send(embed=embed, delete_after=30)
 
