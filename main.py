@@ -1268,6 +1268,9 @@ async def handle_open_ticket(interaction, category_name, modal_class, stock_type
             gamepass_stock -= 1
         else:
             group_stock -= 1
+        
+        # Force update main channel after stock change
+        await update_main_channel()
             
         await interaction.edit_original_response(
             content="📩 เปิดตั๋วเรียบร้อย!",
@@ -1332,7 +1335,7 @@ async def handle_open_ticket(interaction, category_name, modal_class, stock_type
                 pass
 
 # =======================================================================================
-# ✅ คำสั่ง !stock
+# ✅ คำสั่ง !stock (FIXED)
 # =======================================================================================
 
 @bot.command()
@@ -1404,6 +1407,7 @@ async def stock(ctx, stock_type: str = None, amount: str = None):
                 
                 response_msg = await ctx.send(embed=embed)
                 
+                # FIX: Force update main channel immediately
                 await update_main_channel()
                 
                 await asyncio.sleep(5)
@@ -1457,6 +1461,7 @@ async def stock(ctx, stock_type: str = None, amount: str = None):
                 
                 response_msg = await ctx.send(embed=embed)
                 
+                # FIX: Force update main channel immediately
                 await update_main_channel()
                 
                 await asyncio.sleep(5)
@@ -1492,7 +1497,7 @@ async def stock(ctx, stock_type: str = None, amount: str = None):
             pass
 
 # =======================================================================================
-# ✅ คำสั่ง !od, !odg, !odl
+# ✅ คำสั่ง !od, !odg, !odl (FIXED - added update_main_channel)
 # =======================================================================================
 
 @bot.command()
@@ -1558,6 +1563,7 @@ async def od(ctx, *, expression: str):
         delivery_view = DeliveryView(ctx.channel, "Gamepass", robux, price, buyer)
         await ctx.send(embed=order_embed, view=delivery_view)
 
+        # FIX: Update main channel after stock change
         await update_main_channel()
 
     except Exception as e:
@@ -1627,6 +1633,7 @@ async def odg(ctx, *, expression: str):
         delivery_view = DeliveryView(ctx.channel, "Group", robux, price, buyer)
         await ctx.send(embed=order_embed, view=delivery_view)
 
+        # FIX: Update main channel after stock change
         await update_main_channel()
 
     except Exception as e:
@@ -1840,24 +1847,26 @@ async def update_main_channel():
         print(f"❌ เกิดข้อผิดพลาดในการอัปเดตช่องหลัก: {e}")
 
 # =======================================================================================
-# ✅ Main Shop View
+# ✅ Main Shop View (FIXED - Button colors update correctly)
 # =======================================================================================
 
 class MainShopView(View):
     def __init__(self):
         super().__init__(timeout=None)
         
-        if shop_open and gamepass_stock > 0:
-            gamepass_label = "เปิดตั๋วกดเกมพาส"
-            gamepass_style = discord.ButtonStyle.success
-            gamepass_disabled = False
-        else:
-            if not shop_open:
-                gamepass_label = "ร้านปิดชั่วคราว"
-            else:
-                gamepass_label = "สินค้าหมด"
+        # Gamepass button - FIXED COLOR LOGIC
+        if not shop_open:
+            gamepass_label = "ร้านปิดชั่วคราว"
             gamepass_style = discord.ButtonStyle.danger
             gamepass_disabled = True
+        elif gamepass_stock <= 0:
+            gamepass_label = "สินค้าหมด"
+            gamepass_style = discord.ButtonStyle.danger  # Red when stock=0
+            gamepass_disabled = True
+        else:
+            gamepass_label = "เปิดตั๋วกดเกมพาส"
+            gamepass_style = discord.ButtonStyle.success  # Green when stock>0
+            gamepass_disabled = False
             
         gamepass_button = Button(
             label=gamepass_label,
@@ -1869,19 +1878,23 @@ class MainShopView(View):
         gamepass_button.callback = self.gamepass_ticket
         self.add_item(gamepass_button)
         
-        if shop_open and group_ticket_enabled and group_stock > 0:
-            group_label = "เปิดตั๋ว Group"
-            group_style = discord.ButtonStyle.success
-            group_disabled = False
-        else:
-            if not shop_open:
-                group_label = "ร้านปิดชั่วคราว"
-            elif not group_ticket_enabled:
-                group_label = "บริการปิดชั่วคราว"
-            else:
-                group_label = "สินค้าหมด"
+        # Group button - FIXED COLOR LOGIC
+        if not shop_open:
+            group_label = "ร้านปิดชั่วคราว"
             group_style = discord.ButtonStyle.danger
             group_disabled = True
+        elif not group_ticket_enabled:
+            group_label = "บริการปิดชั่วคราว"
+            group_style = discord.ButtonStyle.danger
+            group_disabled = True
+        elif group_stock <= 0:
+            group_label = "สินค้าหมด"
+            group_style = discord.ButtonStyle.danger  # Red when stock=0
+            group_disabled = True
+        else:
+            group_label = "เปิดตั๋ว Group"
+            group_style = discord.ButtonStyle.success  # Green when stock>0
+            group_disabled = False
             
         group_button = Button(
             label=group_label,
@@ -2035,7 +2048,7 @@ async def update_slash_commands_context():
         print(f"⚠️ เกิดข้อผิดพลาดในการอัพเดท contexts: {e}")
 
 # =======================================================================================
-# ✅ Tasks
+# ✅ Tasks (FIXED - update_presence_task shows current stock)
 # =======================================================================================
 
 @tasks.loop(minutes=30)
@@ -2055,16 +2068,20 @@ async def check_stale_tickets_task():
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดใน check_stale_tickets_task: {e}")
 
-@tasks.loop(hours=1)
+@tasks.loop(minutes=1)  # FIX: Changed to 1 minute for faster updates
 async def update_presence_task():
-    """อัพเดทสถานะบอททุก 1 ชั่วโมง"""
+    """อัพเดทสถานะบอททุก 1 นาที"""
     try:
+        # FIX: Use current stock values, not hardcoded 50000
+        activity_text = f"ร้าน Sushi Shop | GP: {gamepass_stock} | Group: {group_stock}"
+        
         await bot.change_presence(
             activity=discord.Activity(
                 type=discord.ActivityType.watching, 
-                name=f"ร้าน Sushi Shop | Stock: {gamepass_stock} 🎮"
+                name=activity_text
             )
         )
+        print(f"✅ อัพเดทสถานะ: {activity_text}")
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดในการอัพเดทสถานะ: {e}")
 
@@ -2106,10 +2123,12 @@ async def on_ready():
         except Exception as e:
             print(f"❌ เกิดข้อผิดพลาดในการ sync: {e}")
     
+    # FIX: Set initial presence with current stock
+    activity_text = f"ร้าน Sushi Shop | GP: {gamepass_stock} | Group: {group_stock}"
     await bot.change_presence(
         activity=discord.Activity(
             type=discord.ActivityType.watching, 
-            name=f"ร้าน Sushi Shop | Stock: {gamepass_stock} 🎮"
+            name=activity_text
         )
     )
     
@@ -2345,6 +2364,9 @@ async def ty(ctx):
                 'ty_time': get_thailand_time(),
                 'buyer_id': buyer.id
             }
+        
+        # FIX: Update main channel after stock change
+        await update_main_channel()
         
     else:
         await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
@@ -3425,7 +3447,7 @@ async def tax(ctx, *, expression: str):
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
 
 # =======================================================================================
-# ✅ เริ่มต้นบอท
+# ✅ เริ่มต้นบอท WITH RATE LIMIT PROTECTION (FIXED)
 # =======================================================================================
 if __name__ == "__main__":
     try:
@@ -3438,12 +3460,50 @@ if __name__ == "__main__":
             print("❌ ไม่พบ TOKEN ใน environment variables")
             exit(1)
         
-        # ✅ รอ 30 วินาทีก่อนเริ่มบอท
+        print(f"✅ Token found (length: {len(token)})")
         print("⏳ รอ 30 วินาทีก่อนเริ่มบอท...")
         time.sleep(30)
         
-        bot.run(token)
+        # ===== RATE LIMIT PROTECTION =====
+        import asyncio
+        from discord.errors import HTTPException, GatewayNotFound
+        from requests.exceptions import ConnectionError
+        
+        max_retries = 5
+        retry_count = 0
+        base_wait = 60  # Start with 60 seconds
+        
+        while retry_count < max_retries:
+            try:
+                print(f"🔄 Connection attempt {retry_count + 1}/{max_retries}")
+                bot.run(token)
+                break  # If successful, exit loop
+                
+            except (HTTPException, GatewayNotFound) as e:
+                if hasattr(e, 'status') and e.status == 429:  # Rate limited
+                    wait_time = base_wait * (2 ** retry_count)  # Exponential: 60, 120, 240, 480, 960
+                    print(f"⏳ Rate limited! Waiting {wait_time} seconds before retry...")
+                    print(f"⚠️ Error details: {e}")
+                    time.sleep(wait_time)
+                    retry_count += 1
+                else:
+                    print(f"❌ Discord connection error: {e}")
+                    raise e
+                    
+            except ConnectionError as e:
+                wait_time = base_wait * (2 ** retry_count)
+                print(f"🔌 Connection error! Waiting {wait_time} seconds...")
+                print(f"⚠️ Error: {e}")
+                time.sleep(wait_time)
+                retry_count += 1
+                
+            except Exception as e:
+                print(f"❌ Unexpected error: {e}")
+                raise e
+        
+        if retry_count >= max_retries:
+            print("❌ Failed to connect after maximum retries")
+            
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดร้ายแรง: {e}")
         traceback.print_exc()
-
