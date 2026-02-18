@@ -544,15 +544,15 @@ async def move_to_delivered_category(channel, user):
         print(f"❌ Error moving to delivered category: {e}")
         return False
 
-# ==================== ฟังก์ชันอัพเดทชื่อช่องเครดิต (แก้ไขใหม่) ====================
+# ==================== ฟังก์ชันอัพเดทชื่อช่องเครดิต ====================
 async def update_credit_channel_name():
     """เปลี่ยนชื่อช่องเครดิตตามจำนวนข้อความ (รูปแบบ ☑️credit : จำนวน)"""
     global credit_channel_last_update
     
     try:
-        # ป้องกันการอัพเดทบ่อยเกินไป
+        # ป้องกันการอัพเดทบ่อยเกินไป แต่ให้ถี่ขึ้น
         current_time = time.time()
-        if current_time - credit_channel_last_update < 60:  # ลดเหลือ 1 นาที
+        if current_time - credit_channel_last_update < 30:  # ลดเหลือ 30 วินาที
             return
         
         async with credit_channel_update_lock:
@@ -561,15 +561,14 @@ async def update_credit_channel_name():
                 print("❌ ไม่พบช่องเครดิต")
                 return
             
-            # นับจำนวนข้อความในช่อง (จำกัดไม่เกิน 1000 เพื่อป้องกันการโหลดหนัก)
+            # นับจำนวนข้อความในช่องทั้งหมด
             message_count = 0
             try:
-                async for _ in credit_channel.history(limit=1000):
+                async for _ in credit_channel.history(limit=None):
                     message_count += 1
                 print(f"📊 นับข้อความในช่องเครดิตได้: {message_count}")
             except Exception as e:
                 print(f"⚠️ ไม่สามารถนับข้อความได้: {e}")
-                # ถ้านับไม่ได้ ให้ใช้ค่าเดิม
                 return
             
             # ตั้งชื่อใหม่ตามรูปแบบที่ต้องการ: ☑️credit : 300
@@ -1289,57 +1288,75 @@ async def vouch(ctx):
         embed.set_footer(text="Sushi Shop • ขอบคุณที่ใช้บริการ")
         embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
         
-        # สร้างปุ่มให้เครดิต
+        # ===== ปุ่มให้เครดิตแบบใหม่ =====
         view = View(timeout=None)
+        
+        # ปุ่มลิงก์ไปยังช่องเครดิต (กดได้ครั้งเดียว)
         credit_button = Button(
-            label="⭐ ให้เครื่องดื่ม ⭐", 
-            style=discord.ButtonStyle.success, 
-            emoji="⭐",
-            custom_id=f"credit_btn_{ctx.channel.id}"
+            label="⭐ ให้เครดิต ⭐", 
+            style=discord.ButtonStyle.link,
+            url=f"https://discord.com/channels/{ctx.guild.id}/{CREDIT_CHANNEL_ID}",
+            emoji="⭐"
         )
         
-        async def credit_callback(i):
-            credit_channel = bot.get_channel(CREDIT_CHANNEL_ID)
-            if not credit_channel:
-                await i.response.send_message("❌ ไม่พบช่องเครดิต", ephemeral=True)
-                return
-            
-            # ส่ง embed ไปยังช่องเครดิต
-            credit_embed = discord.Embed(
-                title="🥤 ได้รับเครื่องดื่ม!",
-                description=f"{i.user.mention} ให้เครดิตกับ {buyer.mention if buyer else 'ลูกค้า'}",
-                color=0xFFD700
-            )
-            credit_embed.add_field(
-                name="📦 รายละเอียด", 
-                value=f"จำนวน Robux: {robux_amount if robux_amount else 'ไม่ระบุ'}", 
-                inline=False
-            )
-            credit_embed.set_footer(text=f"เวลา: {get_thailand_time().strftime('%d/%m/%y %H:%M')}")
-            
-            await credit_channel.send(embed=credit_embed)
-            await i.response.send_message("✅ ให้เครดิตเรียบร้อย! ขอบคุณที่ใช้บริการ", ephemeral=True)
-            
-            # อัพเดทชื่อช่องเครดิตทันที
-            await update_credit_channel_name()
-        
-        credit_button.callback = credit_callback
         view.add_item(credit_button)
         
         # ส่ง embed หลักในห้องตั๋ว
         await ctx.send(embed=embed, view=view)
         
-        # ส่ง DM หาผู้ซื้อ
+        # ===== ส่ง DM หาผู้ซื้อ (แบบเดิม) =====
         if buyer:
             try:
+                # หาหลักฐานการส่ง (ถ้ามี)
+                delivery_image = None
+                async for msg in ctx.channel.history(limit=20):
+                    if msg.attachments:
+                        for att in msg.attachments:
+                            if any(att.filename.lower().endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.gif']):
+                                delivery_image = att.url
+                                break
+                        if delivery_image:
+                            break
+                
+                # กำหนดประเภทสินค้า
+                product_type = "Gamepass"
+                if ctx.channel.category and "group" in ctx.channel.category.name.lower():
+                    product_type = "Group"
+                
+                receipt_color = 0xFFA500 if product_type == "Gamepass" else 0x00FFFF
+                
+                # สร้าง embed ใบเสร็จ
                 dm_embed = discord.Embed(
-                    title="✅ การสั่งซื้อเสร็จสมบูรณ์",
-                    description="สินค้าของคุณถูกจัดส่งเรียบร้อยแล้ว! ขอบคุณที่ใช้บริการ Sushi Shop นะคะ 🍣",
-                    color=0x00FF00
+                    title=f"🧾 ใบเสร็จการซื้อสินค้า ({product_type})",
+                    description="ขอบคุณที่ใช้บริการ Sushi Shop นะคะ 🍣",
+                    color=receipt_color
                 )
+                dm_embed.add_field(name="📦 สินค้า", value=product_type, inline=True)
+                dm_embed.add_field(name="💸 จำนวน Robux", value=f"{robux_amount if robux_amount else 'ไม่ระบุ'}", inline=True)
+                
+                # คำนวณราคา
+                if product_type == "Gamepass" and robux_amount:
+                    price = int(robux_amount) / gamepass_rate
+                    dm_embed.add_field(name="💰 ราคา", value=f"{price:,.0f} บาท", inline=True)
+                elif robux_amount:
+                    rate = group_rate_low if int(robux_amount) < 1500 else group_rate_high
+                    price = int(robux_amount) / rate
+                    dm_embed.add_field(name="💰 ราคา", value=f"{price:,.0f} บาท", inline=True)
+                
+                if delivery_image:
+                    dm_embed.set_image(url=delivery_image)
+                
+                dm_embed.add_field(
+                    name="📝 หมายเหตุ", 
+                    value="หากมีปัญหากรุณาติดต่อแอดมินในเซิร์ฟเวอร์", 
+                    inline=False
+                )
+                dm_embed.set_footer(text="Sushi Shop • ขอบคุณที่ไว้วางใจ 💖")
+                
                 await buyer.send(embed=dm_embed)
-            except:
-                pass
+                print(f"✅ ส่งใบเสร็จไปยัง DM ของ {buyer.name} เรียบร้อย")
+            except Exception as e:
+                print(f"⚠️ ไม่สามารถส่ง DM ถึง {buyer.name}: {e}")
         
         # ลบข้อมูลใน dict
         if str(ctx.channel.id) in ticket_robux_data:
@@ -1827,7 +1844,7 @@ async def save_data():
     save_json(ticket_robux_data_file, ticket_robux_data)
     save_json(ticket_customer_data_file, ticket_customer_data)
 
-@tasks.loop(minutes=5)  # เปลี่ยนจาก 10 นาที เป็น 5 นาที
+@tasks.loop(minutes=5)
 async def update_credit_channel_task():
     """อัพเดทชื่อช่องเครดิตทุก 5 นาที"""
     await update_credit_channel_name()
@@ -1875,8 +1892,8 @@ async def on_message(message):
             except:
                 pass
         
-        # อัพเดทชื่อช่องทันทีเมื่อมีข้อความใหม่ (แต่ใช้ lock ป้องกันการอัพเดทถี่เกินไป)
-        bot.loop.create_task(update_credit_channel_name())
+        # อัพเดทชื่อช่องทันทีเมื่อมีข้อความใหม่
+        await update_credit_channel_name()
     
     await bot.process_commands(message)
 
