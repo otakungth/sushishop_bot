@@ -544,26 +544,22 @@ async def move_to_delivered_category(channel, user):
         print(f"❌ Error moving to delivered category: {e}")
         return False
 
-# ==================== ฟังก์ชันอัพเดทชื่อช่องเครดิต ====================
+# ==================== ฟังก์ชันอัพเดทชื่อช่องเครดิต (แก้ไขใหม่) ====================
 async def update_credit_channel_name():
     """เปลี่ยนชื่อช่องเครดิตตามจำนวนข้อความ (รูปแบบ ☑️credit : จำนวน)"""
     global credit_channel_last_update
     
     try:
-        # ป้องกันการอัพเดทบ่อยเกินไป แต่ให้ถี่ขึ้น
-        current_time = time.time()
-        if current_time - credit_channel_last_update < 30:  # ลดเหลือ 30 วินาที
-            return
-        
         async with credit_channel_update_lock:
             credit_channel = bot.get_channel(CREDIT_CHANNEL_ID)
             if not credit_channel:
                 print("❌ ไม่พบช่องเครดิต")
                 return
             
-            # นับจำนวนข้อความในช่องทั้งหมด
+            # นับจำนวนข้อความจริง ๆ ในช่อง
             message_count = 0
             try:
+                # ดึงประวัติข้อความทั้งหมดแล้วนับ
                 async for _ in credit_channel.history(limit=None):
                     message_count += 1
                 print(f"📊 นับข้อความในช่องเครดิตได้: {message_count}")
@@ -571,18 +567,22 @@ async def update_credit_channel_name():
                 print(f"⚠️ ไม่สามารถนับข้อความได้: {e}")
                 return
             
-            # ตั้งชื่อใหม่ตามรูปแบบที่ต้องการ: ☑️credit : 300
+            # ตั้งชื่อใหม่ตามรูปแบบที่ต้องการ: ☑️credit : 390
+            # แก้ไขจาก -- เป็น : ตามที่ต้องการ
             new_name = f"☑️credit : {message_count}"
             
             # เปลี่ยนชื่อถ้าต่างจากเดิม
             if credit_channel.name != new_name:
-                await bot.channel_edit_rate_limiter.acquire()
-                await credit_channel.edit(name=new_name)
-                print(f"✅ เปลี่ยนชื่อช่องเครดิตเป็น: {new_name}")
+                try:
+                    await bot.channel_edit_rate_limiter.acquire()
+                    await credit_channel.edit(name=new_name)
+                    print(f"✅ เปลี่ยนชื่อช่องเครดิตเป็น: {new_name}")
+                except Exception as e:
+                    print(f"❌ ไม่สามารถเปลี่ยนชื่อได้: {e}")
             else:
                 print(f"ℹ️ ช่องเครดิตยังคงเดิม: {new_name}")
                 
-            credit_channel_last_update = current_time
+            credit_channel_last_update = time.time()
             
     except Exception as e:
         print(f"❌ Error updating credit channel name: {e}")
@@ -1896,6 +1896,18 @@ async def on_message(message):
         await update_credit_channel_name()
     
     await bot.process_commands(message)
+
+@bot.event
+async def on_message_delete(message):
+    """เมื่อมีข้อความถูกลบในช่องเครดิต ให้อัพเดทชื่อช่อง"""
+    if message.channel.id == CREDIT_CHANNEL_ID:
+        await update_credit_channel_name()
+
+@bot.event
+async def on_bulk_message_delete(messages):
+    """เมื่อมีข้อความถูกลบหลายข้อความในช่องเครดิต ให้อัพเดทชื่อช่อง"""
+    if messages and messages[0].channel.id == CREDIT_CHANNEL_ID:
+        await update_credit_channel_name()
 
 # ==================== START ====================
 if __name__ == "__main__":
