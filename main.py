@@ -539,7 +539,30 @@ async def move_to_delivered_category(channel, user):
         print(f"❌ Error moving to delivered category: {e}")
         return False
 
-# ==================== ฟังก์ชันอัพเดทชื่อช่องเครดิต (แก้ไขใหม่) ====================
+# ==================== ฟังก์ชันนับจำนวนข้อความในช่องเครดิต ====================
+async def count_credit_channel_messages():
+    """นับจำนวนข้อความจริงในช่องเครดิต"""
+    try:
+        credit_channel = bot.get_channel(CREDIT_CHANNEL_ID)
+        if not credit_channel:
+            print("❌ ไม่พบช่องเครดิต")
+            return 0
+        
+        message_count = 0
+        try:
+            # นับข้อความทั้งหมดในช่อง
+            async for _ in credit_channel.history(limit=None):
+                message_count += 1
+            print(f"📊 นับข้อความในช่องเครดิตได้: {message_count}")
+            return message_count
+        except Exception as e:
+            print(f"⚠️ ไม่สามารถนับข้อความได้: {e}")
+            return 0
+    except Exception as e:
+        print(f"❌ Error counting messages: {e}")
+        return 0
+
+# ==================== ฟังก์ชันอัพเดทชื่อช่องเครดิต ====================
 async def update_credit_channel_name():
     """เปลี่ยนชื่อช่องเครดิตตามจำนวนข้อความ (รูปแบบ ☑️credit : จำนวน)"""
     try:
@@ -549,18 +572,10 @@ async def update_credit_channel_name():
                 print("❌ ไม่พบช่องเครดิต")
                 return
             
-            # นับจำนวนข้อความจริง ๆ ในช่อง
-            message_count = 0
-            try:
-                # ดึงประวัติข้อความทั้งหมดแล้วนับ
-                async for _ in credit_channel.history(limit=None):
-                    message_count += 1
-                print(f"📊 นับข้อความในช่องเครดิตได้: {message_count}")
-            except Exception as e:
-                print(f"⚠️ ไม่สามารถนับข้อความได้: {e}")
-                return
+            # นับจำนวนข้อความ
+            message_count = await count_credit_channel_messages()
             
-            # ตั้งชื่อใหม่ตามรูปแบบที่ต้องการ: ☑️credit : 390
+            # ตั้งชื่อใหม่
             new_name = f"☑️credit : {message_count}"
             
             # เปลี่ยนชื่อถ้าต่างจากเดิม
@@ -569,6 +584,11 @@ async def update_credit_channel_name():
                     await bot.channel_edit_rate_limiter.acquire()
                     await credit_channel.edit(name=new_name)
                     print(f"✅ เปลี่ยนชื่อช่องเครดิตเป็น: {new_name}")
+                    
+                    # บันทึกจำนวนข้อความล่าสุด
+                    with open("credit_message_count.txt", "w") as f:
+                        f.write(str(message_count))
+                        
                 except Exception as e:
                     print(f"❌ ไม่สามารถเปลี่ยนชื่อได้: {e}")
             else:
@@ -577,6 +597,29 @@ async def update_credit_channel_name():
     except Exception as e:
         print(f"❌ Error updating credit channel name: {e}")
         traceback.print_exc()
+
+# ==================== ฟังก์ชันตรวจสอบการเปลี่ยนแปลง ====================
+async def check_credit_channel_changes():
+    """ตรวจสอบว่าจำนวนข้อความเปลี่ยนแปลงหรือไม่"""
+    try:
+        current_count = await count_credit_channel_messages()
+        
+        # อ่านจำนวนล่าสุดที่บันทึกไว้
+        last_count = 0
+        try:
+            if os.path.exists("credit_message_count.txt"):
+                with open("credit_message_count.txt", "r") as f:
+                    last_count = int(f.read().strip())
+        except:
+            pass
+        
+        # ถ้าจำนวนเปลี่ยน ให้อัพเดทชื่อ
+        if current_count != last_count:
+            print(f"📊 จำนวนข้อความเปลี่ยนจาก {last_count} เป็น {current_count}")
+            await update_credit_channel_name()
+            
+    except Exception as e:
+        print(f"❌ Error checking credit channel: {e}")
 
 # ==================== HANDLE TICKET AFTER TY ====================
 async def handle_ticket_after_ty(channel, user, robux_amount=None, customer_name=None):
@@ -1826,10 +1869,10 @@ async def save_data():
     save_json(ticket_robux_data_file, ticket_robux_data)
     save_json(ticket_customer_data_file, ticket_customer_data)
 
-@tasks.loop(minutes=5)
+@tasks.loop(minutes=1)  # ตรวจสอบทุก 1 นาที
 async def update_credit_channel_task():
-    """อัพเดทชื่อช่องเครดิตทุก 5 นาที"""
-    await update_credit_channel_name()
+    """ตรวจสอบและอัพเดทชื่อช่องเครดิตทุก 1 นาที"""
+    await check_credit_channel_changes()
 
 # ==================== EVENTS ====================
 @bot.event
@@ -1876,8 +1919,11 @@ async def on_message(message):
                 except:
                     pass
         
-        # อัพเดทชื่อช่องทุกครั้งที่มีข้อความใหม่ (ทั้งจากผู้ใช้และบอท)
-        await update_credit_channel_name()
+        # รอสักครู่ให้ Discord อัพเดทก่อนนับ
+        await asyncio.sleep(3)
+        
+        # ตรวจสอบและอัพเดทชื่อถ้าจำนวนเปลี่ยน
+        await check_credit_channel_changes()
     
     await bot.process_commands(message)
 
@@ -1885,13 +1931,17 @@ async def on_message(message):
 async def on_message_delete(message):
     """เมื่อมีข้อความถูกลบในช่องเครดิต ให้อัพเดทชื่อช่อง"""
     if message.channel.id == CREDIT_CHANNEL_ID:
-        await update_credit_channel_name()
+        # รอสักครู่ให้ Discord อัพเดท
+        await asyncio.sleep(2)
+        await check_credit_channel_changes()
 
 @bot.event
 async def on_bulk_message_delete(messages):
     """เมื่อมีข้อความถูกลบหลายข้อความในช่องเครดิต ให้อัพเดทชื่อช่อง"""
     if messages and messages[0].channel.id == CREDIT_CHANNEL_ID:
-        await update_credit_channel_name()
+        # รอสักครู่ให้ Discord อัพเดท
+        await asyncio.sleep(2)
+        await check_credit_channel_changes()
 
 # ==================== START ====================
 if __name__ == "__main__":
@@ -1909,3 +1959,4 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ Error running bot: {e}")
         traceback.print_exc()
+
