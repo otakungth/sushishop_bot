@@ -540,8 +540,9 @@ async def move_to_delivered_category(channel, user):
         return False
 
 # ==================== ฟังก์ชันนับจำนวนข้อความในช่องเครดิต ====================
+# ==================== ฟังก์ชันนับจำนวนข้อความในช่องเครดิต (แก้ไขใหม่) ====================
 async def count_credit_channel_messages():
-    """นับจำนวนข้อความจริงในช่องเครดิต"""
+    """นับจำนวนข้อความจริงในช่องเครดิต (พร้อมป้องกัน rate limit)"""
     try:
         credit_channel = bot.get_channel(CREDIT_CHANNEL_ID)
         if not credit_channel:
@@ -550,14 +551,50 @@ async def count_credit_channel_messages():
         
         message_count = 0
         try:
-            # นับข้อความทั้งหมดในช่อง
-            async for _ in credit_channel.history(limit=None):
-                message_count += 1
-            print(f"📊 นับข้อความในช่องเครดิตได้: {message_count}")
-            return message_count
+            # ใช้ rate limiter ที่มีอยู่แล้ว
+            await bot.api_rate_limiter.acquire()
+            
+            # จำกัดการดึงข้อความ (ป้องกัน rate limit)
+            # ดึงทีละ 100 ข้อความ แล้วค่อยๆ เพิ่ม
+            last_id = None
+            while True:
+                try:
+                    # ดึงข้อความครั้งละ 100
+                    history_kwargs = {"limit": 100}
+                    if last_id:
+                        history_kwargs["before"] = discord.Object(id=last_id)
+                    
+                    async for message in credit_channel.history(**history_kwargs):
+                        message_count += 1
+                        last_id = message.id
+                    
+                    # ถ้าได้น้อยกว่า 100 แสดงว่าหมดแล้ว
+                    if message_count % 100 != 0:
+                        break
+                        
+                    # รอระหว่างการดึงแต่ละรอบ
+                    await asyncio.sleep(1)
+                    
+                except discord.Forbidden:
+                    print("❌ ไม่มีสิทธิ์เข้าถึงช่อง")
+                    return 0
+                except discord.HTTPException as e:
+                    if e.status == 429:  # Rate limited
+                        retry_after = e.retry_after if hasattr(e, 'retry_after') else 5
+                        print(f"⚠️ Rate limited รอ {retry_after} วินาที")
+                        await asyncio.sleep(retry_after)
+                        continue
+                    else:
+                        print(f"❌ HTTP error: {e}")
+                        return 0
+                        
         except Exception as e:
             print(f"⚠️ ไม่สามารถนับข้อความได้: {e}")
             return 0
+            
+        print(f"📊 นับข้อความในช่องเครดิตได้: {message_count}")
+        return message_count
+        
     except Exception as e:
         print(f"❌ Error counting messages: {e}")
         return 0
@@ -1869,7 +1906,7 @@ async def save_data():
     save_json(ticket_robux_data_file, ticket_robux_data)
     save_json(ticket_customer_data_file, ticket_customer_data)
 
-@tasks.loop(minutes=1)  # ตรวจสอบทุก 1 นาที
+@tasks.loop(minutes=5)  # ตรวจสอบทุก 1 นาที
 async def update_credit_channel_task():
     """ตรวจสอบและอัพเดทชื่อช่องเครดิตทุก 1 นาที"""
     await check_credit_channel_changes()
@@ -1919,14 +1956,28 @@ async def on_message(message):
                 except:
                     pass
         
-        # รอสักครู่ให้ Discord อัพเดทก่อนนับ
-        await asyncio.sleep(3)
-        
-        # ตรวจสอบและอัพเดทชื่อถ้าจำนวนเปลี่ยน
-        await check_credit_channel_changes()
+        # ไม่ต้องนับทุกครั้งที่มีข้อความใหม่
+        # แค่เพิ่มจำนวนในใจแล้วอัพเดทชื่อ
+        if message.author != bot.user:
+            # ดึงชื่อปัจจุบัน
+            current_name = message.channel.name
+            try:
+                # แยกตัวเลขจากชื่อ (☑️credit : 390)
+                if ":" in current_name:
+                    current_count = int(current_name.split(":")[1].strip())
+                    new_count = current_count + 1
+                    new_name = f"☑️credit : {new_count}"
+                    
+                    # เปลี่ยนชื่อทันที (ไม่ต้องนับใหม่)
+                    if message.channel.name != new_name:
+                        await bot.channel_edit_rate_limiter.acquire()
+                        await message.channel.edit(name=new_name)
+                        print(f"✅ อัพเดทชื่อเป็น: {new_name}")
+            except:
+                # ถ้าแยกตัวเลขไม่ได้ ให้ใช้การนับแบบเต็ม
+                pass
     
     await bot.process_commands(message)
-
 @bot.event
 async def on_message_delete(message):
     """เมื่อมีข้อความถูกลบในช่องเครดิต ให้อัพเดทชื่อช่อง"""
@@ -1959,4 +2010,5 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ Error running bot: {e}")
         traceback.print_exc()
+
 
