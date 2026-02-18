@@ -62,6 +62,85 @@ ticket_customer_data = {}
 user_notes = {}
 ticket_activity = {}
 
+# ==================== CREDIT CHANNEL QUEUE SYSTEM ====================
+credit_channel_queue = asyncio.Queue()
+credit_channel_update_task_running = False
+
+async def credit_channel_update_worker():
+    """Worker ที่คอยประมวลผลการอัพเดทชื่อช่องเครดิตทีละครั้ง"""
+    global credit_channel_update_task_running
+    credit_channel_update_task_running = True
+    
+    while True:
+        try:
+            # รอรับงานจาก queue
+            change = await credit_channel_queue.get()
+            
+            # ดึงข้อมูลช่อง
+            channel = bot.get_channel(CREDIT_CHANNEL_ID)
+            if not channel:
+                print("❌ ไม่พบช่องเครดิต")
+                credit_channel_queue.task_done()
+                continue
+            
+            # ดึงชื่อปัจจุบัน
+            current_name = channel.name
+            print(f"🔄 กำลังประมวลผล: {change} | ชื่อปัจจุบัน: {current_name}")
+            
+            try:
+                # แยกตัวเลขจากชื่อ
+                if ":" in current_name:
+                    parts = current_name.split(":")
+                    if len(parts) >= 2:
+                        current_count = int(parts[1].strip())
+                        
+                        # คำนวณตัวเลขใหม่ตามประเภทการเปลี่ยนแปลง
+                        if change == "new_message":
+                            new_count = current_count + 1
+                        elif change == "delete_message":
+                            new_count = current_count - 1
+                        elif change.startswith("bulk_delete_"):
+                            # รูปแบบ bulk_delete_3
+                            delete_count = int(change.split("_")[2])
+                            new_count = current_count - delete_count
+                        else:
+                            new_count = current_count
+                        
+                        new_name = f"☑️credit : {new_count}"
+                        
+                        # เปลี่ยนชื่อถ้าต่างจากเดิม
+                        if channel.name != new_name:
+                            print(f"📊 เปลี่ยนจาก {current_count} เป็น {new_count}")
+                            await bot.channel_edit_rate_limiter.acquire()
+                            await channel.edit(name=new_name)
+                            print(f"✅ อัพเดทชื่อเป็น: {new_name}")
+                            
+                            # บันทึกจำนวนล่าสุด
+                            with open("credit_message_count.txt", "w") as f:
+                                f.write(str(new_count))
+                        else:
+                            print(f"ℹ️ ชื่อยังคงเดิม: {new_name}")
+                else:
+                    print(f"⚠️ รูปแบบชื่อไม่ถูกต้อง: {current_name}")
+                    # ถ้ารูปแบบไม่ถูกต้อง ให้ใช้การนับแบบเต็ม
+                    await check_credit_channel_changes()
+                    
+            except ValueError as e:
+                print(f"❌ ไม่สามารถแปลงตัวเลขได้: {e}")
+                await check_credit_channel_changes()
+            except Exception as e:
+                print(f"❌ Error ใน worker: {e}")
+            
+            # บอกว่างานเสร็จแล้ว
+            credit_channel_queue.task_done()
+            
+            # รอระหว่างการอัพเดทแต่ละครั้ง (ป้องกัน rate limit)
+            await asyncio.sleep(3)
+            
+        except Exception as e:
+            print(f"❌ Credit channel worker error: {e}")
+            await asyncio.sleep(5)
+
 # ==================== CREDIT CHANNEL VARIABLES ====================
 credit_channel_last_update = 0
 credit_channel_update_lock = asyncio.Lock()
@@ -1936,12 +2015,18 @@ async def on_ready():
     save_data.start()
     update_credit_channel_task.start()
     
+    # เริ่ม worker สำหรับ credit channel
+    global credit_channel_update_task_running
+    if not credit_channel_update_task_running:
+        bot.loop.create_task(credit_channel_update_worker())
+        print("✅ เริ่ม credit channel update worker")
+    
     await update_channel_name()
     await update_main_channel()
     await update_credit_channel_name()
     
     print("🎯 บอทพร้อมใช้งาน!")
-
+    
 @bot.event
 async def on_message(message):
     if message.channel.id == CREDIT_CHANNEL_ID:
@@ -1958,99 +2043,38 @@ async def on_message(message):
                 except:
                     pass
             
-            # อัพเดทชื่อช่องทันที (เพิ่มขึ้น 1)
-            channel = message.channel
-            current_name = channel.name
-            
-            try:
-                # แยกตัวเลขจากชื่อ (☑️credit : 393)
-                if ":" in current_name:
-                    # ดึงตัวเลขจากชื่อปัจจุบัน
-                    parts = current_name.split(":")
-                    if len(parts) >= 2:
-                        current_count = int(parts[1].strip())
-                        new_count = current_count + 1
-                        new_name = f"☑️credit : {new_count}"
-                        
-                        print(f"🔄 เปลี่ยนชื่อจาก {current_count} เป็น {new_count}")
-                        
-                        # เปลี่ยนชื่อทันที
-                        if channel.name != new_name:
-                            await bot.channel_edit_rate_limiter.acquire()
-                            await channel.edit(name=new_name)
-                            print(f"✅ อัพเดทชื่อเป็น: {new_name}")
-                            
-                            # บันทึกจำนวนล่าสุด
-                            with open("credit_message_count.txt", "w") as f:
-                                f.write(str(new_count))
-                else:
-                    print(f"⚠️ รูปแบบชื่อไม่ถูกต้อง: {current_name}")
-                    # ถ้ารูปแบบไม่ถูกต้อง ให้ใช้การนับแบบเต็ม
-                    await asyncio.sleep(3)
-                    await check_credit_channel_changes()
-                    
-            except ValueError as e:
-                print(f"❌ ไม่สามารถแปลงตัวเลขได้: {e}")
-                # ถ้าแปลงตัวเลขไม่ได้ ให้ใช้การนับแบบเต็ม
-                await asyncio.sleep(3)
-                await check_credit_channel_changes()
-            except Exception as e:
-                print(f"❌ Error in on_message: {e}")
-                await asyncio.sleep(3)
-                await check_credit_channel_changes()
+            # เพิ่มงานเข้า queue (ไม่ต้องรอ)
+            await credit_channel_queue.put("new_message")
+            print(f"📥 เพิ่มงาน new_message เข้า queue (ขนาด queue: {credit_channel_queue.qsize()})")
     
     await bot.process_commands(message)
     
 @bot.event
 async def on_message_delete(message):
-    """เมื่อมีข้อความถูกลบในช่องเครดิต ให้อัพเดทชื่อช่องทันที"""
+    """เมื่อมีข้อความถูกลบในช่องเครดิต ให้อัพเดทชื่อช่อง"""
     if message.channel.id == CREDIT_CHANNEL_ID:
         print(f"🗑️ ข้อความถูกลบในช่องเครดิต")
         
         # รอสักครู่ให้ Discord อัพเดท
         await asyncio.sleep(2)
         
-        channel = message.channel
-        current_name = channel.name
-        
-        try:
-            # แยกตัวเลขจากชื่อ (☑️credit : 394)
-            if ":" in current_name:
-                parts = current_name.split(":")
-                if len(parts) >= 2:
-                    current_count = int(parts[1].strip())
-                    new_count = current_count - 1
-                    new_name = f"☑️credit : {new_count}"
-                    
-                    print(f"🔄 เปลี่ยนชื่อจาก {current_count} เป็น {new_count}")
-                    
-                    # เปลี่ยนชื่อทันที
-                    if channel.name != new_name:
-                        await bot.channel_edit_rate_limiter.acquire()
-                        await channel.edit(name=new_name)
-                        print(f"✅ อัพเดทชื่อเป็น: {new_name}")
-                        
-                        # บันทึกจำนวนล่าสุด
-                        with open("credit_message_count.txt", "w") as f:
-                            f.write(str(new_count))
-            else:
-                print(f"⚠️ รูปแบบชื่อไม่ถูกต้อง: {current_name}")
-                await check_credit_channel_changes()
-                
-        except ValueError as e:
-            print(f"❌ ไม่สามารถแปลงตัวเลขได้: {e}")
-            await check_credit_channel_changes()
-        except Exception as e:
-            print(f"❌ Error in on_message_delete: {e}")
-            await check_credit_channel_changes()
+        # เพิ่มงานเข้า queue
+        await credit_channel_queue.put("delete_message")
+        print(f"📥 เพิ่มงาน delete_message เข้า queue (ขนาด queue: {credit_channel_queue.qsize()})")
 
 @bot.event
 async def on_bulk_message_delete(messages):
     """เมื่อมีข้อความถูกลบหลายข้อความในช่องเครดิต ให้อัพเดทชื่อช่อง"""
     if messages and messages[0].channel.id == CREDIT_CHANNEL_ID:
+        deleted_count = len(messages)
+        print(f"🗑️ ลบ {deleted_count} ข้อความในช่องเครดิต")
+        
         # รอสักครู่ให้ Discord อัพเดท
         await asyncio.sleep(2)
-        await check_credit_channel_changes()
+        
+        # เพิ่มงานเข้า queue (ระบุจำนวนที่ลบ)
+        await credit_channel_queue.put(f"bulk_delete_{deleted_count}")
+        print(f"📥 เพิ่มงาน bulk_delete_{deleted_count} เข้า queue (ขนาด queue: {credit_channel_queue.qsize()})")
 
 # ==================== START ====================
 if __name__ == "__main__":
@@ -2068,6 +2092,7 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ Error running bot: {e}")
         traceback.print_exc()
+
 
 
 
