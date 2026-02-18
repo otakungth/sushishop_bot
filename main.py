@@ -62,6 +62,10 @@ ticket_customer_data = {}
 user_notes = {}
 ticket_activity = {}
 
+# ==================== CREDIT CHANNEL VARIABLES ====================
+credit_channel_last_update = 0
+credit_channel_update_lock = asyncio.Lock()
+
 LEVELS = {
     1: {"exp": 1, "role_id": 1361555369825927249},
     2: {"exp": 5000, "role_id": 1432070662977093703},
@@ -517,10 +521,78 @@ async def save_ticket_transcript(channel, action_by=None, robux_amount=None, cus
         print(f"❌ Error saving transcript: {e}")
         return False, str(e)
 
+# ==================== ฟังก์ชันย้ายไป category ส่งของแล้ว ====================
+async def move_to_delivered_category(channel, user):
+    try:
+        guild = channel.guild
+        
+        delivered_category = guild.get_channel(DELIVERED_CATEGORY_ID)
+        if not delivered_category or not isinstance(delivered_category, discord.CategoryChannel):
+            delivered_category = discord.utils.get(guild.categories, id=DELIVERED_CATEGORY_ID)
+            if not delivered_category:
+                delivered_category = await guild.create_category("✅ ส่งของแล้ว")
+                print(f"✅ สร้าง category ส่งของแล้วใหม่")
+        
+        # รอให้ rate limit หาย
+        await asyncio.sleep(5)
+        
+        await channel.edit(category=delivered_category)
+        print(f"✅ ย้ายตั๋วไปยัง category ส่งของแล้ว")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error moving to delivered category: {e}")
+        return False
+
+# ==================== ฟังก์ชันอัพเดทชื่อช่องเครดิต (แก้ไขใหม่) ====================
+async def update_credit_channel_name():
+    """เปลี่ยนชื่อช่องเครดิตตามจำนวนข้อความ (รูปแบบ ☑️credit : จำนวน)"""
+    global credit_channel_last_update
+    
+    try:
+        # ป้องกันการอัพเดทบ่อยเกินไป
+        current_time = time.time()
+        if current_time - credit_channel_last_update < 60:  # ลดเหลือ 1 นาที
+            return
+        
+        async with credit_channel_update_lock:
+            credit_channel = bot.get_channel(CREDIT_CHANNEL_ID)
+            if not credit_channel:
+                print("❌ ไม่พบช่องเครดิต")
+                return
+            
+            # นับจำนวนข้อความในช่อง (จำกัดไม่เกิน 1000 เพื่อป้องกันการโหลดหนัก)
+            message_count = 0
+            try:
+                async for _ in credit_channel.history(limit=1000):
+                    message_count += 1
+                print(f"📊 นับข้อความในช่องเครดิตได้: {message_count}")
+            except Exception as e:
+                print(f"⚠️ ไม่สามารถนับข้อความได้: {e}")
+                # ถ้านับไม่ได้ ให้ใช้ค่าเดิม
+                return
+            
+            # ตั้งชื่อใหม่ตามรูปแบบที่ต้องการ: ☑️credit : 300
+            new_name = f"☑️credit : {message_count}"
+            
+            # เปลี่ยนชื่อถ้าต่างจากเดิม
+            if credit_channel.name != new_name:
+                await bot.channel_edit_rate_limiter.acquire()
+                await credit_channel.edit(name=new_name)
+                print(f"✅ เปลี่ยนชื่อช่องเครดิตเป็น: {new_name}")
+            else:
+                print(f"ℹ️ ช่องเครดิตยังคงเดิม: {new_name}")
+                
+            credit_channel_last_update = current_time
+            
+    except Exception as e:
+        print(f"❌ Error updating credit channel name: {e}")
+        traceback.print_exc()
+
 # ==================== HANDLE TICKET AFTER TY ====================
 async def handle_ticket_after_ty(channel, user, robux_amount=None, customer_name=None):
     try:
-        print(f"📝 กำลังจัดการตั๋วหลัง !ty: {channel.name}")
+        print(f"📝 กำลังจัดการตั๋วหลัง !vouch: {channel.name}")
         guild = channel.guild
         
         if robux_amount is None and str(channel.id) in ticket_robux_data:
@@ -530,7 +602,6 @@ async def handle_ticket_after_ty(channel, user, robux_amount=None, customer_name
         if not delivered_category or not isinstance(delivered_category, discord.CategoryChannel):
             delivered_category = discord.utils.get(guild.categories, id=DELIVERED_CATEGORY_ID)
             if not delivered_category:
-                print(f"❌ ไม่พบ category ส่งของแล้ว ID: {DELIVERED_CATEGORY_ID}")
                 delivered_category = await guild.create_category("✅ ส่งของแล้ว")
                 print(f"✅ สร้าง category ส่งของแล้วใหม่")
         
@@ -1138,10 +1209,11 @@ async def rate(ctx, rate_type=None, low_rate=None, high_rate=None):
         except ValueError:
             await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง", delete_after=5)
 
+# ==================== คำสั่ง VOUCH ใหม่ ====================
 @bot.command()
 @admin_only()
-async def ty(ctx):
-    """คำสั่งยืนยันการส่งสินค้า"""
+async def vouch(ctx):
+    """คำสั่งยืนยันการส่งสินค้า (ใช้ !vouch)"""
     global gamepass_stock, group_stock
     
     try:
@@ -1156,17 +1228,7 @@ async def ty(ctx):
     try:
         processing_msg = await ctx.send("🔄 กำลังดำเนินการ...")
         
-        if ctx.channel.category:
-            category_name = ctx.channel.category.name.lower()
-            if "gamepass" in category_name:
-                async with bot.stock_lock:
-                    gamepass_stock += 1
-                print(f"✅ เพิ่ม Gamepass stock +1 (ปัจจุบัน: {gamepass_stock})")
-            elif "group" in category_name or "robux" in category_name:
-                async with bot.stock_lock:
-                    group_stock += 1
-                print(f"✅ เพิ่ม Group stock +1 (ปัจจุบัน: {group_stock})")
-
+        # หาผู้ซื้อ
         buyer = None
         channel_name = ctx.channel.name
         if channel_name.startswith("ticket-"):
@@ -1184,35 +1246,102 @@ async def ty(ctx):
                     buyer = msg.author
                     break
         
+        # ดึงข้อมูลโรบัคและชื่อลูกค้า
         robux_amount = ticket_robux_data.get(str(ctx.channel.id))
         customer_name = ticket_customer_data.get(str(ctx.channel.id))
         
-        handle_success = await handle_ticket_after_ty(ctx.channel, buyer, robux_amount, customer_name)
+        # ย้ายไป category ส่งของแล้ว
+        await move_to_delivered_category(ctx.channel, buyer)
         
-        if not handle_success:
-            await processing_msg.edit(content="❌ เกิดข้อผิดพลาดในการจัดการตั๋ว กรุณาลองใหม่อีกครั้ง")
-            return
+        # บันทึก transcript
+        save_success, filename = await save_ticket_transcript(ctx.channel, buyer, robux_amount, customer_name)
         
+        if save_success:
+            try:
+                await ctx.channel.edit(name=filename[:100])
+            except:
+                pass
+        
+        # อัพเดท stock
+        if ctx.channel.category:
+            category_name = ctx.channel.category.name.lower()
+            if "gamepass" in category_name:
+                async with bot.stock_lock:
+                    gamepass_stock += 1
+            elif "group" in category_name or "robux" in category_name:
+                async with bot.stock_lock:
+                    group_stock += 1
+        
+        # ลบข้อความกำลังดำเนินการ
         await processing_msg.delete()
         
-        if handle_success and buyer:
+        # ===== ส่วนสำคัญ: ส่ง embed ส่งของเรียบร้อย =====
+        embed = discord.Embed(
+            title="✅ ส่งของเรียบร้อยแล้ว",
+            description=(
+                "🎉 **สินค้าถูกจัดส่งเรียบร้อยแล้ว!**\n\n"
+                "**ขอบคุณที่ใช้บริการร้าน Sushi Shop** 🍣\n"
+                "ฝากกดเครื่องดื่มให้ด้วยนะคะ 🥺\n\n"
+                "⚠️ **หมายเหตุ:** ตั๋วนี้จะถูกย้ายไปเก็บถาวรใน 10 นาที"
+            ),
+            color=0x00FF00
+        )
+        embed.set_footer(text="Sushi Shop • ขอบคุณที่ใช้บริการ")
+        embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
+        
+        # สร้างปุ่มให้เครดิต
+        view = View(timeout=None)
+        credit_button = Button(
+            label="⭐ ให้เครื่องดื่ม ⭐", 
+            style=discord.ButtonStyle.success, 
+            emoji="⭐",
+            custom_id=f"credit_btn_{ctx.channel.id}"
+        )
+        
+        async def credit_callback(i):
+            credit_channel = bot.get_channel(CREDIT_CHANNEL_ID)
+            if not credit_channel:
+                await i.response.send_message("❌ ไม่พบช่องเครดิต", ephemeral=True)
+                return
+            
+            # ส่ง embed ไปยังช่องเครดิต
+            credit_embed = discord.Embed(
+                title="🥤 ได้รับเครื่องดื่ม!",
+                description=f"{i.user.mention} ให้เครดิตกับ {buyer.mention if buyer else 'ลูกค้า'}",
+                color=0xFFD700
+            )
+            credit_embed.add_field(
+                name="📦 รายละเอียด", 
+                value=f"จำนวน Robux: {robux_amount if robux_amount else 'ไม่ระบุ'}", 
+                inline=False
+            )
+            credit_embed.set_footer(text=f"เวลา: {get_thailand_time().strftime('%d/%m/%y %H:%M')}")
+            
+            await credit_channel.send(embed=credit_embed)
+            await i.response.send_message("✅ ให้เครดิตเรียบร้อย! ขอบคุณที่ใช้บริการ", ephemeral=True)
+            
+            # อัพเดทชื่อช่องเครดิตทันที
+            await update_credit_channel_name()
+        
+        credit_button.callback = credit_callback
+        view.add_item(credit_button)
+        
+        # ส่ง embed หลักในห้องตั๋ว
+        await ctx.send(embed=embed, view=view)
+        
+        # ส่ง DM หาผู้ซื้อ
+        if buyer:
             try:
-                thank_you_embed = discord.Embed(
+                dm_embed = discord.Embed(
                     title="✅ การสั่งซื้อเสร็จสมบูรณ์",
                     description="สินค้าของคุณถูกจัดส่งเรียบร้อยแล้ว! ขอบคุณที่ใช้บริการ Sushi Shop นะคะ 🍣",
                     color=0x00FF00
                 )
-                thank_you_embed.add_field(
-                    name="📌 หมายเหตุ", 
-                    value="หากมีปัญหาหรือข้อสงสัย สามารถติดต่อแอดมินในเซิร์ฟเวอร์ได้เลยค่ะ", 
-                    inline=False
-                )
-                thank_you_embed.set_footer(text="Sushi Shop • ขอบคุณที่ไว้วางใจ 💖")
-                await buyer.send(embed=thank_you_embed)
-                print(f"✅ ส่งข้อความยืนยันไปยัง DM ของ {buyer.name} เรียบร้อย")
+                await buyer.send(embed=dm_embed)
             except:
                 pass
         
+        # ลบข้อมูลใน dict
         if str(ctx.channel.id) in ticket_robux_data:
             del ticket_robux_data[str(ctx.channel.id)]
             save_json(ticket_robux_data_file, ticket_robux_data)
@@ -1221,12 +1350,16 @@ async def ty(ctx):
             del ticket_customer_data[str(ctx.channel.id)]
             save_json(ticket_customer_data_file, ticket_customer_data)
         
+        # อัพเดท main channel
         await update_main_channel()
         
-        print(f"✅ คำสั่ง !ty ดำเนินการสำเร็จสำหรับห้อง {ctx.channel.name}")
+        # จัดเก็บถาวรหลังจาก 10 นาที
+        bot.loop.create_task(move_to_archive_after_delay(ctx.channel, buyer, 600))
+        
+        print(f"✅ คำสั่ง !vouch ดำเนินการสำเร็จสำหรับห้อง {ctx.channel.name}")
         
     except Exception as e:
-        print(f"❌ เกิดข้อผิดพลาดใน !ty: {e}")
+        print(f"❌ เกิดข้อผิดพลาดใน !vouch: {e}")
         traceback.print_exc()
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=5)
 
@@ -1548,7 +1681,7 @@ async def help_command(ctx):
         "`!group <on/off>` - เปิด/ปิด Group ticket\n"
         "`!rate <เรท>` - ตั้งค่าเรท Gamepass\n"
         "`!rate group <ต่ำ> <สูง>` - ตั้งค่าเรท Group\n"
-        "`!ty` - ส่งของเรียบร้อย (ใช้ในตั๋ว)\n"
+        "`!vouch` - ส่งของเรียบร้อย (ใช้ในตั๋ว)\n"
         "`!qr` - แสดง QR Code\n"
         "`!od <จำนวน>` - รับออเดอร์ Gamepass\n"
         "`!odg <จำนวน>` - รับออเดอร์ Group\n"
@@ -1694,6 +1827,11 @@ async def save_data():
     save_json(ticket_robux_data_file, ticket_robux_data)
     save_json(ticket_customer_data_file, ticket_customer_data)
 
+@tasks.loop(minutes=5)  # เปลี่ยนจาก 10 นาที เป็น 5 นาที
+async def update_credit_channel_task():
+    """อัพเดทชื่อช่องเครดิตทุก 5 นาที"""
+    await update_credit_channel_name()
+
 # ==================== EVENTS ====================
 @bot.event
 async def on_ready():
@@ -1717,15 +1855,18 @@ async def on_ready():
     
     update_presence.start()
     save_data.start()
+    update_credit_channel_task.start()
     
     await update_channel_name()
     await update_main_channel()
+    await update_credit_channel_name()
     
     print("🎯 บอทพร้อมใช้งาน!")
 
 @bot.event
 async def on_message(message):
     if message.channel.id == CREDIT_CHANNEL_ID and message.author != bot.user:
+        # เพิ่ม reaction
         await asyncio.sleep(2)
         for emoji in ["❤️", "🍣"]:
             try:
@@ -1733,6 +1874,9 @@ async def on_message(message):
                 await asyncio.sleep(1)
             except:
                 pass
+        
+        # อัพเดทชื่อช่องทันทีเมื่อมีข้อความใหม่ (แต่ใช้ lock ป้องกันการอัพเดทถี่เกินไป)
+        bot.loop.create_task(update_credit_channel_name())
     
     await bot.process_commands(message)
 
