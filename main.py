@@ -397,7 +397,6 @@ async def handle_open_ticket(interaction, category_name, stock_type):
             color=0x00FF99
         )
         embed.add_field(name="👤 ผู้ซื้อ", value=interaction.user.mention, inline=False)
-        )
         
         if stock_type == "gamepass":
             embed.add_field(
@@ -1909,6 +1908,4 @@ if __name__ == "__main__":
     try:
         bot.run(token)
     except Exception as e:
-        print(f"❌ Error running bot: {e}")
-        traceback.print_exc()
-
+        print(f"❌ Error running bot: {code
