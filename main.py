@@ -1673,7 +1673,6 @@ async def help_command(ctx):
         "`!level` - เช็คเลเวลและ EXP ของคุณ\n"
         "`!love` - แสดงหัวใจ\n"
         "`!say <ข้อความ>` - บอทพูดตาม\n\n"
-
         "**คำสั่งผู้ดูแลระบบเท่านั้น:**\n"
         "`!open` - เปิดร้าน\n"
         "`!close` - ปิดร้าน\n"
@@ -1836,6 +1835,7 @@ async def update_credit_channel_task():
 @bot.event
 async def on_ready():
     print(f"✅ บอทออนไลน์แล้ว: {bot.user} (ID: {bot.user.id})")
+    bot_status['online'] = True
     
     if not bot.commands_synced:
         try:
@@ -1862,6 +1862,18 @@ async def on_ready():
     await update_credit_channel_name()
     
     print("🎯 บอทพร้อมใช้งาน!")
+
+@bot.event
+async def on_disconnect():
+    """เมื่อบอทหลุดการเชื่อมต่อ"""
+    print("⚠️ บอท disconnected จาก Discord")
+    bot_status['online'] = False
+
+@bot.event
+async def on_resumed():
+    """เมื่อบอทเชื่อมต่อกลับมาได้"""
+    print("✅ บอทเชื่อมต่อกับ Discord อีกครั้ง")
+    bot_status['online'] = True
 
 @bot.event
 async def on_message(message):
@@ -1894,20 +1906,53 @@ async def on_bulk_message_delete(messages):
     if messages and messages[0].channel.id == CREDIT_CHANNEL_ID:
         await update_credit_channel_name()
 
+# ==================== AUTO-RECONNECT LOGIC ====================
+async def run_bot_with_reconnect():
+    """รันบอทพร้อมระบบ reconnect อัตโนมัติ"""
+    token = os.getenv("TOKEN")
+    if not token:
+        print("❌ ไม่พบ TOKEN ใน environment variables")
+        return
+    
+    while True:
+        try:
+            print("🔄 กำลังเริ่มบอท...")
+            await bot.start(token)
+        except discord.ConnectionClosed as e:
+            print(f"⚠️ การเชื่อมต่อหลุด: {e}")
+            print("🔄 กำลัง reconnect ใน 5 วินาที...")
+            await asyncio.sleep(5)
+        except discord.GatewayNotFound as e:
+            print(f"⚠️ Gateway not found: {e}")
+            print("🔄 กำลัง reconnect ใน 10 วินาที...")
+            await asyncio.sleep(10)
+        except discord.LoginFailure as e:
+            print(f"❌ Login failed: {e}")
+            print("🔴 โปรดตรวจสอบ TOKEN ของคุณ")
+            break
+        except Exception as e:
+            print(f"❌ เกิดข้อผิดพลาด: {e}")
+            traceback.print_exc()
+            print("🔄 กำลัง restart ใน 10 วินาที...")
+            await asyncio.sleep(10)
+        finally:
+            # ถ้าบอทหยุดทำงาน (ไม่ใช่แค่ connection หลุด)
+            if not bot.is_closed():
+                await bot.close()
+            print("🔄 กำลัง reconnect...")
+            await asyncio.sleep(5)
+
 # ==================== START ====================
 if __name__ == "__main__":
     keep_alive()
     print("⏳ รอ 30 วินาทีก่อนเริ่มบอท...")
     time.sleep(30)
     
-    token = os.getenv("TOKEN")
-    if not token:
-        print("❌ ไม่พบ TOKEN ใน environment variables")
-        exit(1)
-    
+    # ใช้ asyncio.run() เพื่อรันฟังก์ชันแบบ async
     try:
-        bot.run(token)
+        asyncio.run(run_bot_with_reconnect())
+    except KeyboardInterrupt:
+        print("👋 หยุดการทำงานของบอท")
     except Exception as e:
-        print(f"❌ Error running bot: {e}")
+        print(f"❌ Error: {e}")
         traceback.print_exc()
-
