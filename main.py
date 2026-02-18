@@ -147,9 +147,13 @@ def get_next_ticket_number():
     save_json(ticket_counter_file, bot.ticket_counter)
     return bot.ticket_counter["counter"]
 
+# FIXED: admin_only decorator - properly defined as a coroutine
 def admin_only():
     async def predicate(ctx):
-        if ctx.author.guild_permissions.administrator or ctx.guild.get_role(1361016912259055896) in ctx.author.roles:
+        if ctx.author.guild_permissions.administrator:
+            return True
+        admin_role = ctx.guild.get_role(1361016912259055896)
+        if admin_role and admin_role in ctx.author.roles:
             return True
         await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะผู้ดูแลระบบเท่านั้น", delete_after=5)
         return False
@@ -1861,4 +1865,3 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ Error running bot: {e}")
         traceback.print_exc()
-
