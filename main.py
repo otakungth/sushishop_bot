@@ -2086,34 +2086,67 @@ class SizeSelectView(View):
         
     @discord.ui.button(label="เล็ก (5x5, 5 ระเบิด)", style=discord.ButtonStyle.primary, emoji="🟢", row=0)
     async def small_button(self, interaction: discord.Interaction, button: Button):
-        await interaction.response.defer()
-        game = MinesweeperGame(5, 5, 5)
-        await start_minesweeper_game(interaction, game, "เล็ก (5x5, 5 ระเบิด)")
+        try:
+            # ตอบรับ interaction ก่อน
+            await interaction.response.defer()
+            
+            # สร้างเกม
+            game = MinesweeperGame(5, 5, 5)
+            
+            # เริ่มเกม
+            await start_minesweeper_game(interaction, game, "เล็ก (5x5, 5 ระเบิด)")
+            print(f"✅ เริ่มเกม Minesweeper เล็ก สำหรับ {interaction.user.name}")
+        except Exception as e:
+            print(f"❌ Error in small_button: {e}")
+            await interaction.followup.send(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
         
     @discord.ui.button(label="กลาง (8x8, 10 ระเบิด)", style=discord.ButtonStyle.primary, emoji="🟡", row=0)
     async def medium_button(self, interaction: discord.Interaction, button: Button):
-        await interaction.response.defer()
-        game = MinesweeperGame(8, 8, 10)
-        await start_minesweeper_game(interaction, game, "กลาง (8x8, 10 ระเบิด)")
+        try:
+            await interaction.response.defer()
+            game = MinesweeperGame(8, 8, 10)
+            await start_minesweeper_game(interaction, game, "กลาง (8x8, 10 ระเบิด)")
+            print(f"✅ เริ่มเกม Minesweeper กลาง สำหรับ {interaction.user.name}")
+        except Exception as e:
+            print(f"❌ Error in medium_button: {e}")
+            await interaction.followup.send(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
         
     @discord.ui.button(label="ใหญ่ (10x10, 15 ระเบิด)", style=discord.ButtonStyle.primary, emoji="🔴", row=0)
     async def large_button(self, interaction: discord.Interaction, button: Button):
-        await interaction.response.defer()
-        game = MinesweeperGame(10, 10, 15)
-        await start_minesweeper_game(interaction, game, "ใหญ่ (10x10, 15 ระเบิด)")
+        try:
+            await interaction.response.defer()
+            game = MinesweeperGame(10, 10, 15)
+            await start_minesweeper_game(interaction, game, "ใหญ่ (10x10, 15 ระเบิด)")
+            print(f"✅ เริ่มเกม Minesweeper ใหญ่ สำหรับ {interaction.user.name}")
+        except Exception as e:
+            print(f"❌ Error in large_button: {e}")
+            await interaction.followup.send(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
 
 async def start_minesweeper_game(interaction: discord.Interaction, game: MinesweeperGame, size_name: str):
-    display = game.get_display()
-    embed = discord.Embed(
-        title=f"💣 Minesweeper - {size_name}",
-        description=f"```{display}```\n**⏳ กำลังเล่น...** (โหมด: ⛏️ เปิดช่อง)",
-        color=0x00AAFF
-    )
-    embed.set_footer(text=f"ผู้เล่น: {interaction.user.display_name}")
-    
-    view = MinesweeperGameView(game, interaction.user, size_name)
-    await interaction.edit_original_response(embed=embed, view=view)
-
+    """เริ่มเกม Minesweeper"""
+    try:
+        # สร้าง display
+        display = game.get_display()
+        
+        # สร้าง embed
+        embed = discord.Embed(
+            title=f"💣 Minesweeper - {size_name}",
+            description=f"```{display}```\n**⏳ กำลังเล่น...** (โหมด: ⛏️ เปิดช่อง)",
+            color=0x00AAFF
+        )
+        embed.set_footer(text=f"ผู้เล่น: {interaction.user.display_name}")
+        
+        # สร้าง view
+        view = MinesweeperGameView(game, interaction.user, size_name)
+        
+        # แก้ไขข้อความเดิม (ไม่ใช่ส่งใหม่)
+        await interaction.edit_original_response(embed=embed, view=view)
+        print(f"✅ อัพเดทข้อความเป็นเกม Minesweeper")
+        
+    except Exception as e:
+        print(f"❌ Error in start_minesweeper_game: {e}")
+        traceback.print_exc()
+        await interaction.followup.send(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
 # ==================== RNG GACHA GAME ====================
 ITEMS = {
     # Common (50%) - 25 ชิ้น
@@ -2594,33 +2627,59 @@ class RNGMainView(View):
         super().__init__(timeout=60)
         self.user = user
         
-    @discord.ui.button(label="🎲 สุ่มไอเทม", style=discord.ButtonStyle.success, emoji="🎲", row=0)
-    async def roll_button(self, interaction: discord.Interaction, button: Button):
-        if interaction.user != self.user:
-            await interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
-            return
+   @discord.ui.button(label="🎲 สุ่มไอเทม", style=discord.ButtonStyle.success, emoji="🎲", row=0)
+async def roll_button(self, interaction: discord.Interaction, button: Button):
+    if interaction.user != self.user:
+        await interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
+        return
+    
+    # สุ่มไอเทม
+    item_id, item = random_item()
+    
+    # เพิ่มใน inventory (ต้องใช้ str(interaction.user.id))
+    user_id = str(interaction.user.id)
+    add_item_to_inventory(user_id, item_id)
+    
+    # โหลด inventory มาดูเพื่อตรวจสอบ
+    inventory = get_user_inventory(user_id)
+    print(f"📦 Inventory ของ {interaction.user.name}: {inventory}")  # debug
+    
+    # แสดงผล
+    rarity_color = {"common": 0x808080, "rare": 0x00AAFF, "legendary": 0xFFD700}
+    embed = discord.Embed(
+        title="🎲 ผลการสุ่ม",
+        description=f"คุณได้รับ: {item['emoji']} **{item['name']}**",
+        color=rarity_color[item["rarity"]]
+    )
+    embed.set_footer(text=f"ความหายาก: {item['rarity'].upper()} | ไอเทมชิ้นที่ {sum(inventory.values())} ใน inventory")
+    
+    await interaction.response.send_message(embed=embed, ephemeral=True)
         
-        item_id, item = random_item()
-        add_item_to_inventory(str(interaction.user.id), item_id)
-        
-        rarity_color = {"common": 0x808080, "rare": 0x00AAFF, "legendary": 0xFFD700}
-        embed = discord.Embed(
-            title="🎲 ผลการสุ่ม",
-            description=f"คุณได้รับ: {item['emoji']} **{item['name']}**",
-            color=rarity_color[item["rarity"]]
-        )
-        embed.set_footer(text=f"ความหายาก: {item['rarity'].upper()}")
-        
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-        
-    @discord.ui.button(label="📦 ดู Inventory", style=discord.ButtonStyle.primary, emoji="📦", row=0)
-    async def inventory_button(self, interaction: discord.Interaction, button: Button):
-        if interaction.user != self.user:
-            await interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
-            return
-        
-        embed = await create_inventory_embed(self.user)
-        await interaction.response.send_message(embed=embed, view=InventoryView(self.user), ephemeral=True)
+   @discord.ui.button(label="📦 ดู Inventory", style=discord.ButtonStyle.primary, emoji="📦", row=0)
+async def inventory_button(self, interaction: discord.Interaction, button: Button):
+    if interaction.user != self.user:
+        await interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
+        return
+    
+    user_id = str(interaction.user.id)
+    inventory = get_user_inventory(user_id)
+    
+    print(f"🔍 {interaction.user.name} เรียกดู inventory: {inventory}")  # debug
+    
+    if not inventory:
+        # ลองโหลดไฟล์ตรงๆ เพื่อตรวจสอบ
+        try:
+            with open(rng_inventory_file, 'r', encoding='utf-8') as f:
+                all_inv = json.load(f)
+                print(f"📁 ไฟล์ inventory ทั้งหมด: {all_inv}")
+                if user_id in all_inv:
+                    print(f"✅ พบผู้ใช้ {user_id} ในไฟล์: {all_inv[user_id]}")
+                    inventory = all_inv[user_id]
+        except Exception as e:
+            print(f"❌ Error reading file: {e}")
+    
+    embed = await create_inventory_embed(self.user, 0)
+    await interaction.response.send_message(embed=embed, view=InventoryView(self.user), ephemeral=True)
     
     @discord.ui.button(label="🏪 Pawn Shop", style=discord.ButtonStyle.secondary, emoji="🏪", row=1)
     async def pawnshop_button(self, interaction: discord.Interaction, button: Button):
@@ -2797,3 +2856,4 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ Error running bot: {e}")
         traceback.print_exc()
+
