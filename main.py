@@ -1,9 +1,7 @@
-import os, datetime, discord, re, asyncio, json, traceback, time, aiohttp, logging
-import random
-import math
+import os, discord, random, math, json, asyncio, time, re
+from datetime import datetime
 from discord.ext import commands, tasks
 from discord.ui import View, Button, Modal, TextInput, Select
-from discord import app_commands
 from flask import Flask, jsonify
 from threading import Thread
 from typing import Dict, List, Optional, Tuple
@@ -11,3129 +9,683 @@ from typing import Dict, List, Optional, Tuple
 # ==================== CONFIG ====================
 app = Flask(__name__)
 start_time = time.time()
-bot_status = {"online": False, "guilds": 0, "users": 0}
+def keep_alive(): Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.getenv("PORT", 8080)), debug=False, use_reloader=False), daemon=True).start()
 
 @app.route('/')
-def home():
-    uptime = time.time() - start_time
-    return f"Bot is alive! Uptime: {int(uptime/3600)}h {int((uptime%3600)/60)}m"
+def home(): return f"Bot alive! Uptime: {int((time.time()-start_time)/3600)}h"
 
-@app.route('/health')
-def health():
-    return jsonify({"status": "healthy", "bot_online": bot_status['online']}), 200
+def get_thailand_time():
+    try:
+        import pytz
+        return datetime.now(pytz.timezone('Asia/Bangkok'))
+    except:
+        return datetime.utcnow() + timedelta(hours=7)
 
-def keep_alive():
-    Thread(target=lambda: app.run(host='0.0.0.0', port=int(os.getenv("PORT", 8080)), debug=False, use_reloader=False), daemon=True).start()
-    print(f"✅ Web server started")
-
-logging.getLogger('werkzeug').setLevel(logging.ERROR)
-
-try:
-    import pytz
-    def get_thailand_time(): return datetime.datetime.now(pytz.timezone('Asia/Bangkok'))
-except:
-    def get_thailand_time(): return datetime.datetime.utcnow() + datetime.timedelta(hours=7)
-
-# ==================== GLOBALS ====================
 intents = discord.Intents.all()
 intents.message_content = True
-gamepass_rate = 6.5
-group_rate_low = 4
-group_rate_high = 4.5
-shop_open = True
-group_ticket_enabled = True
-gamepass_stock = 50000
-group_stock = 0
 
-# Channel IDs
+# ==================== CONSTANTS ====================
+GAMEPASS_RATE = 6.5
+GROUP_RATE_LOW = 4
+GROUP_RATE_HIGH = 4.5
 MAIN_CHANNEL_ID = 1361044752975532152
-SALES_LOG_CHANNEL_ID = 1402993077643120720
 CREDIT_CHANNEL_ID = 1363250076549382246
 DELIVERED_CATEGORY_ID = 1419565515088597083
 ARCHIVED_CATEGORY_ID = 1445086228113264650
+ADMIN_ROLE_ID = 1361016912259055896
 
-# Files
-user_data_file = "user_data.json"
-ticket_transcripts_file = "ticket_transcripts.json"
-ticket_counter_file = "ticket_counter.json"
-ticket_robux_data_file = "ticket_robux_data.json"
-ticket_customer_data_file = "ticket_customer_data.json"
-rng_inventory_file = "rng_inventory.json"
-rng_balance_file = "rng_balance.json"
-
-user_data = {}
-ticket_transcripts = {}
-ticket_robux_data = {}
-ticket_customer_data = {}
-user_notes = {}
-ticket_activity = {}
-
-# ==================== CREDIT CHANNEL QUEUE SYSTEM ====================
-credit_channel_queue = asyncio.Queue()
-credit_channel_update_task_running = False
-
-# ==================== CREDIT CHANNEL VARIABLES ====================
-credit_channel_last_update = 0
-credit_channel_update_lock = asyncio.Lock()
-
-LEVELS = {
-    1: {"exp": 1, "role_id": 1361555369825927249},
-    2: {"exp": 5000, "role_id": 1432070662977093703},
-    3: {"exp": 10000, "role_id": 1361555364776247297},
-    4: {"exp": 20000, "role_id": 1432075600746643537},
-    5: {"exp": 50000, "role_id": 1432075369179254804},
-    6: {"exp": 100000, "role_id": 1361554929017294949},
-    7: {"exp": 250000, "role_id": 1432077732862492722},
-    8: {"exp": 500000, "role_id": 1363882685260365894},
-    9: {"exp": 1000000, "role_id": 1406309272786047106}
+FILES = {
+    'user': 'user_data.json',
+    'ticket': 'ticket_transcripts.json',
+    'counter': 'ticket_counter.json',
+    'robux': 'ticket_robux_data.json',
+    'customer': 'ticket_customer_data.json',
+    'inventory': 'rng_inventory.json',
+    'balance': 'rng_balance.json'
 }
 
-# ==================== FILE HANDLERS ====================
-def load_json(file, default): 
-    try:
-        if os.path.exists(file):
-            with open(file, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        return default
-    except Exception as e:
-        print(f"❌ Error loading {file}: {e}")
-        return default
+LEVELS = {
+    1: {"exp": 1, "role": 1361555369825927249},
+    2: {"exp": 5000, "role": 1432070662977093703},
+    3: {"exp": 10000, "role": 1361555364776247297},
+    4: {"exp": 20000, "role": 1432075600746643537},
+    5: {"exp": 50000, "role": 1432075369179254804},
+    6: {"exp": 100000, "role": 1361554929017294949},
+    7: {"exp": 250000, "role": 1432077732862492722},
+    8: {"exp": 500000, "role": 1363882685260365894},
+    9: {"exp": 1000000, "role": 1406309272786047106}
+}
 
-def save_json(file, data): 
+# ==================== GLOBALS ====================
+shop_open = True
+group_enabled = True
+gp_stock, group_stock = 50000, 0
+user_data, tickets, robux_data, cust_data, notes = {}, {}, {}, {}, {}
+credit_queue = asyncio.Queue()
+
+def load_json(f, d): 
     try:
-        with open(file, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        if os.path.exists(f):
+            with open(f, 'r', encoding='utf-8') as file: return json.load(file)
+    except: pass
+    return d
+
+def save_json(f, d):
+    try:
+        with open(f, 'w', encoding='utf-8') as file: json.dump(d, file, ensure_ascii=False, indent=2)
         return True
-    except Exception as e:
-        print(f"❌ Error saving {file}: {e}")
-        return False
+    except: return False
 
-# ==================== RATE LIMITER ====================
-class RateLimiter:
-    def __init__(self, max_calls=1, period=1.0):
-        self.max_calls = max_calls
-        self.period = period
-        self.calls = []
-        self._lock = asyncio.Lock()
-    
-    async def acquire(self):
-        async with self._lock:
-            now = time.time()
-            self.calls = [c for c in self.calls if now - c < self.period]
-            if len(self.calls) >= self.max_calls:
-                await asyncio.sleep(self.period - (now - self.calls[0]))
-                return await self.acquire()
-            self.calls.append(now)
-            return True
-
-# ==================== BOT CLASS ====================
+# ==================== BOT ====================
 class MyBot(commands.Bot):
     def __init__(self):
         super().__init__(command_prefix="!", intents=intents, help_command=None)
-        self.last_update_time = 0
-        self.is_reacting_to_credit_channel = False
-        self.commands_synced = False
+        self.synced = False
         self.stock_lock = asyncio.Lock()
-        self.api_rate_limiter = RateLimiter()
-        self.react_rate_limiter = RateLimiter(1, 0.5)
-        self.channel_edit_rate_limiter = RateLimiter(1, 5)
-        self.ticket_counter = load_json(ticket_counter_file, {"counter": 1, "date": get_thailand_time().strftime("%d%m%y")})
-        self.stock_message = None
-        self.main_channel_message = None
-        self.pawn_data = {}
+        self.counter = load_json(FILES['counter'], {"counter": 1, "date": get_thailand_time().strftime("%d%m%y")})
+        self.main_msg, self.pawn_data = None, {}
     
     async def setup_hook(self):
-        global user_data, ticket_transcripts, ticket_robux_data, ticket_customer_data
-        user_data = load_json(user_data_file, {})
-        ticket_transcripts = load_json(ticket_transcripts_file, {})
-        ticket_robux_data = load_json(ticket_robux_data_file, {})
-        ticket_customer_data = load_json(ticket_customer_data_file, {})
-        print(f"✅ Loaded data: {len(user_data)} users, {len(ticket_transcripts)} tickets")
+        global user_data, tickets, robux_data, cust_data
+        user_data = load_json(FILES['user'], {})
+        tickets = load_json(FILES['ticket'], {})
+        robux_data = load_json(FILES['robux'], {})
+        cust_data = load_json(FILES['customer'], {})
 
 bot = MyBot()
 
-# ==================== UTILITY FUNCTIONS ====================
-def get_next_ticket_number():
-    current_date = get_thailand_time().strftime("%d%m%y")
-    if bot.ticket_counter["date"] != current_date:
-        bot.ticket_counter = {"counter": 1, "date": current_date}
-    else:
-        bot.ticket_counter["counter"] += 1
-    save_json(ticket_counter_file, bot.ticket_counter)
-    return bot.ticket_counter["counter"]
+# ==================== UTILS ====================
+def admin_check():
+    async def pred(ctx):
+        if ctx.author.guild_permissions.administrator: return True
+        role = ctx.guild.get_role(ADMIN_ROLE_ID)
+        return role and role in ctx.author.roles or await ctx.send("❌ แอดมินเท่านั้น", delete_after=5) or False
+    return commands.check(pred)
 
-def admin_only():
-    async def predicate(ctx):
-        if ctx.author.guild_permissions.administrator:
-            return True
-        admin_role = ctx.guild.get_role(1361016912259055896)
-        if admin_role and admin_role in ctx.author.roles:
-            return True
-        await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะผู้ดูแลระบบเท่านั้น", delete_after=5)
-        return False
-    return commands.check(predicate)
+def next_ticket():
+    d = get_thailand_time().strftime("%d%m%y")
+    if bot.counter["date"] != d: bot.counter = {"counter": 1, "date": d}
+    else: bot.counter["counter"] += 1
+    save_json(FILES['counter'], bot.counter)
+    return bot.counter["counter"]
 
-async def add_exp(user_id, exp_amount, guild):
-    user_id = str(user_id)
-    if user_id not in user_data:
-        user_data[user_id] = {"exp": 0, "level": 0}
-    user_data[user_id]["exp"] += exp_amount
+async def add_exp(uid, amt, guild):
+    uid = str(uid)
+    if uid not in user_data: user_data[uid] = {"exp": 0, "level": 0}
+    user_data[uid]["exp"] += amt
+    old = user_data[uid]["level"]
+    new = max([l for l, d in LEVELS.items() if user_data[uid]["exp"] >= d["exp"]] or [0])
+    user_data[uid]["level"] = new
+    save_json(FILES['user'], user_data)
+    if new != old and (m := guild.get_member(int(uid))):
+        if old and (r := guild.get_role(LEVELS[old]["role"])) and r in m.roles: await m.remove_roles(r)
+        if new and (r := guild.get_role(LEVELS[new]["role"])) and r not in m.roles: await m.add_roles(r)
+    return new, user_data[uid]["exp"]
+
+# ==================== SHOP ====================
+async def update_shop():
+    ch = bot.get_channel(MAIN_CHANNEL_ID)
+    if not ch: return
+    e = discord.Embed(title="🍣 Sushi Shop 🍣", color=0xFFA500)
+    e.add_field(name=f"🎮 Gamepass: {gp_stock:,}", value=f"เรท {GAMEPASS_RATE}\n!gp <จำนวน>", inline=False)
+    e.add_field(name=f"👥 Group: {group_stock:,}", value=f"เรท {GROUP_RATE_LOW}-{GROUP_RATE_HIGH}", inline=False)
+    e.add_field(name="🏪 สถานะ", value="🟢 เปิด" if shop_open else "🔴 ปิด", inline=False)
+    e.set_footer(text=f"อัปเดต {get_thailand_time().strftime('%d/%m/%y %H:%M')}")
     
-    old_level = user_data[user_id]["level"]
-    new_level = 0
+    v = View(timeout=None)
+    gp_btn = Button(label="กดเกมพาส" if gp_stock>0 and shop_open else "ปิด", emoji="🎮", style=discord.ButtonStyle.success if gp_stock>0 and shop_open else discord.ButtonStyle.danger, disabled=not (gp_stock>0 and shop_open))
+    gr_btn = Button(label="เติมโรกลุ่ม" if group_stock>0 and shop_open and group_enabled else "ปิด", emoji="👥", style=discord.ButtonStyle.success if group_stock>0 and shop_open and group_enabled else discord.ButtonStyle.danger, disabled=not (group_stock>0 and shop_open and group_enabled))
     
-    for lvl, data in sorted(LEVELS.items(), reverse=True):
-        if user_data[user_id]["exp"] >= data["exp"]:
-            new_level = lvl
-            break
+    async def gp_cb(i): await open_ticket(i, "🍣Sushi Gamepass 🍣", "gp")
+    async def gr_cb(i): await open_ticket(i, "💰Robux Group💰", "gr")
+    gp_btn.callback, gr_btn.callback = gp_cb, gr_cb
     
-    user_data[user_id]["level"] = new_level
-    save_json(user_data_file, user_data)
+    v.add_item(gp_btn).add_item(gr_btn).add_item(Button(label="📝 โน้ต", emoji="📝", style=discord.ButtonStyle.secondary, custom_id="notes"))
+    v.add_item(Button(label="⭐ เลเวล", emoji="⭐", style=discord.ButtonStyle.primary, custom_id="level"))
     
-    if new_level != old_level:
-        member = guild.get_member(int(user_id))
-        if member:
-            if old_level > 0:
-                old_role = guild.get_role(LEVELS[old_level]["role_id"])
-                if old_role and old_role in member.roles:
-                    await member.remove_roles(old_role)
-            
-            if new_level > 0:
-                new_role = guild.get_role(LEVELS[new_level]["role_id"])
-                if new_role and new_role not in member.roles:
-                    await member.add_roles(new_role)
+    if bot.main_msg:
+        try: await bot.main_msg.edit(embed=e, view=v); return
+        except: bot.main_msg = None
+    async for m in ch.history(limit=10):
+        if m.author == bot.user and m.embeds and "Sushi" in m.embeds[0].title:
+            bot.main_msg = m; await m.edit(embed=e, view=v); return
+    bot.main_msg = await ch.send(embed=e, view=v)
+
+async def open_ticket(i, cat, typ):
+    global gp_stock, group_stock
+    if (typ=="gp" and gp_stock<=0) or (typ=="gr" and group_stock<=0) or not shop_open:
+        return await i.response.send_message("❌ ปิด/หมด", ephemeral=True)
+    if discord.utils.get(i.guild.text_channels, name=f"ticket-{i.user.name}-{i.user.id}".lower()):
+        return await i.response.send_message("📌 มีตั๋วแล้ว", ephemeral=True)
     
-    return new_level, user_data[user_id]["exp"]
-
-# ==================== CHANNEL NAME UPDATE ====================
-async def update_channel_name():
-    try:
-        channel = bot.get_channel(MAIN_CHANNEL_ID)
-        if channel:
-            new_name = "〔🟢เปิด〕กดสั่งซื้อที่นี่" if shop_open else "〔🔴ปิดชั่วคราว〕"
-            if channel.name != new_name:
-                await bot.channel_edit_rate_limiter.acquire()
-                await channel.edit(name=new_name)
-                print(f"✅ เปลี่ยนชื่อช่องเป็น: {new_name}")
-    except Exception as e:
-        print(f"❌ Error updating channel name: {e}")
-
-# ==================== MAIN CHANNEL UPDATE ====================
-async def update_main_channel():
-    try:
-        channel = bot.get_channel(MAIN_CHANNEL_ID)
-        if not channel:
-            return
-        
-        embed = discord.Embed(title="🍣 Sushi Shop 🍣 เปิดให้บริการ", color=0xFFA500)
-        embed.add_field(
-            name=f"🎮 กดเกมพาส | 📊 Stock: {gamepass_stock:,} {'🟢' if gamepass_stock > 0 else '🔴'}", 
-            value=f"```\nเรท: {gamepass_rate} | โรแท้\nเช็คราคาพิมพ์: !gp <จำนวน>\n```", 
-            inline=False
-        )
-        embed.add_field(
-            name=f"👥 โรบัคกลุ่ม | 📊 Stock: {group_stock:,} {'🟢' if group_stock > 0 else '🔴'}", 
-            value=f"```\nเรท: {group_rate_low} | 500+ บาท เรท {group_rate_high}\n⚠️เข้ากลุ่ม 15 วันก่อนซื้อ⚠️\n```", 
-            inline=False
-        )
-        embed.add_field(
-            name="🏪 สถานะร้าน", 
-            value=f"```\n{'🟢 เปิด' if shop_open else '🔴 ปิดชั่วคราว'}\n```", 
-            inline=False
-        )
-        embed.set_footer(
-            text=f"Sushi Shop • รับกดเกมพาสและอื่น ๆ | อัปเดตล่าสุด: {get_thailand_time().strftime('%d/%m/%y %H:%M')}", 
-            icon_url="https://media.discordapp.net/attachments/717757556889747657/1403684950770847754/noFilter.png"
-        )
-        embed.set_thumbnail(url="https://media.discordapp.net/attachments/717757556889747657/1403684950770847754/noFilter.png")
-        
-        view = View(timeout=None)
-        
-        if not shop_open:
-            gamepass_btn = Button(label="ปิดชั่วคราว", style=discord.ButtonStyle.danger, emoji="🎮", disabled=True)
-        elif gamepass_stock <= 0:
-            gamepass_btn = Button(label="สินค้าหมด", style=discord.ButtonStyle.danger, emoji="🎮", disabled=True)
-        else:
-            gamepass_btn = Button(label="กดเกมพาส", style=discord.ButtonStyle.success, emoji="🎮")
-        
-        if not shop_open:
-            group_btn = Button(label="ปิดชั่วคราว", style=discord.ButtonStyle.danger, emoji="👥", disabled=True)
-        elif not group_ticket_enabled:
-            group_btn = Button(label="ปิดชั่วคราว", style=discord.ButtonStyle.danger, emoji="👥", disabled=True)
-        elif group_stock <= 0:
-            group_btn = Button(label="สินค้าหมด", style=discord.ButtonStyle.danger, emoji="👥", disabled=True)
-        else:
-            group_btn = Button(label="เติมโรกลุ่ม", style=discord.ButtonStyle.success, emoji="👥")
-        
-        notes_btn = Button(label="จดวันที่เข้ากลุ่ม", style=discord.ButtonStyle.secondary, emoji="📝")
-        level_btn = Button(label="เลเวลของคุณ", style=discord.ButtonStyle.primary, emoji="⭐")
-        
-        async def gamepass_cb(i):
-            await handle_open_ticket(i, "🍣Sushi Gamepass 🍣", "gamepass")
-        
-        async def group_cb(i):
-            await handle_open_ticket(i, "💰Robux Group💰", "group")
-        
-        async def notes_cb(i):
-            await i.response.send_modal(PersonalNoteModal())
-        
-        async def level_cb(i):
-            await check_user_level(i)
-        
-        gamepass_btn.callback = gamepass_cb
-        group_btn.callback = group_cb
-        notes_btn.callback = notes_cb
-        level_btn.callback = level_cb
-        
-        view.add_item(gamepass_btn)
-        view.add_item(group_btn)
-        view.add_item(notes_btn)
-        view.add_item(level_btn)
-        
-        if bot.main_channel_message:
-            try:
-                await bot.main_channel_message.edit(embed=embed, view=view)
-                print("✅ Updated main channel message")
-                return
-            except:
-                bot.main_channel_message = None
-        
-        async for msg in channel.history(limit=20):
-            if msg.author == bot.user and len(msg.embeds) > 0:
-                if "Sushi Shop" in msg.embeds[0].title:
-                    bot.main_channel_message = msg
-                    await msg.edit(embed=embed, view=view)
-                    print("✅ Found and updated existing main channel message")
-                    return
-        
-        bot.main_channel_message = await channel.send(embed=embed, view=view)
-        print("✅ Sent new main channel message")
-        
-    except Exception as e:
-        print(f"❌ Error updating main channel: {e}")
-        traceback.print_exc()
-
-# ==================== TICKET HANDLER ====================
-async def handle_open_ticket(interaction, category_name, stock_type):
-    global gamepass_stock, group_stock
+    await i.response.defer(ephemeral=True)
+    overwrites = {i.guild.default_role: discord.PermissionOverwrite(read_messages=False), i.guild.me: discord.PermissionOverwrite(read_messages=True), i.user: discord.PermissionOverwrite(read_messages=True)}
+    if admin_role := i.guild.get_role(ADMIN_ROLE_ID): overwrites[admin_role] = discord.PermissionOverwrite(read_messages=True)
     
-    try:
-        if stock_type == "gamepass" and gamepass_stock <= 0:
-            await interaction.response.send_message("❌ โรบัคหมดชั่วคราว", ephemeral=True)
-            return
-        
-        if stock_type == "group" and group_stock <= 0:
-            await interaction.response.send_message("❌ โรบัคหมดชั่วคราว", ephemeral=True)
-            return
-        
-        if not shop_open:
-            await interaction.response.send_message("❌ ปิดชั่วคราว กรุณารอร้านเปิด", ephemeral=True)
-            return
-        
-        existing = discord.utils.get(
-            interaction.guild.text_channels, 
-            name=f"ticket-{interaction.user.name}-{interaction.user.id}".lower()
-        )
-        
-        if existing:
-            view = View()
-            view.add_item(discord.ui.Button(
-                label="📩 ไปที่ตั๋ว", 
-                url=f"https://discord.com/channels/{existing.guild.id}/{existing.id}", 
-                style=discord.ButtonStyle.link
-            ))
-            await interaction.response.send_message(
-                "📌 คุณมีตั๋วเปิดอยู่แล้ว กดปุ่มด้านล่างเพื่อไปที่ตั๋ว", 
-                view=view, 
-                ephemeral=True
-            )
-            return
-        
-        overwrites = {
-            interaction.guild.default_role: discord.PermissionOverwrite(read_messages=False),
-            interaction.guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True, manage_channels=True),
-            interaction.user: discord.PermissionOverwrite(read_messages=True, send_messages=True)
-        }
-        
-        admin_role = interaction.guild.get_role(1361016912259055896)
-        if admin_role:
-            overwrites[admin_role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
-        
-        category = discord.utils.get(interaction.guild.categories, name=category_name)
-        if not category:
-            await interaction.response.send_message(f"❌ ไม่พบหมวดหมู่ {category_name}", ephemeral=True)
-            return
-        
-        await interaction.response.defer(ephemeral=True)
-        
-        channel = await interaction.guild.create_text_channel(
-            name=f"ticket-{interaction.user.name}-{interaction.user.id}".lower(),
-            overwrites=overwrites,
-            category=category
-        )
-        
-        ticket_activity[channel.id] = {
-            'last_activity': get_thailand_time(), 
-            'ty_used': False
-        }
-        
-        ticket_customer_data[str(channel.id)] = interaction.user.name
-        save_json(ticket_customer_data_file, ticket_customer_data)
-        
-        if stock_type == "gamepass":
-            async with bot.stock_lock:
-                gamepass_stock -= 1
-        else:
-            async with bot.stock_lock:
-                group_stock -= 1
-        
-        await update_main_channel()
-        
-        view = View()
-        view.add_item(discord.ui.Button(
-            label="📩 ไปที่ตั๋ว", 
-            url=f"https://discord.com/channels/{channel.guild.id}/{channel.id}", 
-            style=discord.ButtonStyle.link
-        ))
-        await interaction.followup.send("📩 เปิดตั๋วเรียบร้อย", view=view, ephemeral=True)
-        
-        if admin_role:
-            await channel.send(content=f"{admin_role.mention} มีตั๋วใหม่!")
-        
-        embed = discord.Embed(
-            title="🍣 Sushi Shop 🍣", 
-            description="ยินดีต้อนรับ Sushi Shop\n\nกรุณากรอกแบบฟอร์มเพื่อสั่งซื้อ", 
-            color=0x00FF99
-        )
-        embed.add_field(name="👤 ผู้ซื้อ", value=interaction.user.mention, inline=False)
-        
-        if stock_type == "gamepass":
-            embed.add_field(
-                name="🎮 บริการกดเกมพาส", 
-                value=f"📦 โรบัคคงเหลือ: **{gamepass_stock:,}**\n💰 เรท: {gamepass_rate}", 
-                inline=False
-            )
-        else:
-            embed.add_field(
-                name="👥 บริการโรบัคกลุ่ม", 
-                value=f"📦 โรบัคเหลือ: **{group_stock:,}**\n💰 เรท: {group_rate_low} - {group_rate_high}", 
-                inline=False
-            )
-        
-        embed.set_footer(text="Sushi Shop • กดปุ่มด้านล่างเพื่อกรอกแบบฟอร์ม")
-        embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
-        
-        ticket_view = View(timeout=None)
-        
-        if stock_type == "gamepass":
-            form_btn = Button(label="📝 กรอกแบบฟอร์มเกมพาส", style=discord.ButtonStyle.primary, emoji="📝")
-            
-            async def form_callback(i):
-                if i.channel.id == channel.id:
-                    modal = GamepassTicketModal()
-                    await i.response.send_modal(modal)
-                else:
-                    await i.response.send_message("❌ คุณไม่สามารถใช้ปุ่มนี้ในช่องอื่นได้", ephemeral=True)
-            
-            form_btn.callback = form_callback
-            
-        else:
-            form_btn = Button(label="📝 กรอกแบบฟอร์มโรบัคกลุ่ม", style=discord.ButtonStyle.primary, emoji="📝")
-            
-            async def form_callback(i):
-                if i.channel.id == channel.id:
-                    modal = GroupTicketModal()
-                    await i.response.send_modal(modal)
-                else:
-                    await i.response.send_message("❌ คุณไม่สามารถใช้ปุ่มนี้ในช่องอื่นได้", ephemeral=True)
-            
-            form_btn.callback = form_callback
-        
-        close_btn = Button(label="🔒 ปิดตั๋ว", style=discord.ButtonStyle.danger, emoji="🔒")
-        
-        async def close_callback(i):
-            if i.channel.id == channel.id:
-                if admin_role and admin_role in i.user.roles:
-                    await save_ticket_transcript(channel, i.user)
-                    await i.response.send_message("📪 กำลังปิดตั๋ว...")
-                    await asyncio.sleep(2)
-                    await channel.delete()
-                else:
-                    await i.response.send_message("❌ คุณไม่มีสิทธิ์ปิดตั๋วนี้", ephemeral=True)
-        
-        close_btn.callback = close_callback
-        
-        ticket_view.add_item(form_btn)
-        ticket_view.add_item(close_btn)
-        
-        await channel.send(embed=embed, view=ticket_view)
-        print(f"✅ ส่ง embed ต้อนรับในตั๋ว {channel.name} เรียบร้อย")
-        
-    except Exception as e:
-        print(f"❌ Error opening ticket: {e}")
-        traceback.print_exc()
-        try:
-            await interaction.followup.send(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
-        except:
-            pass
-
-# ==================== SAVE TICKET TRANSCRIPT ====================
-async def save_ticket_transcript(channel, action_by=None, robux_amount=None, customer_name=None):
-    try:
-        print(f"📝 กำลังบันทึกประวัติตั๋ว: {channel.name}")
-        ticket_number = get_next_ticket_number()
-        now = get_thailand_time()
-        date_str = now.strftime("%d%m%y")
-        time_str = now.strftime("%H%M")
-        
-        if robux_amount:
-            robux_str = robux_amount
-        else:
-            robux_str = ticket_robux_data.get(str(channel.id), "1099")
-        
-        if customer_name:
-            customer_str = customer_name
-        else:
-            customer_str = ticket_customer_data.get(
-                str(channel.id), 
-                channel.name.split('-')[1] if channel.name.startswith("ticket-") else "wforr"
-            )
-        
-        filename = f"{date_str}{time_str}-{robux_str}-{customer_str}"
-        
-        ticket_transcripts[str(channel.id)] = {
-            "filename": filename,
-            "channel_name": channel.name,
-            "channel_id": channel.id,
-            "ticket_number": ticket_number,
-            "date": date_str,
-            "time": time_str,
-            "timestamp": f"{date_str}{time_str}",
-            "robux_amount": str(robux_str),
-            "customer_name": customer_str,
-            "category": channel.category.name if channel.category else "ไม่มีหมวดหมู่",
-            "created_at": now.isoformat(),
-            "closed_by": str(action_by) if action_by else "ระบบอัตโนมัติ",
-            "messages_count": 0
-        }
-        
-        save_json(ticket_transcripts_file, ticket_transcripts)
-        print(f"✅ บันทึกประวัติตั๋วเรียบร้อย: {filename}")
-        return True, filename
-        
-    except Exception as e:
-        print(f"❌ Error saving transcript: {e}")
-        return False, str(e)
-
-# ==================== ฟังก์ชันย้ายไป category ส่งของแล้ว ====================
-async def move_to_delivered_category(channel, user):
-    try:
-        guild = channel.guild
-        
-        delivered_category = guild.get_channel(DELIVERED_CATEGORY_ID)
-        if not delivered_category or not isinstance(delivered_category, discord.CategoryChannel):
-            delivered_category = discord.utils.get(guild.categories, id=DELIVERED_CATEGORY_ID)
-            if not delivered_category:
-                delivered_category = await guild.create_category("✅ ส่งของแล้ว")
-                print(f"✅ สร้าง category ส่งของแล้วใหม่")
-        
-        await asyncio.sleep(5)
-        
-        await channel.edit(category=delivered_category)
-        print(f"✅ ย้ายตั๋วไปยัง category ส่งของแล้ว")
-        return True
-        
-    except Exception as e:
-        print(f"❌ Error moving to delivered category: {e}")
-        return False
-
-# ==================== CREDIT CHANNEL WORKER ====================
-async def credit_channel_update_worker():
-    global credit_channel_update_task_running
-    credit_channel_update_task_running = True
+    cat = discord.utils.get(i.guild.categories, name=cat)
+    ch = await i.guild.create_text_channel(f"ticket-{i.user.name}-{i.user.id}".lower(), overwrites=overwrites, category=cat)
+    cust_data[str(ch.id)] = i.user.name; save_json(FILES['customer'], cust_data)
     
-    while True:
-        try:
-            change = await credit_channel_queue.get()
-            
-            channel = bot.get_channel(CREDIT_CHANNEL_ID)
-            if not channel:
-                print("❌ ไม่พบช่องเครดิต")
-                credit_channel_queue.task_done()
-                continue
-            
-            current_name = channel.name
-            print(f"🔄 กำลังประมวลผล: {change} | ชื่อปัจจุบัน: {current_name}")
-            
-            try:
-                if ":" in current_name:
-                    parts = current_name.split(":")
-                    if len(parts) >= 2:
-                        current_count = int(parts[1].strip())
-                        
-                        if change == "new_message":
-                            new_count = current_count + 1
-                        elif change == "delete_message":
-                            new_count = current_count - 1
-                        elif change.startswith("bulk_delete_"):
-                            delete_count = int(change.split("_")[2])
-                            new_count = current_count - delete_count
-                        else:
-                            new_count = current_count
-                        
-                        new_name = f"☑️credit : {new_count}"
-                        
-                        if channel.name != new_name:
-                            print(f"📊 เปลี่ยนจาก {current_count} เป็น {new_count}")
-                            await bot.channel_edit_rate_limiter.acquire()
-                            await channel.edit(name=new_name)
-                            print(f"✅ อัพเดทชื่อเป็น: {new_name}")
-                            
-                            with open("credit_message_count.txt", "w") as f:
-                                f.write(str(new_count))
-                        else:
-                            print(f"ℹ️ ชื่อยังคงเดิม: {new_name}")
-                            
-                        if credit_channel_queue.qsize() % 5 == 0:
-                            print("🔍 ตรวจสอบความถูกต้อง...")
-                            await asyncio.sleep(2)
-                            await verify_credit_channel_count()
-                else:
-                    print(f"⚠️ รูปแบบชื่อไม่ถูกต้อง: {current_name}")
-                    await verify_credit_channel_count()
-                    
-            except Exception as e:
-                print(f"❌ Error ใน worker: {e}")
-                await verify_credit_channel_count()
-            
-            credit_channel_queue.task_done()
-            await asyncio.sleep(3)
-            
-        except Exception as e:
-            print(f"❌ Credit channel worker error: {e}")
-            await asyncio.sleep(5)
+    if typ=="gp": gp_stock -= 1
+    else: group_stock -= 1
+    await update_shop()
+    
+    v = View()
+    v.add_item(Button(label="📩 ไปที่ตั๋ว", url=f"https://discord.com/channels/{ch.guild.id}/{ch.id}", style=discord.ButtonStyle.link))
+    await i.followup.send("✅ เปิดตั๋ว", view=v, ephemeral=True)
+    
+    e = discord.Embed(title="🍣 Sushi Shop", description="กรอกแบบฟอร์ม", color=0x00FF99)
+    e.add_field(name="👤 ผู้ซื้อ", value=i.user.mention)
+    tv = View(timeout=None)
+    fb = Button(label="📝 กรอกแบบฟอร์ม", style=discord.ButtonStyle.primary, emoji="📝")
+    fb.callback = lambda x: x.response.send_modal(GamepassModal() if typ=="gp" else GroupModal())
+    cb = Button(label="🔒 ปิด", style=discord.ButtonStyle.danger, emoji="🔒")
+    async def close_cb(x):
+        if admin_role and admin_role in x.user.roles:
+            await save_transcript(ch, x.user)
+            await x.response.send_message("📪 ปิดตั๋ว"); await asyncio.sleep(2); await ch.delete()
+    cb.callback = close_cb
+    tv.add_item(fb).add_item(cb)
+    await ch.send(content=f"{admin_role.mention}" if admin_role else "", embed=e, view=tv)
 
-# ==================== ฟังก์ชันตรวจสอบความถูกต้อง ====================
-async def verify_credit_channel_count():
-    try:
-        channel = bot.get_channel(CREDIT_CHANNEL_ID)
-        if not channel:
-            return
-        
-        print("🔍 กำลังนับจำนวนข้อความจริง...")
-        real_count = 0
-        try:
-            async for _ in channel.history(limit=None):
-                real_count += 1
-                if real_count >= 1000:
-                    break
-        except Exception as e:
-            print(f"⚠️ ไม่สามารถนับข้อความได้: {e}")
-            return
-        
-        current_name = channel.name
-        if ":" in current_name:
-            parts = current_name.split(":")
-            if len(parts) >= 2:
-                try:
-                    current_count = int(parts[1].strip())
-                    
-                    if abs(real_count - current_count) > 5 or real_count >= 1000:
-                        print(f"⚠️ ตัวเลขไม่ตรงกัน: ชื่อ={current_count}, จริง={real_count}")
-                        
-                        new_name = f"☑️credit : {real_count}"
-                        if channel.name != new_name:
-                            await bot.channel_edit_rate_limiter.acquire()
-                            await channel.edit(name=new_name)
-                            print(f"✅ แก้ไขชื่อเป็น: {new_name}")
-                            
-                            with open("credit_message_count.txt", "w") as f:
-                                f.write(str(real_count))
-                    else:
-                        print(f"✅ ตัวเลขตรงกัน: {current_count}")
-                except ValueError:
-                    pass
-    except Exception as e:
-        print(f"❌ Error verifying count: {e}")
-
-# ==================== ฟังก์ชันนับจำนวนข้อความในช่องเครดิต ====================
-async def count_credit_channel_messages():
-    try:
-        credit_channel = bot.get_channel(CREDIT_CHANNEL_ID)
-        if not credit_channel:
-            return 0
-        
-        message_count = 0
-        try:
-            await bot.api_rate_limiter.acquire()
-            
-            last_id = None
-            while True:
-                try:
-                    history_kwargs = {"limit": 100}
-                    if last_id:
-                        history_kwargs["before"] = discord.Object(id=last_id)
-                    
-                    async for message in credit_channel.history(**history_kwargs):
-                        message_count += 1
-                        last_id = message.id
-                    
-                    if message_count % 100 != 0:
-                        break
-                        
-                    await asyncio.sleep(1)
-                    
-                except discord.HTTPException as e:
-                    if e.status == 429:
-                        retry_after = e.retry_after if hasattr(e, 'retry_after') else 5
-                        print(f"⚠️ Rate limited รอ {retry_after} วินาที")
-                        await asyncio.sleep(retry_after)
-                        continue
-                    else:
-                        return 0
-        except Exception as e:
-            print(f"⚠️ ไม่สามารถนับข้อความได้: {e}")
-            return 0
-            
-        print(f"📊 นับข้อความในช่องเครดิตได้: {message_count}")
-        return message_count
-        
-    except Exception as e:
-        print(f"❌ Error counting messages: {e}")
-        return 0
-
-# ==================== ฟังก์ชันอัพเดทชื่อช่องเครดิต ====================
-async def update_credit_channel_name():
-    try:
-        async with credit_channel_update_lock:
-            credit_channel = bot.get_channel(CREDIT_CHANNEL_ID)
-            if not credit_channel:
-                return
-            
-            message_count = await count_credit_channel_messages()
-            new_name = f"☑️credit : {message_count}"
-            
-            if credit_channel.name != new_name:
-                try:
-                    await bot.channel_edit_rate_limiter.acquire()
-                    await credit_channel.edit(name=new_name)
-                    print(f"✅ เปลี่ยนชื่อช่องเครดิตเป็น: {new_name}")
-                    
-                    with open("credit_message_count.txt", "w") as f:
-                        f.write(str(message_count))
-                except Exception as e:
-                    print(f"❌ ไม่สามารถเปลี่ยนชื่อได้: {e}")
-    except Exception as e:
-        print(f"❌ Error updating credit channel name: {e}")
-        traceback.print_exc()
-
-# ==================== ฟังก์ชันตรวจสอบการเปลี่ยนแปลง ====================
-async def check_credit_channel_changes():
-    try:
-        current_count = await count_credit_channel_messages()
-        
-        last_count = 0
-        try:
-            if os.path.exists("credit_message_count.txt"):
-                with open("credit_message_count.txt", "r") as f:
-                    last_count = int(f.read().strip())
-        except:
-            pass
-        
-        if current_count != last_count:
-            print(f"📊 จำนวนข้อความเปลี่ยนจาก {last_count} เป็น {current_count}")
-            await update_credit_channel_name()
-    except Exception as e:
-        print(f"❌ Error checking credit channel: {e}")
-
-# ==================== HANDLE TICKET AFTER TY ====================
-async def handle_ticket_after_ty(channel, user, robux_amount=None, customer_name=None):
-    try:
-        print(f"📝 กำลังจัดการตั๋วหลัง !vouch: {channel.name}")
-        guild = channel.guild
-        
-        if robux_amount is None and str(channel.id) in ticket_robux_data:
-            robux_amount = ticket_robux_data[str(channel.id)]
-        
-        delivered_category = guild.get_channel(DELIVERED_CATEGORY_ID)
-        if not delivered_category or not isinstance(delivered_category, discord.CategoryChannel):
-            delivered_category = discord.utils.get(guild.categories, id=DELIVERED_CATEGORY_ID)
-            if not delivered_category:
-                delivered_category = await guild.create_category("✅ ส่งของแล้ว")
-                print(f"✅ สร้าง category ส่งของแล้วใหม่")
-        
-        await bot.channel_edit_rate_limiter.acquire()
-        await channel.edit(
-            category=delivered_category, 
-            reason=f"ย้ายไปห้องส่งของแล้วโดย {user.name if user else 'ระบบ'}"
-        )
-        print(f"✅ ย้ายตั๋วไปยัง category ส่งของแล้ว")
-        
-        save_success, filename = await save_ticket_transcript(channel, user, robux_amount, customer_name)
-        
-        if save_success:
-            try:
-                await bot.channel_edit_rate_limiter.acquire()
-                await channel.edit(name=filename[:100])
-                print(f"✅ เปลี่ยนชื่อห้องเป็น: {filename}")
-            except Exception as e:
-                print(f"⚠️ ไม่สามารถเปลี่ยนชื่อห้อง: {e}")
-        
-        credit_embed = discord.Embed(
-            title="✅ ส่งของเรียบร้อยแล้ว",
-            description="🎉 **ขอบคุณที่ใช้บริการร้าน Sushi Shop 🍣**\nฝากให้เครดิตด้วยนะคะ ⭐\n\n⚠️ **หมายเหตุ:** ตั๋วนี้จะถูกลบใน 10 นาที",
-            color=0x00FF00
-        )
-        credit_embed.add_field(
-            name="📦 รายละเอียด",
-            value=f"**จำนวนโรบัค:** {robux_amount if robux_amount else 'ไม่ระบุ'}\n**ลูกค้า:** {customer_name if customer_name else 'ไม่ระบุ'}",
-            inline=False
-        )
-        credit_embed.set_footer(text="Sushi Shop 🍣")
-        credit_embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
-        
-        await channel.send(embed=credit_embed)
-        print(f"✅ ส่ง embed ให้เครดิตเรียบร้อย")
-        
-        credit_channel = bot.get_channel(CREDIT_CHANNEL_ID)
-        if credit_channel:
-            credit_embed_ch = discord.Embed(
-                title="🎉 ส่งของเรียบร้อย",
-                description=f"{user.mention if user else 'ลูกค้า'} ได้รับสินค้าแล้ว\n\nพิมพ์ +1 ให้เครดิตด้วยนะคะ ⭐",
-                color=0x00FF00
-            )
-            credit_msg = await credit_channel.send(embed=credit_embed_ch)
-            await credit_msg.add_reaction("❤️")
-            await credit_msg.add_reaction("🍣")
-        
-        bot.loop.create_task(move_to_archive_after_delay(channel, user, 600))
-        
-        return True
-        
-    except Exception as e:
-        print(f"❌ Error in handle_ticket_after_ty: {e}")
-        traceback.print_exc()
-        return False
-
-async def move_to_archive_after_delay(channel, user, delay_seconds):
-    try:
-        print(f"⏳ กำลังรอ {delay_seconds} วินาทีก่อนย้ายตั๋ว {channel.name} ไป archive")
-        await asyncio.sleep(delay_seconds)
-        
-        if not channel or channel not in channel.guild.channels:
-            print(f"❌ ตั๋ว {channel.name} ไม่มีอยู่แล้ว")
-            return
-        
-        archived_category = channel.guild.get_channel(ARCHIVED_CATEGORY_ID)
-        if not archived_category or not isinstance(archived_category, discord.CategoryChannel):
-            archived_category = discord.utils.get(channel.guild.categories, id=ARCHIVED_CATEGORY_ID)
-            if not archived_category:
-                archived_category = await channel.guild.create_category("📁 เก็บถาวร")
-                print(f"✅ สร้าง category เก็บถาวรใหม่")
-        
-        if archived_category:
-            if user:
-                try:
-                    overwrites = channel.overwrites
-                    if user in overwrites:
-                        overwrites[user].update(read_messages=False)
-                        await bot.channel_edit_rate_limiter.acquire()
-                        await channel.edit(overwrites=overwrites)
-                except Exception as e:
-                    print(f"⚠️ ไม่สามารถลบสิทธิ์ view ของผู้ซื้อ: {e}")
-            
-            await bot.channel_edit_rate_limiter.acquire()
-            await channel.edit(category=archived_category, reason="ย้ายไปเก็บถาวรหลังจาก 10 นาที")
-            print(f"✅ ย้ายตั๋ว {channel.name} ไปเก็บถาวรเรียบร้อยแล้ว")
-            
-            try:
-                archive_embed = discord.Embed(
-                    title="📁 เก็บถาวร", 
-                    description=f"ตั๋วนี้ถูกย้ายไปเก็บถาวรเรียบร้อยแล้ว\n\n**ชื่อไฟล์ transcript:** `{channel.name}`", 
-                    color=0x808080
-                )
-                await channel.send(embed=archive_embed)
-            except:
-                pass
-                
-    except Exception as e:
-        print(f"❌ Error moving to archive: {e}")
+async def save_transcript(ch, user, robux=None, name=None):
+    num = next_ticket()
+    now = get_thailand_time()
+    d, t = now.strftime("%d%m%y"), now.strftime("%H%M")
+    robux = robux or robux_data.get(str(ch.id), "1099")
+    name = name or cust_data.get(str(ch.id), ch.name.split('-')[1] if ch.name.startswith("ticket-") else "wforr")
+    fn = f"{d}{t}-{robux}-{name}"
+    tickets[str(ch.id)] = {"filename": fn, "channel": ch.name, "id": ch.id, "num": num, "date": d, "time": t, "robux": str(robux), "customer": name, "closed_by": str(user) if user else "auto"}
+    save_json(FILES['ticket'], tickets)
+    return fn
 
 # ==================== MODALS ====================
-class PersonalNoteModal(Modal, title="📝 จดวันที่เข้ากลุ่ม"):
-    note = TextInput(
-        label="จดวันที่เข้ากลุ่ม ดูจากวันที่ปัจจุบัน", 
-        placeholder="เช่น: 20/10 , 20 ต.ค.", 
-        style=discord.TextStyle.paragraph, 
-        required=False, 
-        max_length=1000
-    )
-    
+class GamepassModal(Modal, title="📋 แบบฟอร์มเกมพาส"):
+    map = TextInput(label="🗺 ชื่อแมพ", placeholder="Gift Simulator")
+    gp = TextInput(label="💸 ชื่อเกมพาส", placeholder="x3 Speed")
+    amt = TextInput(label="🎟 ราคา", placeholder="300 หรือ 100+100+100")
+    async def on_submit(self, i):
+        try:
+            robux = int(eval(self.amt.value.lower().replace("x","*").replace("÷","/").replace(",","")))
+            e = discord.Embed(title="📨 รายละเอียด", color=0x00FF99)
+            e.add_field(name="🗺️ แมพ", value=self.map.value).add_field(name="🎟 เกมพาส", value=self.gp.value).add_field(name="💸 โรบัค", value=f"{robux:,}").add_field(name="💰 ราคา", value=f"{robux/GAMEPASS_RATE:,.0f} บาท")
+            await i.response.send_message(embed=e)
+        except: await i.response.send_message("❌ ผิดพลาด", ephemeral=True)
+
+class GroupModal(Modal, title="📋 แบบฟอร์มโรบัคกลุ่ม"):
+    user = TextInput(label="🪪 ชื่อในเกม", placeholder="Username")
+    amt = TextInput(label="💸 จำนวน", placeholder="1500")
+    async def on_submit(self, i):
+        try:
+            robux = int(self.amt.value)
+            rate = GROUP_RATE_LOW if robux<1500 else GROUP_RATE_HIGH
+            e = discord.Embed(title="📨 รายละเอียด", color=0x00FF99)
+            e.add_field(name="🪪 ชื่อ", value=self.user.value).add_field(name="💸 โรบัค", value=f"{robux:,}").add_field(name="💰 ราคา", value=f"{robux/rate:,.0f} บาท")
+            await i.response.send_message(embed=e)
+        except: await i.response.send_message("❌ ผิดพลาด", ephemeral=True)
+
+class NoteModal(Modal, title="📝 จดวันที่"):
+    note = TextInput(label="วันที่เข้ากลุ่ม", placeholder="20/10", style=discord.TextStyle.paragraph, required=False)
     async def on_submit(self, i):
         if self.note.value.strip():
-            user_notes[str(i.user.id)] = {
-                "note": self.note.value, 
-                "created_at": datetime.datetime.now().isoformat(), 
-                "updated_at": datetime.datetime.now().isoformat()
-            }
-            embed = discord.Embed(title="✅ บันทึกโน้ตเรียบร้อย", color=0x00FF00)
-            embed.add_field(name="📝 จดวันที่เข้ากลุ่ม", value=self.note.value)
-            await i.response.send_message(embed=embed, ephemeral=True)
+            notes[str(i.user.id)] = {"note": self.note.value, "time": datetime.now().isoformat()}
+            await i.response.send_message("✅ บันทึกแล้ว", ephemeral=True)
         else:
-            if str(i.user.id) in user_notes:
-                del user_notes[str(i.user.id)]
-                await i.response.send_message("🗑️ ลบโน้ตส่วนตัวเรียบร้อยแล้ว", ephemeral=True)
-            else:
-                await i.response.send_message("❌ คุณยังไม่มีโน้ตที่บันทึกไว้", ephemeral=True)
+            notes.pop(str(i.user.id), None)
+            await i.response.send_message("🗑️ ลบแล้ว", ephemeral=True)
 
-class GamepassTicketModal(Modal, title="📋 แบบฟอร์มกดเกมพาส"):
-    map_name = TextInput(
-        label="🗺 ชื่อแมพที่จะกด?", 
-        placeholder="พิมพ์ชื่อแมพ เช่น Gift Simulator", 
-        required=True
-    )
-    gamepass_name = TextInput(
-        label="💸 ชื่อเกมพาสอะไร?", 
-        placeholder="พิมพ์ชื่อเกมพาส เช่น x3 Speed 3 ชิ้น", 
-        required=True
-    )
-    robux_amount = TextInput(
-        label="🎟 ราคาของเกมพาสเท่าไหร่บ้าง?", 
-        placeholder="เช่น 300 หรือ 100+100+100 หรือ 100x3", 
-        required=True
-    )
-    
-    async def on_submit(self, i):
-        global gamepass_rate
-        
-        try:
-            expr = self.robux_amount.value.lower().replace("x", "*").replace("÷", "/")
-            if not re.match(r"^[\d\s\+\-\*\/\(\)]+$", expr):
-                await i.response.send_message(
-                    "❌ กรุณาใส่เฉพาะตัวเลข และเครื่องหมาย + - * / x ÷ ()", 
-                    ephemeral=True
-                )
-                return
-            
-            robux = int(eval(expr))
-            price = robux / gamepass_rate
-            
-            embed = discord.Embed(title="📨 รายละเอียดการสั่งซื้อ", color=0x00FF99)
-            embed.add_field(name="🗺️ ชื่อแมพ", value=self.map_name.value, inline=False)
-            embed.add_field(name="🎟 เกมพาส", value=self.gamepass_name.value, inline=False)
-            embed.add_field(name="💸 ราคาโรบัค", value=f"{robux:,}", inline=True)
-            embed.add_field(name="💰 ราคา", value=f"{price:,.0f} บาท", inline=True)
-            embed.set_footer(text="แอดมินจะตอบกลับเร็วๆนี้")
-            
-            view = View(timeout=300)
-            cancel_btn = Button(label="❌ ยกเลิกสินค้า", style=discord.ButtonStyle.danger)
-            
-            async def cancel_cb(interaction):
-                await interaction.response.send_message("❌ คำสั่งซื้อถูกยกเลิก")
-                await interaction.message.delete()
-            
-            cancel_btn.callback = cancel_cb
-            view.add_item(cancel_btn)
-            
-            await i.response.send_message(embed=embed, view=view)
-            
-        except Exception as e:
-            await i.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
-
-class GroupTicketModal(Modal, title="📋 แบบฟอร์มสั่งซื้อ Robux Group"):
-    user_name = TextInput(
-        label="🪪 ชื่อในเกม", 
-        placeholder="Username", 
-        required=True
-    )
-    robux_amount = TextInput(
-        label="💸 ต้องการซื้อกี่โรบัค?", 
-        placeholder="กรอกจำนวนโรบัคที่ต้องการ", 
-        required=True
-    )
-    
-    async def on_submit(self, i):
-        global group_rate_low, group_rate_high
-        
-        try:
-            robux = int(self.robux_amount.value)
-            rate = group_rate_low if robux < 1500 else group_rate_high
-            
-            embed = discord.Embed(title="📨 รายละเอียดคำสั่งซื้อโรบัคกลุ่ม", color=0x00FF99)
-            embed.add_field(name="🪪 ชื่อในเกม", value=self.user_name.value, inline=False)
-            embed.add_field(name="💸 จำนวนโรบัค", value=f"{robux:,}", inline=True)
-            embed.add_field(name="💰 ราคา", value=f"{robux/rate:,.0f} บาท", inline=True)
-            embed.set_footer(text="แอดมินจะตอบกลับเร็วๆนี้")
-            
-            view = View(timeout=300)
-            cancel_btn = Button(label="❌ ยกเลิกสินค้า", style=discord.ButtonStyle.danger)
-            
-            async def cancel_cb(interaction):
-                await interaction.response.send_message("❌ คำสั่งซื้อถูกยกเลิก")
-                await interaction.message.delete()
-            
-            cancel_btn.callback = cancel_cb
-            view.add_item(cancel_btn)
-            
-            await i.response.send_message(embed=embed, view=view)
-            
-        except ValueError:
-            await i.response.send_message("❌ กรุณากรอกจำนวนโรบัคเป็นตัวเลข", ephemeral=True)
-        except Exception as e:
-            await i.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
-
-# ==================== DELIVERY VIEW ====================
-class DeliveryView(View):
-    def __init__(self, channel, product_type, robux_amount, price, buyer):
-        super().__init__(timeout=None)
-        self.channel = channel
-        self.product_type = product_type
-        self.robux_amount = robux_amount
-        self.price = price
-        self.buyer = buyer
-        self.delivered = False
-        
-        deliver_btn = Button(label="ส่งสินค้าแล้ว ✅", style=discord.ButtonStyle.success, emoji="✅")
-        cancel_btn = Button(label="ยกเลิก ❌", style=discord.ButtonStyle.danger, emoji="❌")
-        
-        async def deliver_cb(i):
-            if i.channel.id != self.channel.id:
-                return
-            
-            admin_role = i.guild.get_role(1361016912259055896)
-            if not i.user.guild_permissions.administrator and (not admin_role or admin_role not in i.user.roles):
-                await i.response.send_message("❌ คุณไม่มีสิทธิ์ใช้ปุ่มนี้", ephemeral=True)
-                return
-            
-            if self.delivered:
-                await i.response.edit_message(content="✅ สินค้าถูกส่งเรียบร้อยแล้ว", embed=None, view=None)
-                return
-            
-            delivery_image = None
-            async for msg in self.channel.history(limit=10):
-                if msg.author == i.user and msg.attachments:
-                    for att in msg.attachments:
-                        if any(att.filename.lower().endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.gif']):
-                            delivery_image = att.url
-                            break
-                    if delivery_image:
-                        break
-            
-            if not delivery_image:
-                await i.response.send_message(
-                    "❌ ผู้ส่งสินค้าต้องแนบไฟล์หลักฐานการส่งสินค้าก่อน !", 
-                    ephemeral=True
-                )
-                return
-            
-            confirm_view = View(timeout=300)
-            confirm_btn = Button(label="ยืนยัน", style=discord.ButtonStyle.success, emoji="✅")
-            edit_btn = Button(label="แก้ไข", style=discord.ButtonStyle.secondary, emoji="✏️")
-            
-            async def confirm_cb(interaction):
-                try:
-                    self.delivered = True
-                    
-                    if self.buyer:
-                        ticket_customer_data[str(self.channel.id)] = self.buyer.name
-                        save_json(ticket_customer_data_file, ticket_customer_data)
-                    
-                    receipt_color = 0xFFA500 if self.product_type == "Gamepass" else 0x00FFFF
-                    
-                    receipt_embed = discord.Embed(
-                        title=f"🍣 ใบเสร็จการสั่งซื้อ ({self.product_type}) 🍣", 
-                        color=receipt_color
-                    )
-                    receipt_embed.add_field(
-                        name="😊 ผู้ซื้อ", 
-                        value=self.buyer.mention if self.buyer else "ไม่ทราบ", 
-                        inline=False
-                    )
-                    receipt_embed.add_field(
-                        name="💸 จำนวนโรบัค", 
-                        value=f"{self.robux_amount:,}", 
-                        inline=True
-                    )
-                    receipt_embed.add_field(
-                        name="💰 ราคาตามเรท", 
-                        value=f"{self.price:,.0f} บาท", 
-                        inline=True
-                    )
-                    
-                    if delivery_image:
-                        receipt_embed.set_image(url=delivery_image)
-                    
-                    receipt_embed.set_footer(
-                        text=f"จัดส่งสินค้าสำเร็จ 🤗 • {get_thailand_time().strftime('%d/%m/%y, %H:%M')}"
-                    )
-                    
-                    if self.buyer:
-                        try:
-                            dm_embed = discord.Embed(
-                                title=f"🧾 ใบเสร็จการซื้อสินค้า ({self.product_type})", 
-                                description="ขอบคุณที่ใช้บริการ Sushi Shop นะคะ 🍣", 
-                                color=receipt_color
-                            )
-                            dm_embed.add_field(name="📦 สินค้า", value=self.product_type, inline=True)
-                            dm_embed.add_field(name="💸 จำนวนโรบัค", value=f"{self.robux_amount:,}", inline=True)
-                            dm_embed.add_field(name="💰 ราคา", value=f"{self.price:,.0f} บาท", inline=True)
-                            
-                            if delivery_image:
-                                dm_embed.set_image(url=delivery_image)
-                            
-                            dm_embed.add_field(
-                                name="📝 หมายเหตุ", 
-                                value="หากมีปัญหากรุณาติดต่อแอดมินในเซิร์ฟค่ะ", 
-                                inline=False
-                            )
-                            dm_embed.set_footer(text="Sushi Shop • ขอบคุณที่ใช้บริการ 💖")
-                            
-                            await self.buyer.send(embed=dm_embed)
-                        except:
-                            pass
-                    
-                    log_channel = bot.get_channel(SALES_LOG_CHANNEL_ID)
-                    if log_channel:
-                        await log_channel.send(embed=receipt_embed)
-                    
-                    await self.channel.send(embed=receipt_embed)
-                    await self.channel.send("✅ **ส่งสินค้าเรียบร้อย**")
-                    
-                    try:
-                        await interaction.response.edit_message(
-                            content="✅ บันทึกการส่งสินค้าเรียบร้อย", 
-                            embed=None, 
-                            view=None
-                        )
-                    except:
-                        pass
-                        
-                except Exception as e:
-                    print(f"Error in confirm_cb: {e}")
-                    try:
-                        await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
-                    except:
-                        pass
-            
-            async def edit_cb(interaction):
-                await interaction.response.send_message(
-                    "📝 กรุณาแนบไฟล์หลักฐานการส่งสินค้าใหม่ แล้วกดปุ่ม 'ส่งสินค้าแล้ว ✅' อีกครั้ง", 
-                    ephemeral=True
-                )
-            
-            confirm_btn.callback = confirm_cb
-            edit_btn.callback = edit_cb
-            
-            confirm_view.add_item(confirm_btn)
-            confirm_view.add_item(edit_btn)
-            
-            embed = discord.Embed(
-                title="📦 ยืนยันการส่งสินค้า", 
-                description="ยืนยันหลักฐานการส่งสินค้านี้หรือไม่?", 
-                color=0x00FF00
-            )
-            embed.set_image(url=delivery_image)
-            
-            await i.response.send_message(embed=embed, view=confirm_view, ephemeral=True)
-        
-        async def cancel_cb(i):
-            if i.channel.id != self.channel.id:
-                return
-            await i.response.send_message("❌ คำสั่งซื้อถูกยกเลิก", ephemeral=True)
-            await i.message.delete()
-        
-        deliver_btn.callback = deliver_cb
-        cancel_btn.callback = cancel_cb
-        
-        self.add_item(deliver_btn)
-        self.add_item(cancel_btn)
-
-# ==================== COMMANDS ====================
-@bot.command(name="shop_open")
-@admin_only()
-async def shop_open_cmd(ctx):
-    global shop_open
-    shop_open = True
-    
-    try:
-        await ctx.message.delete()
-    except:
-        pass
-    
-    await update_channel_name()
-    await update_main_channel()
-    
-    embed = discord.Embed(
-        title="✅ เปิดร้านเรียบร้อย", 
-        description="ร้าน Sushi Shop เปิดให้บริการแล้ว", 
-        color=0x00FF00
-    )
-    embed.set_footer(text=f"เวลา: {get_thailand_time().strftime('%d/%m/%y %H:%M')}")
-    
-    await ctx.send(embed=embed)
-
-@bot.command(name="shop_close")
-@admin_only()
-async def shop_close_cmd(ctx):
-    global shop_open
-    shop_open = False
-    
-    try:
-        await ctx.message.delete()
-    except:
-        pass
-    
-    await update_channel_name()
-    await update_main_channel()
-    
-    embed = discord.Embed(
-        title="🔴 ปิดร้านเรียบร้อย", 
-        description="ร้าน Sushi Shop ปิดให้บริการชั่วคราว", 
-        color=0xFF0000
-    )
-    embed.set_footer(text=f"เวลา: {get_thailand_time().strftime('%d/%m/%y %H:%M')}")
-    
-    await ctx.send(embed=embed)
-
-@bot.command()
-async def link(ctx):
-    embed = discord.Embed(
-        title="🔗 ลิงก์กลุ่ม",
-        description="เข้ากลุ่มนี้ 15 วันก่อนซื้อโรกลุ่ม: https://www.roblox.com/communities/34713179/VALKYs",
-        color=0x00FF00
-    )
-    embed.set_footer(text="Sushi Shop 🍣")
-    await ctx.send(embed=embed)
-
-@bot.command()
-@admin_only()
-async def stock(ctx, stock_type=None, amount=None):
-    global gamepass_stock, group_stock
-    
-    try:
-        await ctx.message.delete()
-    except:
-        pass
-    
-    if not stock_type:
-        embed = discord.Embed(title="📊 สต๊อกสินค้า", color=0x00FF99)
-        embed.add_field(name="🎮 Gamepass Stock", value=f"**{gamepass_stock:,}**", inline=True)
-        embed.add_field(name="👥 Group Stock", value=f"**{group_stock:,}**", inline=True)
-        await ctx.send(embed=embed)
-        
-    elif stock_type.lower() in ["gp", "gamepass", "เกมพาส"]:
-        if amount is None:
-            embed = discord.Embed(title="🎮 Gamepass Stock", description=f"**{gamepass_stock:,}**", color=0x00FF99)
-            await ctx.send(embed=embed)
-        else:
-            try:
-                gamepass_stock = int(amount.replace(",", ""))
-                embed = discord.Embed(
-                    title="✅ ตั้งค่า Stock เรียบร้อย", 
-                    description=f"ตั้งค่า สต๊อกเกมพาส เป็น **{gamepass_stock:,}** เรียบร้อยแล้ว", 
-                    color=0x00FF00
-                )
-                await ctx.send(embed=embed)
-                await update_main_channel()
-            except ValueError:
-                await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง", delete_after=5)
-            
-    elif stock_type.lower() in ["g", "group", "กรุ๊ป"]:
-        if amount is None:
-            embed = discord.Embed(title="👥 Group Stock", description=f"**{group_stock:,}**", color=0x00FF99)
-            await ctx.send(embed=embed)
-        else:
-            try:
-                group_stock = int(amount.replace(",", ""))
-                embed = discord.Embed(
-                    title="✅ ตั้งค่า Stock เรียบร้อย", 
-                    description=f"ตั้งค่า สต๊อกโรบัคกลุ่ม เป็น **{group_stock:,}** เรียบร้อยแล้ว", 
-                    color=0x00FF00
-                )
-                await ctx.send(embed=embed)
-                await update_main_channel()
-            except ValueError:
-                await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง", delete_after=5)
-    else:
-        embed = discord.Embed(
-            title="❌ การใช้งานไม่ถูกต้อง", 
-            description="**การใช้งาน:**\n`!stock` - เช็ค stock ทั้งหมด\n`!stock gp <จำนวน>` - ตั้งค่า Gamepass stock\n`!stock group <จำนวน>` - ตั้งค่า Group stock", 
-            color=0xFF0000
-        )
-        await ctx.send(embed=embed)
-
-@bot.command()
-@admin_only()
-async def group(ctx, status=None):
-    global group_ticket_enabled
-    
-    try:
-        await ctx.message.delete()
-    except:
-        pass
-    
-    if status is None:
-        current_status = "✅ เปิด" if group_ticket_enabled else "❌ ปิด"
-        embed = discord.Embed(
-            title="👥 สถานะบริการโรกลุ่ม", 
-            description=f"**{current_status}**", 
-            color=0x00FF00 if group_ticket_enabled else 0xFF0000
-        )
-        await ctx.send(embed=embed)
-        
-    elif status.lower() in ["on", "enable", "เปิด"]:
-        group_ticket_enabled = True
-        embed = discord.Embed(
-            title="✅ เปิดปุ่มตั๋วโรกลุ่ม", 
-            description="เปิดปุ่มตั๋วโรกลุ่มแล้ว", 
-            color=0x00FF00
-        )
-        await ctx.send(embed=embed)
-        await update_main_channel()
-        
-    elif status.lower() in ["off", "disable", "ปิด"]:
-        group_ticket_enabled = False
-        embed = discord.Embed(
-            title="❌ ปิดปุ่มตั๋วโรกลุ่ม", 
-            description="ปิดปุ่มตั๋วโรกลุ่มแล้ว", 
-            color=0xFF0000
-        )
-        await ctx.send(embed=embed)
-        await update_main_channel()
-    else:
-        embed = discord.Embed(
-            title="❌ การใช้งานไม่ถูกต้อง", 
-            description="**การใช้งาน:**\n`!group` - เช็คสถานะ\n`!group on` - เปิด Group ticket\n`!group off` - ปิด Group ticket", 
-            color=0xFF0000
-        )
-        await ctx.send(embed=embed)
-
-@bot.command()
-@admin_only()
-async def rate(ctx, rate_type=None, low_rate=None, high_rate=None):
-    global gamepass_rate, group_rate_low, group_rate_high
-    
-    try:
-        await ctx.message.delete()
-    except:
-        pass
-    
-    if rate_type is None:
-        embed = discord.Embed(title="📊 เรทโรบัคปัจจุบัน", color=0x00FF99)
-        embed.add_field(name="🎮 Gamepass Rate", value=f"**{gamepass_rate}**", inline=True)
-        embed.add_field(name="👥 Group Rate", value=f"**{group_rate_low} - {group_rate_high}**", inline=True)
-        await ctx.send(embed=embed)
-        
-    elif rate_type.lower() == "group":
-        if low_rate is None or high_rate is None:
-            embed = discord.Embed(
-                title="❌ การใช้งานไม่ถูกต้อง", 
-                description="**การใช้งาน:** `!rate group <low_rate> <high_rate>`", 
-                color=0xFF0000
-            )
-            await ctx.send(embed=embed)
-            return
-        
-        try:
-            group_rate_low = float(low_rate)
-            group_rate_high = float(high_rate)
-            embed = discord.Embed(
-                title="✅ เปลี่ยนเรทโรกลุ่มเรียบร้อย", 
-                description=f"ตั้งค่าเรทโรกลุ่มเป็น **{group_rate_low} - {group_rate_high}** เรียบร้อยแล้ว", 
-                color=0x00FF00
-            )
-            await ctx.send(embed=embed)
-            await update_main_channel()
-        except ValueError:
-            await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง", delete_after=5)
-        
-    else:
-        try:
-            gamepass_rate = float(rate_type)
-            embed = discord.Embed(
-                title="✅ เปลี่ยนเรทเกมพาสเรียบร้อย", 
-                description=f"ตั้งค่าเรทเกมพาสเป็น **{gamepass_rate}** เรียบร้อยแล้ว", 
-                color=0x00FF00
-            )
-            await ctx.send(embed=embed)
-            await update_main_channel()
-        except ValueError:
-            await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง", delete_after=5)
-
-# ==================== คำสั่ง VOUCH ====================
-@bot.command()
-@admin_only()
-async def vouch(ctx):
-    global gamepass_stock, group_stock
-    
-    try:
-        await ctx.message.delete()
-    except:
-        pass
-    
-    if not ctx.channel.name.startswith("ticket-"):
-        await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
-        return
-    
-    try:
-        processing_msg = await ctx.send("🔄 กำลังดำเนินการ...")
-        
-        buyer = None
-        channel_name = ctx.channel.name
-        if channel_name.startswith("ticket-"):
-            parts = channel_name.split('-')
-            if len(parts) >= 3:
-                try:
-                    user_id = int(parts[-1])
-                    buyer = ctx.guild.get_member(user_id)
-                except ValueError:
-                    pass
-        
-        if not buyer:
-            async for msg in ctx.channel.history(limit=50):
-                if not msg.author.bot and msg.author != ctx.guild.me:
-                    buyer = msg.author
-                    break
-        
-        robux_amount = ticket_robux_data.get(str(ctx.channel.id))
-        customer_name = ticket_customer_data.get(str(ctx.channel.id))
-        
-        await move_to_delivered_category(ctx.channel, buyer)
-        
-        save_success, filename = await save_ticket_transcript(ctx.channel, buyer, robux_amount, customer_name)
-        
-        if save_success:
-            try:
-                await ctx.channel.edit(name=filename[:100])
-            except:
-                pass
-        
-        if ctx.channel.category:
-            category_name = ctx.channel.category.name.lower()
-            if "gamepass" in category_name:
-                async with bot.stock_lock:
-                    gamepass_stock += 1
-            elif "group" in category_name or "robux" in category_name:
-                async with bot.stock_lock:
-                    group_stock += 1
-        
-        await processing_msg.delete()
-        
-        embed = discord.Embed(
-            title="✅ ส่งของเรียบร้อยแล้ว",
-            description=(
-                "**ขอบคุณที่ใช้บริการร้าน Sushi Shop** 🍣\n"
-                "ฝากให้เครดิต +1 ให้ด้วยนะคะ ❤️\n\n"
-                "⚠️ **หมายเหตุ:** ตั๋วนี้จะถูกลบใน 10 นาที"
-            ),
-            color=0x00FF00
-        )
-        embed.set_footer(text="Sushi Shop 🍣❤️")
-        embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
-        
-        view = View(timeout=None)
-        
-        credit_button = Button(
-            label="ให้เครดิต⭐", 
-            style=discord.ButtonStyle.link,
-            url=f"https://discord.com/channels/{ctx.guild.id}/{CREDIT_CHANNEL_ID}",
-            emoji="☑️"
-        )
-        
-        view.add_item(credit_button)
-        
-        await ctx.send(embed=embed, view=view)
-        
-        if buyer:
-            try:
-                delivery_image = None
-                async for msg in ctx.channel.history(limit=20):
-                    if msg.attachments:
-                        for att in msg.attachments:
-                            if any(att.filename.lower().endswith(ext) for ext in ['.png', '.jpg', '.jpeg', '.gif']):
-                                delivery_image = att.url
-                                break
-                        if delivery_image:
-                            break
-                
-                product_type = "Gamepass"
-                if ctx.channel.category and "group" in ctx.channel.category.name.lower():
-                    product_type = "Group"
-                
-                receipt_color = 0xFFA500 if product_type == "Gamepass" else 0x00FFFF
-                
-                dm_embed = discord.Embed(
-                    title=f"🧾 ใบเสร็จการซื้อสินค้า ({product_type})",
-                    description="ขอบคุณที่ใช้บริการ Sushi Shop นะคะ 🍣",
-                    color=receipt_color
-                )
-                dm_embed.add_field(name="📦 สินค้า", value=product_type, inline=True)
-                dm_embed.add_field(name="💸 จำนวนโรบัค", value=f"{robux_amount if robux_amount else 'ไม่ระบุ'}", inline=True)
-                
-                if product_type == "Gamepass" and robux_amount:
-                    price = int(robux_amount) / gamepass_rate
-                    dm_embed.add_field(name="💰 ราคา", value=f"{price:,.0f} บาท", inline=True)
-                elif robux_amount:
-                    rate = group_rate_low if int(robux_amount) < 1500 else group_rate_high
-                    price = int(robux_amount) / rate
-                    dm_embed.add_field(name="💰 ราคา", value=f"{price:,.0f} บาท", inline=True)
-                
-                if delivery_image:
-                    dm_embed.set_image(url=delivery_image)
-                
-                dm_embed.add_field(
-                    name="📝 หมายเหตุ", 
-                    value="หากมีปัญหากรุณาติดต่อแอดมินในเซิร์ฟ", 
-                    inline=False
-                )
-                dm_embed.set_footer(text="Sushi Shop • ขอบคุณที่ใช้บริการ💖")
-                
-                await buyer.send(embed=dm_embed)
-                print(f"✅ ส่งใบเสร็จไปยัง DM ของ {buyer.name} เรียบร้อย")
-            except Exception as e:
-                print(f"⚠️ ไม่สามารถส่ง DM ถึง {buyer.name}: {e}")
-        
-        if str(ctx.channel.id) in ticket_robux_data:
-            del ticket_robux_data[str(ctx.channel.id)]
-            save_json(ticket_robux_data_file, ticket_robux_data)
-        
-        if str(ctx.channel.id) in ticket_customer_data:
-            del ticket_customer_data[str(ctx.channel.id)]
-            save_json(ticket_customer_data_file, ticket_customer_data)
-        
-        await update_main_channel()
-        bot.loop.create_task(move_to_archive_after_delay(ctx.channel, buyer, 600))
-        
-        print(f"✅ คำสั่ง !vouch ดำเนินการสำเร็จสำหรับห้อง {ctx.channel.name}")
-        
-    except Exception as e:
-        print(f"❌ เกิดข้อผิดพลาดใน !vouch: {e}")
-        traceback.print_exc()
-        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=5)
-
-@bot.command()
-@admin_only()
-async def od(ctx, *, expr):
-    global gamepass_stock, gamepass_rate
-    
-    if not ctx.channel.name.startswith("ticket-"):
-        await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
-        return
-    
-    try:
-        expr_clean = expr.replace(",", "").lower().replace("x", "*").replace("÷", "/")
-        robux = int(eval(expr_clean))
-        price = robux / gamepass_rate
-        
-        buyer = None
-        parts = ctx.channel.name.split('-')
-        if len(parts) >= 3:
-            try:
-                buyer = ctx.guild.get_member(int(parts[-1]))
-            except:
-                pass
-        
-        if not buyer:
-            async for msg in ctx.channel.history(limit=20):
-                if not msg.author.bot and msg.author != ctx.guild.me:
-                    buyer = msg.author
-                    break
-        
-        if buyer:
-            await add_exp(buyer.id, robux, ctx.guild)
-        
-        async with bot.stock_lock:
-            gamepass_stock = max(0, gamepass_stock - robux)
-        
-        ticket_robux_data[str(ctx.channel.id)] = str(robux)
-        save_json(ticket_robux_data_file, ticket_robux_data)
-        
-        embed = discord.Embed(title="🍣คำสั่งซื้อสินค้า🍣", color=0xFFA500)
-        embed.add_field(name="📦 ประเภทสินค้า", value="Gamepass", inline=False)
-        embed.add_field(name="💸 จำนวนโรบัค", value=f"{robux:,}", inline=True)
-        embed.add_field(name="💰 ราคาตามเรท", value=f"{price:,.0f} บาท", inline=True)
-        embed.set_footer(text=f"รับออร์เดอร์แล้ว 🤗 • {get_thailand_time().strftime('%d/%m/%y, %H:%M')}")
-        
-        await ctx.send(embed=embed, view=DeliveryView(ctx.channel, "Gamepass", robux, price, buyer))
-        
-        await update_main_channel()
-        
-    except Exception as e:
-        print(f"❌ Error in !od: {e}")
-        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
-
-@bot.command()
-@admin_only()
-async def odg(ctx, *, expr):
-    global group_stock, group_rate_low, group_rate_high
-    
-    if not ctx.channel.name.startswith("ticket-"):
-        await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
-        return
-    
-    try:
-        expr_clean = expr.replace(",", "").lower().replace("x", "*").replace("÷", "/")
-        robux = int(eval(expr_clean))
-        rate = group_rate_low if robux < 1500 else group_rate_high
-        price = robux / rate
-        
-        buyer = None
-        parts = ctx.channel.name.split('-')
-        if len(parts) >= 3:
-            try:
-                buyer = ctx.guild.get_member(int(parts[-1]))
-            except:
-                pass
-        
-        if not buyer:
-            async for msg in ctx.channel.history(limit=20):
-                if not msg.author.bot and msg.author != ctx.guild.me:
-                    buyer = msg.author
-                    break
-        
-        if buyer:
-            await add_exp(buyer.id, robux, ctx.guild)
-        
-        async with bot.stock_lock:
-            group_stock = max(0, group_stock - robux)
-        
-        ticket_robux_data[str(ctx.channel.id)] = str(robux)
-        save_json(ticket_robux_data_file, ticket_robux_data)
-        
-        embed = discord.Embed(title="🍣คำสั่งซื้อสินค้า🍣", color=0x00FFFF)
-        embed.add_field(name="📦 ประเภทสินค้า", value="Group", inline=False)
-        embed.add_field(name="💸 จำนวนโรบัค", value=f"{robux:,}", inline=True)
-        embed.add_field(name="💰 ราคาตามเรท", value=f"{price:,.0f} บาท", inline=True)
-        embed.set_footer(text=f"รับออร์เดอร์แล้ว 🤗 • {get_thailand_time().strftime('%d/%m/%y, %H:%M')}")
-        
-        await ctx.send(embed=embed, view=DeliveryView(ctx.channel, "Group", robux, price, buyer))
-        
-        await update_main_channel()
-        
-    except Exception as e:
-        print(f"❌ Error in !odg: {e}")
-        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
-
-@bot.command()
-async def qr(ctx):
-    try:
-        await ctx.message.delete()
-    except:
-        pass
-    
-    embed = discord.Embed(
-        title="⚠️โน๊ตสลิปว่า: เติมโรบัคกับ Sushi Shop⚠️ ช่องทางการโอนเงิน", 
-        color=0x00CCFF
-    )
-    embed.add_field(
-        name="1. ชื่อบัญชี (ธนาคาร SCB)", 
-        value="**หจก. วอเตอร์ เทค เซลล์ แอนด์ เซอร์วิส**", 
-        inline=False
-    )
-    embed.add_field(
-        name="2. เลขบัญชี", 
-        value="**120-239181-3**", 
-        inline=False
-    )
-    embed.set_image(url="https://media.discordapp.net/attachments/1361004239043821610/1473323355791949948/Sushi_SCB.png")
-    
-    view = View(timeout=None)
-    copy_btn = Button(label="คัดลอกเลขบัญชี", style=discord.ButtonStyle.success, emoji="📋")
-    
-    async def copy_cb(i):
-        await i.response.send_message(f"```120-239181-3 ⚠️โน๊ตสลิปว่า: เติมโรบัคกับ Sushi Shop⚠️```", ephemeral=True)
-    
-    copy_btn.callback = copy_cb
-    view.add_item(copy_btn)
-    
-    await ctx.send(embed=embed, view=view)
-
-@bot.command()
-async def gp(ctx, *, expr):
-    global gamepass_rate
-    
-    try:
-        expr_clean = expr.replace(",", "").lower().replace("x", "*").replace("÷", "/")
-        robux = int(eval(expr_clean))
-        await ctx.send(f"🎮 Gamepass {robux:,} Robux = **{robux/gamepass_rate:,.0f} บาท** (เรท {gamepass_rate})")
-    except:
-        await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง", delete_after=5)
-
-@bot.command()
-async def g(ctx, *, expr):
-    global group_rate_low, group_rate_high
-    
-    try:
-        expr_clean = expr.replace(",", "").lower().replace("x", "*").replace("÷", "/")
-        robux = int(eval(expr_clean))
-        rate = group_rate_low if robux < 2250 else group_rate_high
-        await ctx.send(f"👥 Group {robux:,} Robux = **{robux/rate:,.0f} บาท** (เรท {rate})")
-    except:
-        await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง", delete_after=5)
-
-@bot.command()
-async def gpb(ctx, *, expr):
-    global gamepass_rate
-    
-    try:
-        baht = float(eval(expr.replace(",", "")))
-        await ctx.send(f"🎮 {baht:,.0f} บาท = **{baht * gamepass_rate:,.0f} Robux** (Gamepass เรท {gamepass_rate})")
-    except:
-        await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง", delete_after=5)
-
-@bot.command()
-async def gb(ctx, *, expr):
-    global group_rate_low, group_rate_high
-    
-    try:
-        baht = float(eval(expr.replace(",", "")))
-        rate = group_rate_low if baht < 500 else group_rate_high
-        await ctx.send(f"👥 {baht:,.0f} บาท = **{baht * rate:,.0f} Robux** (Group เรท {rate})")
-    except:
-        await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง", delete_after=5)
-
-@bot.command()
-async def tax(ctx, *, expr):
-    try:
-        expr = expr.replace(" ", "")
-        if re.match(r"^\d+$", expr):
-            number = int(expr)
-            await ctx.send(f"💰 {number:,} โรบัคที่ได้หลังหัก 30% = **{number * 0.7:,.0f} Robux**")
-        elif m := re.match(r"^(\d+)-(\d+)%$", expr):
-            number = int(m[1])
-            percent = int(m[2])
-            await ctx.send(f"💰 {number:,} โรบัคที่ได้หลังหัก {percent}% = **{number * (1 - percent/100):,.0f} Robux**")
-        else:
-            await ctx.send(
-                "❌ รูปแบบไม่ถูกต้อง\n\n**การใช้งาน:**\n`!tax 100` - หัก 30% อัตโนมัติ\n`!tax 100-30%` - หัก 30%\n`!tax 100-50%` - หัก 50%", 
-                delete_after=15
-            )
-    except:
-        await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง", delete_after=5)
-
-@bot.command()
-async def level(ctx, member=None):
-    if isinstance(member, str):
-        member = ctx.guild.get_member_named(member) or ctx.author
-    elif member is None:
-        member = ctx.author
-    
-    user_id = str(member.id)
-    if user_id not in user_data:
-        user_data[user_id] = {"exp": 0, "level": 0}
-    
-    user_exp = user_data[user_id]["exp"]
-    user_level = user_data[user_id]["level"]
-    
-    embed = discord.Embed(title=f"🍣 ระดับของคุณ {member.display_name}", color=0x00FF99)
-    
-    if user_level > 0:
-        embed.add_field(name="🎮 ระดับปัจจุบัน", value=f"<@&{LEVELS[user_level]['role_id']}>", inline=True)
-    else:
-        embed.add_field(name="🎮 ระดับปัจจุบัน", value="Level 0", inline=True)
-    
-    embed.add_field(name="⭐ EXP สะสม", value=f"**{user_exp:,} EXP**", inline=True)
-    
-    if user_level < 9:
-        next_exp = LEVELS[user_level + 1]["exp"]
-        embed.add_field(
-            name="🎯 ระดับถัดไป", 
-            value=f"ต้องการอีก **{next_exp - user_exp:,} EXP** เพื่อยศ <@&{LEVELS[user_level + 1]['role_id']}>", 
-            inline=False
-        )
-        
-        current_level_exp = LEVELS[user_level]["exp"] if user_level > 0 else 0
-        progress = user_exp - current_level_exp
-        total = next_exp - current_level_exp
-        
-        if total > 0:
-            pct = (progress / total * 100)
-            bar_count = int(pct / 20)
-            bar = "🟢" * bar_count + "⚫" * (5 - bar_count)
-            embed.add_field(name="🌱 ความคืบหน้า", value=f"{bar} {pct:.1f}%", inline=False)
-    else:
-        embed.add_field(name="🏆 สูงสุดแล้ว!", value="คุณถึงระดับสูงสุดแล้ว! 🎉", inline=False)
-    
-    embed.set_footer(text="ได้รับ EXP จากการซื้อสินค้าในร้าน")
-    await ctx.send(embed=embed)
-
-@bot.command()
-async def love(ctx):
-    await ctx.send("# LOVE YOU<:sushiheart:1410484970291466300>")
-
-@bot.command()
-async def say(ctx, *, message):
-    await ctx.send(f"# {message.upper()} <:sushiheart:1410484970291466300>")
-
-@bot.command()
-@admin_only()
-async def setup(ctx):
-    try:
-        await ctx.message.delete()
-    except:
-        pass
-    
-    await update_main_channel()
-    await ctx.send(embed=discord.Embed(title="✅ ตั้งค่าระบบเรียบร้อยแล้ว", color=0x00FF00))
-
-@bot.command()
-@admin_only()
-async def restart(ctx):
-    try:
-        await ctx.message.delete()
-    except:
-        pass
-    
-    await update_main_channel()
-    await ctx.send(embed=discord.Embed(title="🔄 รีสตาร์ทระบบปุ่มเรียบร้อยแล้ว", color=0x00FF00))
-
-@bot.command()
-@admin_only()
-async def fixcredit(ctx):
-    await ctx.send("🔍 กำลังตรวจสอบจำนวนข้อความในช่องเครดิต...")
-    await verify_credit_channel_count()
-    await ctx.send("✅ ตรวจสอบเสร็จสิ้น!")
-
-# ==================== RNG GACHA GAME (PREFIX COMMANDS) ====================
+# ==================== RNG SYSTEM ====================
 ITEMS = {
-    # Common (50%) - 25 ชิ้น
-    "common_1": {"name": "🍎 แอปเปิล", "rarity": "common", "emoji": "🍎", "value": 1},
-    "common_2": {"name": "🍌 กล้วย", "rarity": "common", "emoji": "🍌", "value": 1},
-    "common_3": {"name": "🍒 เชอร์รี่", "rarity": "common", "emoji": "🍒", "value": 1},
-    "common_4": {"name": "🥕 แครอท", "rarity": "common", "emoji": "🥕", "value": 1},
-    "common_5": {"name": "🥦 บร็อคโคลี่", "rarity": "common", "emoji": "🥦", "value": 1},
-    "common_6": {"name": "🍞 ขนมปัง", "rarity": "common", "emoji": "🍞", "value": 1},
-    "common_7": {"name": "🥚 ไข่", "rarity": "common", "emoji": "🥚", "value": 1},
-    "common_8": {"name": "🥛 นม", "rarity": "common", "emoji": "🥛", "value": 1},
-    "common_9": {"name": "🧀 ชีส", "rarity": "common", "emoji": "🧀", "value": 1},
-    "common_10": {"name": "🍗 ไก่ทอด", "rarity": "common", "emoji": "🍗", "value": 1},
-    "common_11": {"name": "🍖 ซี่โครง", "rarity": "common", "emoji": "🍖", "value": 1},
-    "common_12": {"name": "🥩 สเต็ก", "rarity": "common", "emoji": "🥩", "value": 1},
-    "common_13": {"name": "🍔 แฮมเบอร์เกอร์", "rarity": "common", "emoji": "🍔", "value": 1},
-    "common_14": {"name": "🍟 เฟรนช์ฟรายส์", "rarity": "common", "emoji": "🍟", "value": 1},
-    "common_15": {"name": "🌭 ฮอทดอก", "rarity": "common", "emoji": "🌭", "value": 1},
-    "common_16": {"name": "🍕 พิซซ่า", "rarity": "common", "emoji": "🍕", "value": 1},
-    "common_17": {"name": "🌮 ทาโก้", "rarity": "common", "emoji": "🌮", "value": 1},
-    "common_18": {"name": "🌯 เบอร์ริโต", "rarity": "common", "emoji": "🌯", "value": 1},
-    "common_19": {"name": "🥗 สลัด", "rarity": "common", "emoji": "🥗", "value": 1},
-    "common_20": {"name": "🍜 ราเมน", "rarity": "common", "emoji": "🍜", "value": 1},
-    "common_21": {"name": "🍣 ซูชิ", "rarity": "common", "emoji": "🍣", "value": 1},
-    "common_22": {"name": "🍱 ข้าวกล่อง", "rarity": "common", "emoji": "🍱", "value": 1},
-    "common_23": {"name": "🍛 แกงกะหรี่", "rarity": "common", "emoji": "🍛", "value": 1},
-    "common_24": {"name": "🍚 ข้าวสวย", "rarity": "common", "emoji": "🍚", "value": 1},
-    "common_25": {"name": "🍥 นารูโตะมากิ", "rarity": "common", "emoji": "🍥", "value": 1},
-    
-    # Rare (45%) - 15 ชิ้น
-    "rare_1": {"name": "⚔️ ดาบไม้", "rarity": "rare", "emoji": "⚔️", "value": 5},
-    "rare_2": {"name": "🛡️ โล่ไม้", "rarity": "rare", "emoji": "🛡️", "value": 5},
-    "rare_3": {"name": "🏹 ธนู", "rarity": "rare", "emoji": "🏹", "value": 5},
-    "rare_4": {"name": "🔮 ลูกแก้ววิเศษ", "rarity": "rare", "emoji": "🔮", "value": 5},
-    "rare_5": {"name": "📜 ม้วนคัมภีร์", "rarity": "rare", "emoji": "📜", "value": 5},
-    "rare_6": {"name": "🧪 ยาน้ำ", "rarity": "rare", "emoji": "🧪", "value": 5},
-    "rare_7": {"name": "⚱️ โถโบราณ", "rarity": "rare", "emoji": "⚱️", "value": 5},
-    "rare_8": {"name": "💎 เพทาย", "rarity": "rare", "emoji": "💎", "value": 5},
-    "rare_9": {"name": "👑 มงกุฎทอง", "rarity": "rare", "emoji": "👑", "value": 5},
-    "rare_10": {"name": "🔑 กุญแจทอง", "rarity": "rare", "emoji": "🔑", "value": 5},
-    "rare_11": {"name": "⏳ นาฬิกาทราย", "rarity": "rare", "emoji": "⏳", "value": 5},
-    "rare_12": {"name": "🧭 เข็มทิศ", "rarity": "rare", "emoji": "🧭", "value": 5},
-    "rare_13": {"name": "💡 ตะเกียงวิเศษ", "rarity": "rare", "emoji": "💡", "value": 5},
-    "rare_14": {"name": "🎭 หน้ากาก", "rarity": "rare", "emoji": "🎭", "value": 5},
-    "rare_15": {"name": "🎨 พู่กันวิเศษ", "rarity": "rare", "emoji": "🎨", "value": 5},
-    
-    # Legendary (5%) - 10 ชิ้น
-    "leg_1": {"name": "🐉 มังกรน้อย", "rarity": "legendary", "emoji": "🐉", "value": 50},
-    "leg_2": {"name": "🦄 ยูนิคอร์น", "rarity": "legendary", "emoji": "🦄", "value": 50},
-    "leg_3": {"name": "🧝 เอลฟ์", "rarity": "legendary", "emoji": "🧝", "value": 50},
-    "leg_4": {"name": "🧙 พ่อมด", "rarity": "legendary", "emoji": "🧙", "value": 50},
-    "leg_5": {"name": "🦹 ซูเปอร์ฮีโร่", "rarity": "legendary", "emoji": "🦹", "value": 50},
-    "leg_6": {"name": "🧚 นางฟ้า", "rarity": "legendary", "emoji": "🧚", "value": 50},
-    "leg_7": {"name": "🧜 เงือก", "rarity": "legendary", "emoji": "🧜", "value": 50},
-    "leg_8": {"name": "🧛 แวมไพร์", "rarity": "legendary", "emoji": "🧛", "value": 50},
-    "leg_9": {"name": "🧟 ซอมบี้", "rarity": "legendary", "emoji": "🧟", "value": 50},
-    "leg_10": {"name": "👽 เอเลี่ยน", "rarity": "legendary", "emoji": "👽", "value": 50},
+    **{f"c{i}": {"name": n, "rarity":"common", "emoji":e, "value":1} for i,(n,e) in enumerate([
+        ("🍎 แอปเปิล","🍎"), ("🍌 กล้วย","🍌"), ("🍒 เชอร์รี่","🍒"), ("🥕 แครอท","🥕"), ("🍞 ขนมปัง","🍞"),
+        ("🥚 ไข่","🥚"), ("🥛 นม","🥛"), ("🍗 ไก่ทอด","🍗"), ("🍔 แฮมเบอร์เกอร์","🍔"), ("🍟 เฟรนช์ฟรายส์","🍟"),
+        ("🍕 พิซซ่า","🍕"), ("🍣 ซูชิ","🍣"), ("🍜 ราเมน","🍜"), ("🍛 แกงกะหรี่","🍛"), ("🍚 ข้าวสวย","🍚")
+    ])},
+    **{f"r{i}": {"name": n, "rarity":"rare", "emoji":e, "value":5} for i,(n,e) in enumerate([
+        ("⚔️ ดาบไม้","⚔️"), ("🛡️ โล่ไม้","🛡️"), ("🏹 ธนู","🏹"), ("🔮 ลูกแก้ว","🔮"), ("📜 ม้วนคัมภีร์","📜"),
+        ("👑 มงกุฎทอง","👑"), ("🔑 กุญแจทอง","🔑"), ("💎 เพชร","💎"), ("⏳ นาฬิกาทราย","⏳"), ("🧭 เข็มทิศ","🧭")
+    ])},
+    **{f"l{i}": {"name": n, "rarity":"legendary", "emoji":e, "value":50} for i,(n,e) in enumerate([
+        ("🐉 มังกร","🐉"), ("🦄 ยูนิคอร์น","🦄"), ("🧝 เอลฟ์","🧝"), ("🧙 พ่อมด","🧙"), ("🧚 นางฟ้า","🧚"),
+        ("🧛 แวมไพร์","🧛"), ("🧟 ซอมบี้","🧟"), ("👽 เอเลี่ยน","👽")
+    ])}
 }
 
-COMMON_ITEMS = {k: v for k, v in ITEMS.items() if v["rarity"] == "common"}
-RARE_ITEMS = {k: v for k, v in ITEMS.items() if v["rarity"] == "rare"}
-LEGENDARY_ITEMS = {k: v for k, v in ITEMS.items() if v["rarity"] == "legendary"}
+COMMON = {k:v for k,v in ITEMS.items() if v["rarity"]=="common"}
+RARE = {k:v for k,v in ITEMS.items() if v["rarity"]=="rare"}
+LEGEND = {k:v for k,v in ITEMS.items() if v["rarity"]=="legendary"}
 
-def load_inventory() -> Dict[str, Dict[str, int]]:
-    try:
-        if os.path.exists(rng_inventory_file):
-            with open(rng_inventory_file, 'r', encoding='utf-8') as f:
-                return json.load(f)
-    except Exception as e:
-        print(f"❌ Error loading inventory: {e}")
-    return {}
+def load_inv(): return load_json(FILES['inventory'], {})
+def save_inv(d): save_json(FILES['inventory'], d)
+def load_bal(): return load_json(FILES['balance'], {})
+def save_bal(d): save_json(FILES['balance'], d)
 
-def save_inventory(inventory: Dict[str, Dict[str, int]]):
-    try:
-        with open(rng_inventory_file, 'w', encoding='utf-8') as f:
-            json.dump(inventory, f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        print(f"❌ Error saving inventory: {e}")
-
-def load_balances() -> Dict[str, int]:
-    try:
-        if os.path.exists(rng_balance_file):
-            with open(rng_balance_file, 'r', encoding='utf-8') as f:
-                return json.load(f)
-    except Exception as e:
-        print(f"❌ Error loading balances: {e}")
-    return {}
-
-def save_balances(balances: Dict[str, int]):
-    try:
-        with open(rng_balance_file, 'w', encoding='utf-8') as f:
-            json.dump(balances, f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        print(f"❌ Error saving balances: {e}")
-
-def get_user_balance(user_id: str) -> int:
-    balances = load_balances()
-    return balances.get(user_id, 0)
-
-def add_user_balance(user_id: str, amount: int) -> int:
-    balances = load_balances()
-    current = balances.get(user_id, 0)
-    new_balance = current + amount
-    balances[user_id] = new_balance
-    save_balances(balances)
-    return new_balance
-
-def remove_user_balance(user_id: str, amount: int) -> bool:
-    balances = load_balances()
-    current = balances.get(user_id, 0)
-    if current < amount:
-        return False
-    new_balance = current - amount
-    if new_balance == 0:
-        del balances[user_id]
-    else:
-        balances[user_id] = new_balance
-    save_balances(balances)
+def get_bal(uid): return load_bal().get(uid, 0)
+def add_bal(uid, amt):
+    b = load_bal()
+    b[uid] = b.get(uid, 0) + amt
+    save_bal(b)
+    return b[uid]
+def rem_bal(uid, amt):
+    b = load_bal()
+    if b.get(uid, 0) < amt: return False
+    b[uid] -= amt
+    if b[uid] <= 0: del b[uid]
+    save_bal(b)
     return True
 
-def get_user_inventory(user_id: str) -> Dict[str, int]:
-    inventory = load_inventory()
-    return inventory.get(user_id, {})
-
-def add_item_to_inventory(user_id: str, item_id: str, amount: int = 1):
-    inventory = load_inventory()
-    if user_id not in inventory:
-        inventory[user_id] = {}
-    
-    if item_id in inventory[user_id]:
-        inventory[user_id][item_id] += amount
-    else:
-        inventory[user_id][item_id] = amount
-    
-    save_inventory(inventory)
-    print(f"✅ เพิ่ม {item_id} ให้ {user_id}")
+def get_inv(uid): return load_inv().get(uid, {})
+def add_item(uid, iid, amt=1):
+    inv = load_inv()
+    if uid not in inv: inv[uid] = {}
+    inv[uid][iid] = inv[uid].get(iid, 0) + amt
+    save_inv(inv)
+    return True
+def rem_item(uid, iid, amt=1):
+    inv = load_inv()
+    if uid not in inv or inv[uid].get(iid, 0) < amt: return False
+    inv[uid][iid] -= amt
+    if inv[uid][iid] <= 0: del inv[uid][iid]
+    if not inv[uid]: del inv[uid]
+    save_inv(inv)
     return True
 
-def remove_item_from_inventory(user_id: str, item_id: str, amount: int = 1) -> bool:
-    inventory = load_inventory()
-    if user_id not in inventory:
-        return False
-    
-    if item_id not in inventory[user_id]:
-        return False
-    
-    if inventory[user_id][item_id] < amount:
-        return False
-    
-    inventory[user_id][item_id] -= amount
-    if inventory[user_id][item_id] <= 0:
-        del inventory[user_id][item_id]
-    
-    save_inventory(inventory)
-    return True
+def random_item():
+    r = random.random() * 100
+    if r < 50: return random.choice(list(COMMON.items()))
+    if r < 95: return random.choice(list(RARE.items()))
+    return random.choice(list(LEGEND.items()))
 
-def random_item() -> tuple[str, dict]:
-    roll = random.random() * 100
-    
-    if roll < 50:
-        item_id = random.choice(list(COMMON_ITEMS.keys()))
-        return item_id, COMMON_ITEMS[item_id]
-    elif roll < 95:
-        item_id = random.choice(list(RARE_ITEMS.keys()))
-        return item_id, RARE_ITEMS[item_id]
-    else:
-        item_id = random.choice(list(LEGENDARY_ITEMS.keys()))
-        return item_id, LEGENDARY_ITEMS[item_id]
+# ==================== PAWN SHOP ====================
+CUSTOMERS = ["คุณสมชาย", "คุณสมหญิง", "คุณอนันต์", "คุณประภาพร", "Mike", "John", "Sarah", "Emma"]
+AVATARS = ["👨", "👩", "🧔", "👵", "👴"]
 
-@bot.command(name="rng", aliases=["rnggame"])
-async def rng_prefix(ctx):
-    embed = discord.Embed(
-        title="🎲 RNG Gacha Game",
-        description="ยินดีต้อนรับสู่เกมสุ่มไอเทม!\n\nเลือกปุ่มด้านล่างเพื่อเริ่มเล่น",
-        color=0x00AAFF
-    )
-    embed.add_field(name="📊 อัตราการสุ่ม", value="🟤 Common 50% | 🔵 Rare 45% | 🟡 Legendary 5%", inline=False)
-    embed.set_footer(text=f"ผู้เล่น: {ctx.author.display_name}")
-    
-    await ctx.send(embed=embed, view=RNGMainView(ctx.author))
-
-@bot.command(name="roll", aliases=["rngroll"])
-async def roll_prefix(ctx):
-    item_id, item = random_item()
-    user_id = str(ctx.author.id)
-    add_item_to_inventory(user_id, item_id)
-    
-    inventory = get_user_inventory(user_id)
-    total_items = sum(inventory.values())
-    balance = get_user_balance(user_id)
-    
-    rarity_color = {"common": 0x808080, "rare": 0x00AAFF, "legendary": 0xFFD700}
-    embed = discord.Embed(
-        title="🎲 ผลการสุ่ม",
-        description=f"คุณได้รับ: {item['emoji']} **{item['name']}**",
-        color=rarity_color[item["rarity"]]
-    )
-    embed.set_footer(text=f"ความหายาก: {item['rarity'].upper()} | ไอเทมทั้งหมด: {total_items} ชิ้น | 🪙 {balance}")
-    
-    await ctx.send(embed=embed)
-
-@bot.command(name="inventory", aliases=["inv", "bag"])
-async def inventory_prefix(ctx):
-    user_id = str(ctx.author.id)
-    inventory = get_user_inventory(user_id)
-    balance = get_user_balance(user_id)
-    
-    if not inventory:
-        embed = discord.Embed(
-            title="📦 Inventory",
-            description=f"ยังไม่มีไอเทม! ใช้ `!roll` หรือ `!rngroll` เพื่อสุ่มไอเทมก่อน\n\n💰 ยอดเงิน: **{balance}** 🪙",
-            color=0x808080
-        )
-        embed.set_footer(text=f"ผู้เล่น: {ctx.author.display_name}")
-        await ctx.send(embed=embed)
-        return
-    
-    items_list = []
-    total_value = 0
-    
-    for item_id, amount in inventory.items():
-        item = ITEMS[item_id]
-        rarity_emoji = {"common": "🟤", "rare": "🔵", "legendary": "🟡"}[item["rarity"]]
-        items_list.append(f"{rarity_emoji} {item['emoji']} **{item['name']}** x{amount}")
-        total_value += amount * item["value"]
-    
-    common_count = sum(1 for k in inventory.keys() if k in COMMON_ITEMS)
-    rare_count = sum(1 for k in inventory.keys() if k in RARE_ITEMS)
-    leg_count = sum(1 for k in inventory.keys() if k in LEGENDARY_ITEMS)
-    
-    embed = discord.Embed(title="📦 Inventory", color=0x00AAFF)
-    embed.add_field(
-        name="📊 สถิติ",
-        value=f"🟤 Common: {common_count} | 🔵 Rare: {rare_count} | 🟡 Legendary: {leg_count}",
-        inline=False
-    )
-    
-    if len(items_list) > 10:
-        embed.add_field(name="📋 รายการไอเทม (10 รายการแรก)", value="\n".join(items_list[:10]), inline=False)
-        embed.set_footer(text=f"แสดง 10 จาก {len(items_list)} รายการ | 🪙 {balance}")
-    else:
-        embed.add_field(name="📋 รายการไอเทม", value="\n".join(items_list), inline=False)
-        embed.set_footer(text=f"ผู้เล่น: {ctx.author.display_name} | 🪙 {balance}")
-    
-    await ctx.send(embed=embed)
-
-# ==================== PAWN SHOP SYSTEM ====================
-CUSTOMER_NAMES = [
-    "คุณสมชาย", "คุณสมหญิง", "คุณอนันต์", "คุณประภาพร", "คุณวิชัย", "คุณกัญญา",
-    "คุณธีรศักดิ์", "คุณนภัสสร", "คุณภาณุ", "คุณสิริยากร", "คุณทักษิณ", "คุณบุษบา",
-    "คุณชัชชัย", "คุณจินตนา", "คุณปฏิภาณ", "คุณศิริวรรณ", "คุณสามารถ", "คุณอุบล",
-    "คุณไพศาล", "คุณรัตนา", "คุณธนา", "คุณปาริชาติ", "คุณวรวุฒิ", "คุณสาวิตรี",
-    "Mike", "John", "Sarah", "David", "Emma", "Chris", "Lisa", "Tom", "Anna", "James"
-]
-
-CUSTOMER_AVATARS = ["👨", "👩", "🧔", "👵", "👴", "🧑", "👱", "👲", "🧕", "👳"]
-
-def get_item_price(item: dict) -> int:
-    if item["rarity"] == "common":
-        return random.randint(1, 1000)
-    elif item["rarity"] == "rare":
-        return random.randint(1001, 10000)
-    else:
-        return random.randint(10001, 100000)
+def get_price(item):
+    if item["rarity"]=="common": return random.randint(1, 1000)
+    if item["rarity"]=="rare": return random.randint(1001, 10000)
+    return random.randint(10001, 100000)
 
 class PawnCustomer:
     def __init__(self):
-        self.name = random.choice(CUSTOMER_NAMES)
-        self.avatar = random.choice(CUSTOMER_AVATARS)
-        self.satisfaction = random.randint(30, 100)
-        self.patience = random.randint(2, 5)
-        self.deal_type = random.choice(["buy", "sell"])
-        
-    def calculate_price_satisfaction(self, offered_price: int, base_price: int) -> Tuple[int, str]:
-        price_diff_percent = ((offered_price - base_price) / base_price) * 100
-        
-        if self.deal_type == "buy":
-            satisfaction_change = -price_diff_percent * 0.5
-        else:
-            satisfaction_change = price_diff_percent * 0.5
-        
-        new_satisfaction = self.satisfaction + satisfaction_change
-        new_satisfaction = max(0, min(100, new_satisfaction))
-        
-        if new_satisfaction >= 70:
-            emoji = "😄"
-        elif new_satisfaction >= 40:
-            emoji = "😐"
-        else:
-            emoji = "😡"
-            
-        return int(new_satisfaction), emoji
-    
-    def can_negotiate(self) -> bool:
-        return self.patience > 0
-    
-    def use_patience(self):
-        self.patience -= 1
+        self.name = random.choice(CUSTOMERS)
+        self.avatar = random.choice(AVATARS)
+        self.sat = random.randint(30, 100)
+        self.pat = random.randint(2, 5)
+        self.type = random.choice(["buy", "sell"])
+    def calc(self, offer, base):
+        diff = ((offer - base) / base) * 100
+        new = self.sat + (-diff*0.5 if self.type=="buy" else diff*0.5)
+        new = max(0, min(100, new))
+        emoji = "😄" if new>=70 else "😐" if new>=40 else "😡"
+        return int(new), emoji
 
-@bot.command(name="pawnshop", aliases=["pshop", "pawngame"])
-async def pawnshop_prefix(ctx):
-    user_id = str(ctx.author.id)
-    inventory = get_user_inventory(user_id)
-    balance = get_user_balance(user_id)
-    
-    if not inventory:
-        embed = discord.Embed(
-            title="🏪 Pawn Shop",
-            description=f"คุณยังไม่มีไอเทม! ใช้ `!roll` หรือ `!rngroll` เพื่อสุ่มไอเทมก่อน\n\n💰 ยอดเงิน: **{balance}** 🪙",
-            color=0x808080
-        )
-        await ctx.send(embed=embed)
-        return
-    
-    items_list = []
-    items_data = list(inventory.items())
-    
-    for i, (item_id, amount) in enumerate(items_data[:10]):
-        item = ITEMS[item_id]
-        rarity_emoji = {"common": "🟤", "rare": "🔵", "legendary": "🟡"}[item["rarity"]]
-        price_range = "1-1,000" if item["rarity"] == "common" else ("1,001-10,000" if item["rarity"] == "rare" else "10,001-100,000")
-        items_list.append(f"`{i+1}.` {rarity_emoji} {item['emoji']} **{item['name']}** x{amount} (ราคา {price_range} 🪙)")
-    
-    embed = discord.Embed(
-        title="🏪 Pawn Shop",
-        description=f"เลือกไอเทมที่ต้องการค้าขายกับลูกค้า\n\n💰 ยอดเงินคุณ: **{balance}** 🪙\n\n" + "\n".join(items_list),
-        color=0x00AAFF
-    )
-    
-    if len(items_data) > 10:
-        embed.add_field(
-            name="📌 หมายเหตุ",
-            value=f"มีไอเทมทั้งหมด {len(items_data)} ชนิด แสดงแค่ 10 รายการแรก",
-            inline=False
-        )
-    
-    embed.add_field(
-        name="💰 วิธีใช้",
-        value="พิมพ์ `!pselect <เลขที่>` เพื่อเลือกไอเทม\nตัวอย่าง: `!pselect 1`",
-        inline=False
-    )
-    embed.add_field(
-        name="📊 ระบบราคา",
-        value="🟤 Common: 1-1,000 🪙\n🔵 Rare: 1,001-10,000 🪙\n🟡 Legendary: 10,001-100,000 🪙",
-        inline=False
-    )
-    
-    await ctx.send(embed=embed)
-
-@bot.command(name="pselect")
-async def pawn_select_prefix(ctx, number: int):
-    user_id = str(ctx.author.id)
-    inventory = get_user_inventory(user_id)
-    balance = get_user_balance(user_id)
-    
-    if not inventory:
-        await ctx.send("❌ คุณยังไม่มีไอเทม!")
-        return
-    
-    items_list = list(inventory.items())
-    if number < 1 or number > len(items_list):
-        await ctx.send(f"❌ กรุณาเลือกเลข 1-{len(items_list)}")
-        return
-    
-    item_id, amount = items_list[number - 1]
-    item = ITEMS[item_id]
-    
-    customer = PawnCustomer()
-    base_price = get_item_price(item)
-    
-    action = "ซื้อ" if customer.deal_type == "buy" else "ขาย"
-    
-    embed = discord.Embed(
-        title=f"🏪 Pawn Shop - {item['emoji']} {item['name']}",
-        description=f"{customer.avatar} **{customer.name}**\n\nฉันสนใจจะ{action} {item['emoji']} **{item['name']}**\nราคาที่เหมาะสมน่าจะอยู่ที่ **{base_price:,}** 🪙",
-        color=0x00AAFF
-    )
-    embed.add_field(
-        name="📊 ข้อมูลลูกค้า",
-        value=(
-            f"ความพอใจเริ่มต้น: {customer.satisfaction}%\n"
-            f"ความอดทน: {customer.patience} ครั้ง\n"
-            f"มาเพื่อ: {'💰 ซื้อ' if customer.deal_type == 'buy' else '💸 ขาย'}"
-        ),
-        inline=False
-    )
-    embed.add_field(
-        name="💰 ยอดเงินคุณ",
-        value=f"**{balance}** 🪙",
-        inline=False
-    )
-    
-    bot.pawn_data[user_id] = {
-        "item_id": item_id,
-        "item": item,
-        "customer": customer,
-        "base_price": base_price,
-        "current_price": base_price
-    }
-    
-    await ctx.send(embed=embed, view=PawnNegotiationView(ctx.author, item_id, item, customer, base_price, balance))
-
-class PawnNegotiationView(View):
-    def __init__(self, user: discord.User, item_id: str, item: dict, customer: PawnCustomer, base_price: int, user_balance: int):
-        super().__init__(timeout=120)
-        self.user = user
-        self.item_id = item_id
-        self.item = item
-        self.customer = customer
-        self.base_price = base_price
-        self.current_price = base_price
-        self.user_balance = user_balance
-        
-    @discord.ui.button(label="✅ ตกลง", style=discord.ButtonStyle.success, row=0)
-    async def accept_button(self, interaction: discord.Interaction, button: Button):
-        if interaction.user != self.user:
-            await interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
-            return
-        
-        user_id = str(interaction.user.id)
-        new_satisfaction, emoji = self.customer.calculate_price_satisfaction(self.current_price, self.base_price)
-        
-        if new_satisfaction >= 50:
-            if self.customer.deal_type == "buy":
-                # ลูกค้าซื้อ -> เราขายไอเทม ได้เงิน
-                success = remove_item_from_inventory(user_id, self.item_id)
-                if success:
-                    new_balance = add_user_balance(user_id, self.current_price)
-                    result_msg = f"✅ ดีลสำเร็จ! คุณขาย {self.item['emoji']} **{self.item['name']}** ในราคา {self.current_price:,} 🪙\n💰 ยอดเงินปัจจุบัน: {new_balance} 🪙"
-                    color = 0x00FF00
-                else:
-                    result_msg = f"❌ เกิดข้อผิดพลาด: ไม่พบไอเทมใน inventory"
-                    color = 0xFF0000
-            else:
-                # ลูกค้าขาย -> เราซื้อไอเทม เสียเงิน
-                if remove_user_balance(user_id, self.current_price):
-                    add_item_to_inventory(user_id, self.item_id)
-                    new_balance = get_user_balance(user_id)
-                    result_msg = f"✅ ดีลสำเร็จ! คุณซื้อ {self.item['emoji']} **{self.item['name']}** ในราคา {self.current_price:,} 🪙\n💰 ยอดเงินปัจจุบัน: {new_balance} 🪙"
-                    color = 0x00FF00
-                else:
-                    current_balance = get_user_balance(user_id)
-                    result_msg = f"❌ เงินไม่พอ! คุณมี {current_balance} 🪙 ต้องการ {self.current_price} 🪙"
-                    color = 0xFF0000
-            
-            embed = discord.Embed(title=f"🤝 ดีลสำเร็จ! {emoji}", description=result_msg, color=color)
-            
-            # เพิ่มปุ่ม "เล่นต่อ"
-            continue_view = View(timeout=60)
-            continue_btn = Button(label="เล่นต่อ", emoji="🎮", style=discord.ButtonStyle.primary)
-            
-            async def continue_callback(cont_interaction):
-                if cont_interaction.user != self.user:
-                    await cont_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
-                    return
-                
-                # กลับไปที่หน้าเลือกไอเทม
-                await cont_interaction.response.defer(ephemeral=True)
-                
-                # สร้าง embed หน้าเลือกไอเทมใหม่
-                inventory = get_user_inventory(user_id)
-                balance = get_user_balance(user_id)
-                
-                if not inventory:
-                    embed2 = discord.Embed(
-                        title="🏪 Pawn Shop",
-                        description=f"คุณยังไม่มีไอเทม! ไปสุ่มไอเทมก่อนนะ 🎲\n\n💰 ยอดเงินปัจจุบัน: **{balance}** 🪙",
-                        color=0x808080
-                    )
-                    await cont_interaction.followup.send(embed=embed2, ephemeral=True)
-                    return
-                
-                items_list = []
-                items_data = list(inventory.items())
-                
-                for i, (item_id2, amount2) in enumerate(items_data[:10]):
-                    item2 = ITEMS[item_id2]
-                    rarity_emoji = {"common": "🟤", "rare": "🔵", "legendary": "🟡"}[item2["rarity"]]
-                    price_range = "1-1,000" if item2["rarity"] == "common" else ("1,001-10,000" if item2["rarity"] == "rare" else "10,001-100,000")
-                    items_list.append(f"`{i+1}.` {rarity_emoji} {item2['emoji']} **{item2['name']}** x{amount2} (ราคา {price_range} 🪙)")
-                
-                embed2 = discord.Embed(
-                    title="🏪 Pawn Shop",
-                    description=f"เลือกไอเทมที่ต้องการค้าขายกับลูกค้า\n\n💰 ยอดเงินคุณ: **{balance}** 🪙\n\n" + "\n".join(items_list),
-                    color=0x00AAFF
-                )
-                
-                if len(items_data) > 10:
-                    embed2.add_field(
-                        name="📌 หมายเหตุ",
-                        value=f"มีไอเทมทั้งหมด {len(items_data)} ชนิด แสดงแค่ 10 รายการแรก",
-                        inline=False
-                    )
-                
-                embed2.add_field(
-                    name="💰 วิธีใช้",
-                    value="พิมพ์ `!pselect <เลขที่>` เพื่อเลือกไอเทม\nตัวอย่าง: `!pselect 1`",
-                    inline=False
-                )
-                
-                await cont_interaction.followup.send(embed=embed2, ephemeral=True)
-            
-            continue_btn.callback = continue_callback
-            continue_view.add_item(continue_btn)
-            
-            if user_id in bot.pawn_data:
-                del bot.pawn_data[user_id]
-            
-            await interaction.response.edit_message(embed=embed, view=continue_view)
-            
-        else:
-            result_msg = f"{emoji} **{self.customer.name}**: ราคานี้ไม่โอเคเลย! ลาก่อน!"
-            embed = discord.Embed(title="❌ ดีลล้มเหลว", description=result_msg, color=0xFF0000)
-            
-            # เพิ่มปุ่ม "เล่นต่อ" สำหรับกรณีล้มเหลวด้วย
-            continue_view = View(timeout=60)
-            continue_btn = Button(label="เล่นต่อ", emoji="🎮", style=discord.ButtonStyle.primary)
-            
-            async def continue_callback(cont_interaction):
-                if cont_interaction.user != self.user:
-                    await cont_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
-                    return
-                
-                await cont_interaction.response.defer(ephemeral=True)
-                
-                inventory = get_user_inventory(user_id)
-                balance = get_user_balance(user_id)
-                
-                if not inventory:
-                    embed2 = discord.Embed(
-                        title="🏪 Pawn Shop",
-                        description=f"คุณยังไม่มีไอเทม! ไปสุ่มไอเทมก่อนนะ 🎲\n\n💰 ยอดเงินปัจจุบัน: **{balance}** 🪙",
-                        color=0x808080
-                    )
-                    await cont_interaction.followup.send(embed=embed2, ephemeral=True)
-                    return
-                
-                items_list = []
-                items_data = list(inventory.items())
-                
-                for i, (item_id2, amount2) in enumerate(items_data[:10]):
-                    item2 = ITEMS[item_id2]
-                    rarity_emoji = {"common": "🟤", "rare": "🔵", "legendary": "🟡"}[item2["rarity"]]
-                    price_range = "1-1,000" if item2["rarity"] == "common" else ("1,001-10,000" if item2["rarity"] == "rare" else "10,001-100,000")
-                    items_list.append(f"`{i+1}.` {rarity_emoji} {item2['emoji']} **{item2['name']}** x{amount2} (ราคา {price_range} 🪙)")
-                
-                embed2 = discord.Embed(
-                    title="🏪 Pawn Shop",
-                    description=f"เลือกไอเทมที่ต้องการค้าขายกับลูกค้า\n\n💰 ยอดเงินคุณ: **{balance}** 🪙\n\n" + "\n".join(items_list),
-                    color=0x00AAFF
-                )
-                
-                if len(items_data) > 10:
-                    embed2.add_field(
-                        name="📌 หมายเหตุ",
-                        value=f"มีไอเทมทั้งหมด {len(items_data)} ชนิด แสดงแค่ 10 รายการแรก",
-                        inline=False
-                    )
-                
-                embed2.add_field(
-                    name="💰 วิธีใช้",
-                    value="พิมพ์ `!pselect <เลขที่>` เพื่อเลือกไอเทม\nตัวอย่าง: `!pselect 1`",
-                    inline=False
-                )
-                
-                await cont_interaction.followup.send(embed=embed2, ephemeral=True)
-            
-            continue_btn.callback = continue_callback
-            continue_view.add_item(continue_btn)
-            
-            if user_id in bot.pawn_data:
-                del bot.pawn_data[user_id]
-            
-            await interaction.response.edit_message(embed=embed, view=continue_view)
-    
-    @discord.ui.button(label="❌ ปฏิเสธ", style=discord.ButtonStyle.danger, row=0)
-    async def reject_button(self, interaction: discord.Interaction, button: Button):
-        if interaction.user != self.user:
-            await interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
-            return
-        
-        embed = discord.Embed(
-            title="🚫 ปฏิเสธข้อเสนอ",
-            description=f"{self.customer.avatar} **{self.customer.name}**: ไม่เป็นไร ไว้คราวหน้านะครับ/คะ",
-            color=0x808080
-        )
-        
-        # เพิ่มปุ่ม "เล่นต่อ"
-        continue_view = View(timeout=60)
-        continue_btn = Button(label="เล่นต่อ", emoji="🎮", style=discord.ButtonStyle.primary)
-        
-        async def continue_callback(cont_interaction):
-            if cont_interaction.user != self.user:
-                await cont_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
-                return
-            
-            user_id = str(cont_interaction.user.id)
-            await cont_interaction.response.defer(ephemeral=True)
-            
-            inventory = get_user_inventory(user_id)
-            balance = get_user_balance(user_id)
-            
-            if not inventory:
-                embed2 = discord.Embed(
-                    title="🏪 Pawn Shop",
-                    description=f"คุณยังไม่มีไอเทม! ไปสุ่มไอเทมก่อนนะ 🎲\n\n💰 ยอดเงินปัจจุบัน: **{balance}** 🪙",
-                    color=0x808080
-                )
-                await cont_interaction.followup.send(embed=embed2, ephemeral=True)
-                return
-            
-            items_list = []
-            items_data = list(inventory.items())
-            
-            for i, (item_id2, amount2) in enumerate(items_data[:10]):
-                item2 = ITEMS[item_id2]
-                rarity_emoji = {"common": "🟤", "rare": "🔵", "legendary": "🟡"}[item2["rarity"]]
-                price_range = "1-1,000" if item2["rarity"] == "common" else ("1,001-10,000" if item2["rarity"] == "rare" else "10,001-100,000")
-                items_list.append(f"`{i+1}.` {rarity_emoji} {item2['emoji']} **{item2['name']}** x{amount2} (ราคา {price_range} 🪙)")
-            
-            embed2 = discord.Embed(
-                title="🏪 Pawn Shop",
-                description=f"เลือกไอเทมที่ต้องการค้าขายกับลูกค้า\n\n💰 ยอดเงินคุณ: **{balance}** 🪙\n\n" + "\n".join(items_list),
-                color=0x00AAFF
-            )
-            
-            if len(items_data) > 10:
-                embed2.add_field(
-                    name="📌 หมายเหตุ",
-                    value=f"มีไอเทมทั้งหมด {len(items_data)} ชนิด แสดงแค่ 10 รายการแรก",
-                    inline=False
-                )
-            
-            embed2.add_field(
-                name="💰 วิธีใช้",
-                value="พิมพ์ `!pselect <เลขที่>` เพื่อเลือกไอเทม\nตัวอย่าง: `!pselect 1`",
-                inline=False
-            )
-            
-            await cont_interaction.followup.send(embed=embed2, ephemeral=True)
-        
-        continue_btn.callback = continue_callback
-        continue_view.add_item(continue_btn)
-        
-        user_id = str(interaction.user.id)
-        if user_id in bot.pawn_data:
-            del bot.pawn_data[user_id]
-        
-        await interaction.response.edit_message(embed=embed, view=continue_view)
-    
-    @discord.ui.button(label="💰 ขอเพิ่ม +5%", style=discord.ButtonStyle.primary, row=1)
-    async def increase_button(self, interaction: discord.Interaction, button: Button):
-        if interaction.user != self.user:
-            await interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
-            return
-        
-        if not self.customer.can_negotiate():
-            await interaction.response.send_message("❌ ลูกค้าหมดความอดทนแล้ว!", ephemeral=True)
-            return
-        
-        increase = math.ceil(self.current_price * 0.05)
-        self.current_price += increase
-        self.customer.use_patience()
-        
-        new_satisfaction, emoji = self.customer.calculate_price_satisfaction(self.current_price, self.base_price)
-        self.customer.satisfaction = new_satisfaction
-        
-        embed = discord.Embed(
-            title="🤔 การต่อรอง",
-            description=(
-                f"{self.customer.avatar} **{self.customer.name}**\n\n"
-                f"ราคาปัจจุบัน: **{self.current_price:,}** 🪙\n"
-                f"ความพอใจ: {new_satisfaction}% {emoji}\n"
-                f"โอกาสต่อรองเหลือ: {self.customer.patience} ครั้ง"
-            ),
-            color=0x00AAFF
-        )
-        
-        embed.add_field(
-            name="📊 ราคา",
-            value=(
-                f"ราคาพื้นฐาน: {self.base_price:,} 🪙\n"
-                f"ต่าง: {((self.current_price - self.base_price) / self.base_price * 100):+.1f}%"
-            ),
-            inline=False
-        )
-        
-        await interaction.response.edit_message(embed=embed, view=self)
-    
-    @discord.ui.button(label="💸 ขอลด -5%", style=discord.ButtonStyle.primary, row=1)
-    async def decrease_button(self, interaction: discord.Interaction, button: Button):
-        if interaction.user != self.user:
-            await interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
-            return
-        
-        if not self.customer.can_negotiate():
-            await interaction.response.send_message("❌ ลูกค้าหมดความอดทนแล้ว!", ephemeral=True)
-            return
-        
-        decrease = math.ceil(self.current_price * 0.05)
-        self.current_price = max(1, self.current_price - decrease)
-        self.customer.use_patience()
-        
-        new_satisfaction, emoji = self.customer.calculate_price_satisfaction(self.current_price, self.base_price)
-        self.customer.satisfaction = new_satisfaction
-        
-        embed = discord.Embed(
-            title="🤔 การต่อรอง",
-            description=(
-                f"{self.customer.avatar} **{self.customer.name}**\n\n"
-                f"ราคาปัจจุบัน: **{self.current_price:,}** 🪙\n"
-                f"ความพอใจ: {new_satisfaction}% {emoji}\n"
-                f"โอกาสต่อรองเหลือ: {self.customer.patience} ครั้ง"
-            ),
-            color=0x00AAFF
-        )
-        
-        embed.add_field(
-            name="📊 ราคา",
-            value=(
-                f"ราคาพื้นฐาน: {self.base_price:,} 🪙\n"
-                f"ต่าง: {((self.current_price - self.base_price) / self.base_price * 100):+.1f}%"
-            ),
-            inline=False
-        )
-        
-        await interaction.response.edit_message(embed=embed, view=self)
-
-@bot.command(name="paccept")
-async def pawn_accept_prefix(ctx):
-    user_id = str(ctx.author.id)
-    
-    if user_id not in bot.pawn_data:
-        await ctx.send("❌ ไม่มีรายการซื้อขายที่กำลังดำเนินการอยู่!")
-        return
-    
-    data = bot.pawn_data[user_id]
-    item_id = data["item_id"]
-    item = data["item"]
-    customer = data["customer"]
-    current_price = data["current_price"]
-    base_price = data["base_price"]
-    
-    new_satisfaction, emoji = customer.calculate_price_satisfaction(current_price, base_price)
-    
-    if new_satisfaction >= 50:
-        if customer.deal_type == "buy":
-            success = remove_item_from_inventory(user_id, item_id)
-            if success:
-                new_balance = add_user_balance(user_id, current_price)
-                result_msg = f"✅ ดีลสำเร็จ! คุณขาย {item['emoji']} **{item['name']}** ในราคา {current_price:,} 🪙\n💰 ยอดเงินปัจจุบัน: {new_balance} 🪙"
-                color = 0x00FF00
-            else:
-                result_msg = f"❌ เกิดข้อผิดพลาด: ไม่พบไอเทมใน inventory"
-                color = 0xFF0000
-        else:
-            if remove_user_balance(user_id, current_price):
-                add_item_to_inventory(user_id, item_id)
-                new_balance = get_user_balance(user_id)
-                result_msg = f"✅ ดีลสำเร็จ! คุณซื้อ {item['emoji']} **{item['name']}** ในราคา {current_price:,} 🪙\n💰 ยอดเงินปัจจุบัน: {new_balance} 🪙"
-                color = 0x00FF00
-            else:
-                current_balance = get_user_balance(user_id)
-                result_msg = f"❌ เงินไม่พอ! คุณมี {current_balance} 🪙 ต้องการ {current_price} 🪙"
-                color = 0xFF0000
-        
-        embed = discord.Embed(title=f"🤝 ดีลสำเร็จ! {emoji}", description=result_msg, color=color)
-        del bot.pawn_data[user_id]
-    else:
-        result_msg = f"{emoji} **{customer.name}**: ราคานี้ไม่โอเคเลย! ลาก่อน!"
-        embed = discord.Embed(title="❌ ดีลล้มเหลว", description=result_msg, color=0xFF0000)
-        del bot.pawn_data[user_id]
-    
-    await ctx.send(embed=embed)
-
-@bot.command(name="preject")
-async def pawn_reject_prefix(ctx):
-    user_id = str(ctx.author.id)
-    
-    if user_id not in bot.pawn_data:
-        await ctx.send("❌ ไม่มีรายการซื้อขายที่กำลังดำเนินการอยู่!")
-        return
-    
-    data = bot.pawn_data[user_id]
-    customer = data["customer"]
-    
-    embed = discord.Embed(
-        title="🚫 ปฏิเสธข้อเสนอ",
-        description=f"{customer.avatar} **{customer.name}**: ไม่เป็นไร ไว้คราวหน้านะครับ/คะ",
-        color=0x808080
-    )
-    
-    del bot.pawn_data[user_id]
-    await ctx.send(embed=embed)
-
-@bot.command(name="pinc")
-async def pawn_increase_prefix(ctx):
-    user_id = str(ctx.author.id)
-    
-    if user_id not in bot.pawn_data:
-        await ctx.send("❌ ไม่มีรายการซื้อขายที่กำลังดำเนินการอยู่!")
-        return
-    
-    data = bot.pawn_data[user_id]
-    customer = data["customer"]
-    
-    if not customer.can_negotiate():
-        await ctx.send("❌ ลูกค้าหมดความอดทนแล้ว!")
-        return
-    
-    increase = math.ceil(data["current_price"] * 0.05)
-    data["current_price"] += increase
-    customer.use_patience()
-    
-    new_satisfaction, emoji = customer.calculate_price_satisfaction(data["current_price"], data["base_price"])
-    customer.satisfaction = new_satisfaction
-    
-    embed = discord.Embed(
-        title="🤔 การต่อรอง",
-        description=(
-            f"{customer.avatar} **{customer.name}**\n\n"
-            f"ราคาปัจจุบัน: **{data['current_price']:,}** 🪙\n"
-            f"ความพอใจ: {new_satisfaction}% {emoji}\n"
-            f"โอกาสต่อรองเหลือ: {customer.patience} ครั้ง"
-        ),
-        color=0x00AAFF
-    )
-    
-    await ctx.send(embed=embed)
-
-@bot.command(name="pdec")
-async def pawn_decrease_prefix(ctx):
-    user_id = str(ctx.author.id)
-    
-    if user_id not in bot.pawn_data:
-        await ctx.send("❌ ไม่มีรายการซื้อขายที่กำลังดำเนินการอยู่!")
-        return
-    
-    data = bot.pawn_data[user_id]
-    customer = data["customer"]
-    
-    if not customer.can_negotiate():
-        await ctx.send("❌ ลูกค้าหมดความอดทนแล้ว!")
-        return
-    
-    decrease = math.ceil(data["current_price"] * 0.05)
-    data["current_price"] = max(1, data["current_price"] - decrease)
-    customer.use_patience()
-    
-    new_satisfaction, emoji = customer.calculate_price_satisfaction(data["current_price"], data["base_price"])
-    customer.satisfaction = new_satisfaction
-    
-    embed = discord.Embed(
-        title="🤔 การต่อรอง",
-        description=(
-            f"{customer.avatar} **{customer.name}**\n\n"
-            f"ราคาปัจจุบัน: **{data['current_price']:,}** 🪙\n"
-            f"ความพอใจ: {new_satisfaction}% {emoji}\n"
-            f"โอกาสต่อรองเหลือ: {customer.patience} ครั้ง"
-        ),
-        color=0x00AAFF
-    )
-    
-    await ctx.send(embed=embed)
-
-# ==================== RNG SLASH COMMAND VIEWS ====================
+# ==================== VIEWS ====================
 class RNGMainView(View):
-    def __init__(self, user: discord.User):
+    def __init__(self, user):
         super().__init__(timeout=60)
         self.user = user
-        
-    @discord.ui.button(label="🎲 สุ่มไอเทม", style=discord.ButtonStyle.success, emoji="🎲", row=0)
-    async def roll_button(self, interaction: discord.Interaction, button: Button):
-        if interaction.user != self.user:
-            await interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
-            return
-        
-        item_id, item = random_item()
-        user_id = str(interaction.user.id)
-        add_item_to_inventory(user_id, item_id)
-        
-        inventory = get_user_inventory(user_id)
-        total_items = sum(inventory.values())
-        balance = get_user_balance(user_id)
-        
-        rarity_color = {"common": 0x808080, "rare": 0x00AAFF, "legendary": 0xFFD700}
-        embed = discord.Embed(
-            title="🎲 ผลการสุ่ม",
-            description=f"คุณได้รับ: {item['emoji']} **{item['name']}**",
-            color=rarity_color[item["rarity"]]
-        )
-        embed.set_footer(text=f"ความหายาก: {item['rarity'].upper()} | ไอเทมทั้งหมด: {total_items} ชิ้น | 🪙 {balance}")
-        
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-        
-    @discord.ui.button(label="📦 ดู Inventory", style=discord.ButtonStyle.primary, emoji="📦", row=0)
-    async def inventory_button(self, interaction: discord.Interaction, button: Button):
-        if interaction.user != self.user:
-            await interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
-            return
-        
-        user_id = str(interaction.user.id)
-        inventory = get_user_inventory(user_id)
-        balance = get_user_balance(user_id)
-        
-        if not inventory:
-            embed = discord.Embed(
-                title="📦 Inventory",
-                description=f"ยังไม่มีไอเทม! กด 🎲 เพื่อสุ่มก่อน\n\n💰 ยอดเงิน: **{balance}** 🪙",
-                color=0x808080
-            )
-            embed.set_footer(text=f"ผู้เล่น: {self.user.display_name}")
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-            return
-        
-        items_list = []
-        total_value = 0
-        
-        for item_id, amount in inventory.items():
-            item = ITEMS[item_id]
-            rarity_emoji = {"common": "🟤", "rare": "🔵", "legendary": "🟡"}[item["rarity"]]
-            items_list.append(f"{rarity_emoji} {item['emoji']} **{item['name']}** x{amount}")
-            total_value += amount * item["value"]
-        
-        common_count = sum(1 for k in inventory.keys() if k in COMMON_ITEMS)
-        rare_count = sum(1 for k in inventory.keys() if k in RARE_ITEMS)
-        leg_count = sum(1 for k in inventory.keys() if k in LEGENDARY_ITEMS)
-        
-        embed = discord.Embed(title="📦 Inventory", color=0x00AAFF)
-        embed.add_field(
-            name="📊 สถิติ",
-            value=f"🟤 Common: {common_count} | 🔵 Rare: {rare_count} | 🟡 Legendary: {leg_count}",
-            inline=False
-        )
-        embed.add_field(name="📋 รายการไอเทม", value="\n".join(items_list[:10]), inline=False)
-        embed.add_field(name="💰 การเงิน", value=f"ยอดเงิน: **{balance}** 🪙\nมูลค่ารวมไอเทม: **{total_value}** 🪙", inline=False)
-        
-        if len(items_list) > 10:
-            embed.set_footer(text=f"แสดง 10 จาก {len(items_list)} รายการ")
-        else:
-            embed.set_footer(text=f"ผู้เล่น: {self.user.display_name}")
-        
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+    
+    @discord.ui.button(label="🎲 สุ่ม", style=discord.ButtonStyle.success, emoji="🎲", row=0)
+    async def roll(self, i, b):
+        if i.user != self.user: return await i.response.send_message("❌ ไม่ใช่เกมคุณ", ephemeral=True)
+        iid, item = random_item()
+        add_item(str(i.user.id), iid)
+        inv = get_inv(str(i.user.id))
+        e = discord.Embed(title="🎲 ผลสุ่ม", description=f"ได้: {item['emoji']} **{item['name']}**", color={"common":0x808080, "rare":0x00AAFF, "legendary":0xFFD700}[item["rarity"]])
+        e.set_footer(text=f"{item['rarity'].upper()} | รวม {sum(inv.values())} ชิ้น | 🪙 {get_bal(str(i.user.id))}")
+        await i.response.send_message(embed=e, ephemeral=True)
+    
+    @discord.ui.button(label="📦 Inventory", style=discord.ButtonStyle.primary, emoji="📦", row=0)
+    async def inv(self, i, b):
+        if i.user != self.user: return await i.response.send_message("❌ ไม่ใช่เกมคุณ", ephemeral=True)
+        uid = str(i.user.id)
+        inv = get_inv(uid)
+        bal = get_bal(uid)
+        if not inv:
+            return await i.response.send_message(embed=discord.Embed(title="📦 Inventory", description=f"ยังไม่มีไอเทม\n💰 {bal} 🪙", color=0x808080), ephemeral=True)
+        items = []
+        for iid, amt in list(inv.items())[:10]:
+            it = ITEMS[iid]
+            e = {"common":"🟤", "rare":"🔵", "legendary":"🟡"}[it["rarity"]]
+            items.append(f"{e} {it['emoji']} **{it['name']}** x{amt}")
+        e = discord.Embed(title="📦 Inventory", color=0x00AAFF)
+        e.add_field(name="📊 สถิติ", value=f"🟤 {sum(1 for k in inv if k in COMMON)} | 🔵 {sum(1 for k in inv if k in RARE)} | 🟡 {sum(1 for k in inv if k in LEGEND)}")
+        e.add_field(name="📋 รายการ", value="\n".join(items))
+        e.set_footer(text=f"💰 {bal} 🪙")
+        await i.response.send_message(embed=e, ephemeral=True)
     
     @discord.ui.button(label="🏪 Pawn Shop", style=discord.ButtonStyle.secondary, emoji="🏪", row=1)
-    async def pawnshop_button(self, interaction: discord.Interaction, button: Button):
-        if interaction.user != self.user:
-            await interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
-            return
+    async def pawn(self, i, b):
+        if i.user != self.user: return await i.response.send_message("❌ ไม่ใช่เกมคุณ", ephemeral=True)
+        uid = str(i.user.id)
+        inv = get_inv(uid)
+        bal = get_bal(uid)
+        if not inv:
+            return await i.response.send_message(embed=discord.Embed(title="🏪 Pawn Shop", description=f"ไม่มีไอเทม\n💰 {bal} 🪙", color=0x808080), ephemeral=True)
         
-        user_id = str(interaction.user.id)
-        inventory = get_user_inventory(user_id)
-        balance = get_user_balance(user_id)
+        opts = []
+        for iid, amt in list(inv.items())[:10]:
+            it = ITEMS[iid]
+            price = "1-1k" if it["rarity"]=="common" else "1k-10k" if it["rarity"]=="rare" else "10k-100k"
+            opts.append(discord.SelectOption(label=f"{it['name']} x{amt}", description=f"{it['rarity']} {price} 🪙", emoji=it['emoji'], value=iid))
         
-        if not inventory:
-            embed = discord.Embed(
-                title="🏪 Pawn Shop",
-                description=f"คุณยังไม่มีไอเทม! ไปสุ่มไอเทมก่อนนะ 🎲\n\n💰 ยอดเงินปัจจุบัน: **{balance}** 🪙",
-                color=0x808080
-            )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
-            return
+        select = Select(placeholder="เลือกไอเทม...", options=opts)
+        async def select_cb(si):
+            if si.user != self.user: return await si.response.send_message("❌ ไม่ใช่เกมคุณ", ephemeral=True)
+            iid = si.data["values"][0]
+            it = ITEMS[iid]
+            cust = PawnCustomer()
+            price = get_price(it)
+            e = discord.Embed(title=f"🏪 {it['emoji']} {it['name']}", description=f"{cust.avatar} **{cust.name}**\nสนใจ{cust.type} {it['emoji']} **{it['name']}**\nราคาพื้นฐาน {price:,} 🪙", color=0x00AAFF)
+            e.add_field(name="📊 ลูกค้า", value=f"พอใจ {cust.sat}% | อดทน {cust.pat} ครั้ง | {'💰 ซื้อ' if cust.type=='buy' else '💸 ขาย'}")
+            e.add_field(name="💰 ยอดคุณ", value=f"{bal} 🪙")
+            bot.pawn_data[uid] = {"iid": iid, "it": it, "cust": cust, "base": price, "cur": price}
+            await si.response.send_message(embed=e, view=PawnView(self.user, iid, it, cust, price, bal), ephemeral=True)
         
-        options = []
-        items_data = list(inventory.items())
-        
-        for i, (item_id, amount) in enumerate(items_data[:10]):
-            item = ITEMS[item_id]
-            rarity_emoji = {"common": "🟤", "rare": "🔵", "legendary": "🟡"}[item["rarity"]]
-            price_range = "1-1,000" if item["rarity"] == "common" else ("1,001-10,000" if item["rarity"] == "rare" else "10,001-100,000")
-            
-            options.append(
-                discord.SelectOption(
-                    label=f"{item['name']} x{amount}",
-                    description=f"{rarity_emoji} {item['rarity'].upper()} - ราคา {price_range} 🪙",
-                    emoji=item['emoji'],
-                    value=item_id
-                )
-            )
-        
-        select = Select(
-            placeholder="เลือกไอเทมที่ต้องการค้าขาย...",
-            options=options,
-            row=0
-        )
-        
-        async def select_callback(select_interaction: discord.Interaction):
-            if select_interaction.user != self.user:
-                await select_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
-                return
-            
-            item_id = select_interaction.data["values"][0]
-            item = ITEMS[item_id]
-            
-            customer = PawnCustomer()
-            base_price = get_item_price(item)
-            current_balance = get_user_balance(user_id)
-            
-            embed = discord.Embed(
-                title=f"🏪 Pawn Shop - {item['emoji']} {item['name']}",
-                description=f"{customer.avatar} **{customer.name}**\n\nฉันสนใจจะ{'ซื้อ' if customer.deal_type == 'buy' else 'ขาย'} {item['emoji']} **{item['name']}**\nราคาที่เหมาะสมน่าจะอยู่ที่ **{base_price:,}** 🪙",
-                color=0x00AAFF
-            )
-            embed.add_field(
-                name="📊 ข้อมูลลูกค้า",
-                value=(
-                    f"ความพอใจเริ่มต้น: {customer.satisfaction}%\n"
-                    f"ความอดทน: {customer.patience} ครั้ง\n"
-                    f"มาเพื่อ: {'💰 ซื้อ' if customer.deal_type == 'buy' else '💸 ขาย'}"
-                ),
-                inline=False
-            )
-            embed.add_field(
-                name="💰 ยอดเงินคุณ",
-                value=f"**{current_balance}** 🪙",
-                inline=False
-            )
-            
-            bot.pawn_data[user_id] = {
-                "item_id": item_id,
-                "item": item,
-                "customer": customer,
-                "base_price": base_price,
-                "current_price": base_price
-            }
-            
-            pawn_view = PawnShopSlashView(self.user, item_id, item, customer, base_price, current_balance)
-            await select_interaction.response.send_message(embed=embed, view=pawn_view, ephemeral=True)
-        
-        select.callback = select_callback
-        
-        view = View(timeout=60)
-        view.add_item(select)
-        
-        embed = discord.Embed(
-            title="🏪 Pawn Shop",
-            description=f"เลือกไอเทมที่ต้องการค้าขายกับลูกค้า\n\n💰 ยอดเงินคุณ: **{balance}** 🪙",
-            color=0x00AAFF
-        )
-        embed.add_field(
-            name="💰 ระบบราคา",
-            value="🟤 Common: 1-1,000 🪙\n🔵 Rare: 1,001-10,000 🪙\n🟡 Legendary: 10,001-100,000 🪙",
-            inline=False
-        )
-        
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        select.callback = select_cb
+        v = View(timeout=60)
+        v.add_item(select)
+        e = discord.Embed(title="🏪 Pawn Shop", description=f"💰 {bal} 🪙", color=0x00AAFF)
+        e.add_field(name="💰 ระบบราคา", value="🟤 1-1k | 🔵 1k-10k | 🟡 10k-100k")
+        await i.response.send_message(embed=e, view=v, ephemeral=True)
     
     @discord.ui.button(label="💰 เช็คเงิน", style=discord.ButtonStyle.success, emoji="🪙", row=1)
-    async def balance_button(self, interaction: discord.Interaction, button: Button):
-        if interaction.user != self.user:
-            await interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
-            return
-        
-        user_id = str(interaction.user.id)
-        balance = get_user_balance(user_id)
-        
-        embed = discord.Embed(
-            title="💰 ยอดเงินของคุณ",
-            description=f"**{balance}** 🪙 Sushicoin",
-            color=0xFFD700
-        )
-        embed.set_footer(text=f"ผู้เล่น: {self.user.display_name}")
-        
-        await interaction.response.send_message(embed=embed, ephemeral=True)
-    
-    @discord.ui.button(label="ℹ️ วิธีเล่น", style=discord.ButtonStyle.secondary, emoji="ℹ️", row=2)
-    async def help_button(self, interaction: discord.Interaction, button: Button):
-        if interaction.user != self.user:
-            await interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
-            return
-        
-        embed = discord.Embed(title="🎮 วิธีเล่น RNG Gacha Game", color=0x00AAFF)
-        embed.add_field(
-            name="📊 โอกาสได้รับไอเทม",
-            value="🟤 Common 50% | 🔵 Rare 45% | 🟡 Legendary 5%",
-            inline=False
-        )
-        embed.add_field(
-            name="🎮 วิธีเล่น",
-            value="1. กด 🎲 เพื่อสุ่มไอเทม\n2. กด 📦 เพื่อดู Inventory\n3. กด 🏪 เพื่อเปิด Pawn Shop\n4. กด 🪙 เพื่อเช็คยอดเงิน",
-            inline=False
-        )
-        embed.add_field(
-            name="🏪 Pawn Shop",
-            value=(
-                "• ลูกค้าสุ่มมา ซื้อ/ขาย\n"
-                "• ถ้าลูกค้าซื้อ = เราขายไอเทม ได้เงิน\n"
-                "• ถ้าลูกค้าขาย = เราซื้อไอเทม เสียเงิน\n"
-                "• ต่อรองราคา +/- 5% ได้สูงสุดตามความอดทน\n"
-                "• ความพอใจส่งผลต่อดีล"
-            ),
-            inline=False
-        )
-        
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+    async def bal(self, i, b):
+        if i.user != self.user: return await i.response.send_message("❌ ไม่ใช่เกมคุณ", ephemeral=True)
+        await i.response.send_message(embed=discord.Embed(title="💰 ยอดเงิน", description=f"**{get_bal(str(i.user.id))}** 🪙", color=0xFFD700), ephemeral=True)
 
-class PawnShopSlashView(View):
-    def __init__(self, user: discord.User, item_id: str, item: dict, customer: PawnCustomer, base_price: int, user_balance: int):
+class PawnView(View):
+    def __init__(self, user, iid, it, cust, base, bal):
         super().__init__(timeout=120)
-        self.user = user
-        self.item_id = item_id
-        self.item = item
-        self.customer = customer
-        self.base_price = base_price
-        self.current_price = base_price
-        self.user_balance = user_balance
-        
+        self.user, self.iid, self.it, self.cust, self.base, self.cur, self.bal = user, iid, it, cust, base, base, bal
+    
     @discord.ui.button(label="✅ ตกลง", style=discord.ButtonStyle.success, row=0)
-    async def accept_button(self, interaction: discord.Interaction, button: Button):
-        if interaction.user != self.user:
-            await interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
-            return
+    async def accept(self, i, b):
+        if i.user != self.user: return await i.response.send_message("❌ ไม่ใช่เกมคุณ", ephemeral=True)
+        uid = str(i.user.id)
+        new_sat, emoji = self.cust.calc(self.cur, self.base)
         
-        user_id = str(interaction.user.id)
-        new_satisfaction, emoji = self.customer.calculate_price_satisfaction(self.current_price, self.base_price)
-        
-        if new_satisfaction >= 50:
-            if self.customer.deal_type == "buy":
-                success = remove_item_from_inventory(user_id, self.item_id)
-                if success:
-                    new_balance = add_user_balance(user_id, self.current_price)
-                    result_msg = f"✅ ดีลสำเร็จ! คุณขาย {self.item['emoji']} **{self.item['name']}** ในราคา {self.current_price:,} 🪙\n💰 ยอดเงินปัจจุบัน: {new_balance} 🪙"
-                    color = 0x00FF00
-                else:
-                    result_msg = f"❌ เกิดข้อผิดพลาด: ไม่พบไอเทมใน inventory"
-                    color = 0xFF0000
+        if new_sat >= 50:
+            if self.cust.type == "buy":
+                if rem_item(uid, self.iid):
+                    nb = add_bal(uid, self.cur)
+                    msg = f"✅ ขาย {self.it['emoji']} **{self.it['name']}** {self.cur:,} 🪙\n💰 {nb} 🪙"
+                else: msg = "❌ ไม่พบไอเทม"
             else:
-                if remove_user_balance(user_id, self.current_price):
-                    add_item_to_inventory(user_id, self.item_id)
-                    new_balance = get_user_balance(user_id)
-                    result_msg = f"✅ ดีลสำเร็จ! คุณซื้อ {self.item['emoji']} **{self.item['name']}** ในราคา {self.current_price:,} 🪙\n💰 ยอดเงินปัจจุบัน: {new_balance} 🪙"
-                    color = 0x00FF00
-                else:
-                    current_balance = get_user_balance(user_id)
-                    result_msg = f"❌ เงินไม่พอ! คุณมี {current_balance} 🪙 ต้องการ {self.current_price} 🪙"
-                    color = 0xFF0000
-            
-            embed = discord.Embed(title=f"🤝 ดีลสำเร็จ! {emoji}", description=result_msg, color=color)
-            if user_id in bot.pawn_data:
-                del bot.pawn_data[user_id]
-        else:
-            result_msg = f"{emoji} **{self.customer.name}**: ราคานี้ไม่โอเคเลย! ลาก่อน!"
-            embed = discord.Embed(title="❌ ดีลล้มเหลว", description=result_msg, color=0xFF0000)
-            if user_id in bot.pawn_data:
-                del bot.pawn_data[user_id]
+                if rem_bal(uid, self.cur):
+                    add_item(uid, self.iid)
+                    nb = get_bal(uid)
+                    msg = f"✅ ซื้อ {self.it['emoji']} **{self.it['name']}** {self.cur:,} 🪙\n💰 {nb} 🪙"
+                else: msg = f"❌ เงินไม่พอ ({self.bal}/{self.cur})"
+        else: msg = f"{emoji} {self.cust.name}: ไม่เอาแล้ว!"
         
-        for child in self.children:
-            child.disabled = True
-        await interaction.response.edit_message(embed=embed, view=self)
+        e = discord.Embed(title=f"🤝 {emoji}" if new_sat>=50 else "❌ ล้มเหลว", description=msg, color=0x00FF00 if new_sat>=50 else 0xFF0000)
+        bot.pawn_data.pop(uid, None)
         
+        cv = View(timeout=60)
+        cb = Button(label="เล่นต่อ", emoji="🎮", style=discord.ButtonStyle.primary)
+        async def cont_cb(ci):
+            if ci.user != self.user: return
+            await ci.response.defer(ephemeral=True)
+            inv = get_inv(uid)
+            bal = get_bal(uid)
+            if not inv:
+                return await ci.followup.send(embed=discord.Embed(title="🏪 Pawn Shop", description=f"ไม่มีไอเทม\n💰 {bal} 🪙", color=0x808080), ephemeral=True)
+            items = []
+            for iid2, amt2 in list(inv.items())[:10]:
+                it2 = ITEMS[iid2]
+                e2 = {"common":"🟤", "rare":"🔵", "legendary":"🟡"}[it2["rarity"]]
+                price = "1-1k" if it2["rarity"]=="common" else "1k-10k" if it2["rarity"]=="rare" else "10k-100k"
+                items.append(f"`{len(items)+1}.` {e2} {it2['emoji']} **{it2['name']}** x{amt2} ({price})")
+            e2 = discord.Embed(title="🏪 Pawn Shop", description=f"💰 {bal} 🪙\n\n" + "\n".join(items), color=0x00AAFF)
+            e2.add_field(name="💰 วิธีใช้", value="พิมพ์ `!pselect <เลข>`")
+            await ci.followup.send(embed=e2, ephemeral=True)
+        cb.callback = cont_cb
+        cv.add_item(cb)
+        
+        for child in self.children: child.disabled = True
+        await i.response.edit_message(embed=e, view=cv)
+    
     @discord.ui.button(label="❌ ปฏิเสธ", style=discord.ButtonStyle.danger, row=0)
-    async def reject_button(self, interaction: discord.Interaction, button: Button):
-        if interaction.user != self.user:
-            await interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
-            return
-        
-        embed = discord.Embed(
-            title="🚫 ปฏิเสธข้อเสนอ",
-            description=f"{self.customer.avatar} **{self.customer.name}**: ไม่เป็นไร ไว้คราวหน้านะครับ/คะ",
-            color=0x808080
-        )
-        
-        user_id = str(interaction.user.id)
-        if user_id in bot.pawn_data:
-            del bot.pawn_data[user_id]
-        
-        for child in self.children:
-            child.disabled = True
-        await interaction.response.edit_message(embed=embed, view=self)
+    async def reject(self, i, b):
+        if i.user != self.user: return
+        e = discord.Embed(title="🚫 ปฏิเสธ", description=f"{self.cust.avatar} **{self.cust.name}**: ไว้คราวหน้า", color=0x808080)
+        bot.pawn_data.pop(str(i.user.id), None)
+        cv = View(timeout=60)
+        cb = Button(label="เล่นต่อ", emoji="🎮", style=discord.ButtonStyle.primary)
+        async def cont_cb(ci):
+            if ci.user != self.user: return
+            await ci.response.defer(ephemeral=True)
+            uid = str(ci.user.id)
+            inv = get_inv(uid)
+            bal = get_bal(uid)
+            if not inv:
+                return await ci.followup.send(embed=discord.Embed(title="🏪 Pawn Shop", description=f"ไม่มีไอเทม\n💰 {bal} 🪙", color=0x808080), ephemeral=True)
+            items = []
+            for iid2, amt2 in list(inv.items())[:10]:
+                it2 = ITEMS[iid2]
+                e2 = {"common":"🟤", "rare":"🔵", "legendary":"🟡"}[it2["rarity"]]
+                price = "1-1k" if it2["rarity"]=="common" else "1k-10k" if it2["rarity"]=="rare" else "10k-100k"
+                items.append(f"`{len(items)+1}.` {e2} {it2['emoji']} **{it2['name']}** x{amt2} ({price})")
+            e2 = discord.Embed(title="🏪 Pawn Shop", description=f"💰 {bal} 🪙\n\n" + "\n".join(items), color=0x00AAFF)
+            e2.add_field(name="💰 วิธีใช้", value="พิมพ์ `!pselect <เลข>`")
+            await ci.followup.send(embed=e2, ephemeral=True)
+        cb.callback = cont_cb
+        cv.add_item(cb)
+        for child in self.children: child.disabled = True
+        await i.response.edit_message(embed=e, view=cv)
     
-    @discord.ui.button(label="💰 ขอเพิ่ม +5%", style=discord.ButtonStyle.primary, row=1)
-    async def increase_button(self, interaction: discord.Interaction, button: Button):
-        if interaction.user != self.user:
-            await interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
-            return
-        
-        if not self.customer.can_negotiate():
-            await interaction.response.send_message("❌ ลูกค้าหมดความอดทนแล้ว!", ephemeral=True)
-            return
-        
-        increase = math.ceil(self.current_price * 0.05)
-        self.current_price += increase
-        self.customer.use_patience()
-        
-        new_satisfaction, emoji = self.customer.calculate_price_satisfaction(self.current_price, self.base_price)
-        self.customer.satisfaction = new_satisfaction
-        
-        embed = discord.Embed(
-            title="🤔 การต่อรอง",
-            description=(
-                f"{self.customer.avatar} **{self.customer.name}**\n\n"
-                f"ราคาปัจจุบัน: **{self.current_price:,}** 🪙\n"
-                f"ความพอใจ: {new_satisfaction}% {emoji}\n"
-                f"โอกาสต่อรองเหลือ: {self.customer.patience} ครั้ง"
-            ),
-            color=0x00AAFF
-        )
-        
-        embed.add_field(
-            name="📊 ราคา",
-            value=(
-                f"ราคาพื้นฐาน: {self.base_price:,} 🪙\n"
-                f"ต่าง: {((self.current_price - self.base_price) / self.base_price * 100):+.1f}%"
-            ),
-            inline=False
-        )
-        
-        await interaction.response.edit_message(embed=embed, view=self)
+    @discord.ui.button(label="💰 +5%", style=discord.ButtonStyle.primary, row=1)
+    async def inc(self, i, b):
+        if i.user != self.user or not self.cust.can_negotiate(): return await i.response.send_message("❌ หมดความอดทน", ephemeral=True)
+        self.cur = math.ceil(self.cur * 1.05)
+        self.cust.use_patience()
+        new_sat, emoji = self.cust.calc(self.cur, self.base)
+        self.cust.sat = new_sat
+        e = discord.Embed(title="🤔 ต่อรอง", description=f"{self.cust.avatar} **{self.cust.name}**\n💰 {self.cur:,} 🪙\n😊 {new_sat}% {emoji}\n⏱️ {self.cust.pat} ครั้ง", color=0x00AAFF)
+        await i.response.edit_message(embed=e, view=self)
     
-    @discord.ui.button(label="💸 ขอลด -5%", style=discord.ButtonStyle.primary, row=1)
-    async def decrease_button(self, interaction: discord.Interaction, button: Button):
-        if interaction.user != self.user:
-            await interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
-            return
-        
-        if not self.customer.can_negotiate():
-            await interaction.response.send_message("❌ ลูกค้าหมดความอดทนแล้ว!", ephemeral=True)
-            return
-        
-        decrease = math.ceil(self.current_price * 0.05)
-        self.current_price = max(1, self.current_price - decrease)
-        self.customer.use_patience()
-        
-        new_satisfaction, emoji = self.customer.calculate_price_satisfaction(self.current_price, self.base_price)
-        self.customer.satisfaction = new_satisfaction
-        
-        embed = discord.Embed(
-            title="🤔 การต่อรอง",
-            description=(
-                f"{self.customer.avatar} **{self.customer.name}**\n\n"
-                f"ราคาปัจจุบัน: **{self.current_price:,}** 🪙\n"
-                f"ความพอใจ: {new_satisfaction}% {emoji}\n"
-                f"โอกาสต่อรองเหลือ: {self.customer.patience} ครั้ง"
-            ),
-            color=0x00AAFF
-        )
-        
-        embed.add_field(
-            name="📊 ราคา",
-            value=(
-                f"ราคาพื้นฐาน: {self.base_price:,} 🪙\n"
-                f"ต่าง: {((self.current_price - self.base_price) / self.base_price * 100):+.1f}%"
-            ),
-            inline=False
-        )
-        
-        await interaction.response.edit_message(embed=embed, view=self)
+    @discord.ui.button(label="💸 -5%", style=discord.ButtonStyle.primary, row=1)
+    async def dec(self, i, b):
+        if i.user != self.user or not self.cust.can_negotiate(): return await i.response.send_message("❌ หมดความอดทน", ephemeral=True)
+        self.cur = max(1, math.floor(self.cur * 0.95))
+        self.cust.use_patience()
+        new_sat, emoji = self.cust.calc(self.cur, self.base)
+        self.cust.sat = new_sat
+        e = discord.Embed(title="🤔 ต่อรอง", description=f"{self.cust.avatar} **{self.cust.name}**\n💰 {self.cur:,} 🪙\n😊 {new_sat}% {emoji}\n⏱️ {self.cust.pat} ครั้ง", color=0x00AAFF)
+        await i.response.edit_message(embed=e, view=self)
+
+# ==================== PREFIX COMMANDS ====================
+@bot.command(name="shop_open")
+@admin_check()
+async def shop_open(ctx):
+    global shop_open
+    shop_open = True
+    await ctx.message.delete()
+    await update_shop()
+    await ctx.send(embed=discord.Embed(title="✅ เปิดร้าน", color=0x00FF00))
+
+@bot.command(name="shop_close")
+@admin_check()
+async def shop_close(ctx):
+    global shop_open
+    shop_open = False
+    await ctx.message.delete()
+    await update_shop()
+    await ctx.send(embed=discord.Embed(title="🔴 ปิดร้าน", color=0xFF0000))
+
+@bot.command()
+async def link(ctx):
+    await ctx.send(embed=discord.Embed(title="🔗 ลิงก์กลุ่ม", description="https://www.roblox.com/communities/34713179/VALKYs", color=0x00FF00))
+
+@bot.command()
+@admin_check()
+async def stock(ctx, typ=None, amt=None):
+    global gp_stock, group_stock
+    await ctx.message.delete()
+    if not typ:
+        e = discord.Embed(title="📊 สต๊อก", color=0x00FF99)
+        e.add_field(name="🎮 Gamepass", value=f"{gp_stock:,}").add_field(name="👥 Group", value=f"{group_stock:,}")
+        return await ctx.send(embed=e)
+    if typ.lower() in ["gp","gamepass"]:
+        if amt:
+            gp_stock = int(amt.replace(",",""))
+            await ctx.send(embed=discord.Embed(title="✅ ตั้งค่า", description=f"Gamepass = {gp_stock:,}", color=0x00FF00))
+            await update_shop()
+        else: await ctx.send(embed=discord.Embed(title="🎮 Gamepass", description=f"{gp_stock:,}", color=0x00FF99))
+    elif typ.lower() in ["g","group"]:
+        if amt:
+            group_stock = int(amt.replace(",",""))
+            await ctx.send(embed=discord.Embed(title="✅ ตั้งค่า", description=f"Group = {group_stock:,}", color=0x00FF00))
+            await update_shop()
+        else: await ctx.send(embed=discord.Embed(title="👥 Group", description=f"{group_stock:,}", color=0x00FF99))
+
+@bot.command()
+@admin_check()
+async def group(ctx, status=None):
+    global group_enabled
+    await ctx.message.delete()
+    if not status: return await ctx.send(embed=discord.Embed(title="👥 สถานะ", description="✅ เปิด" if group_enabled else "❌ ปิด", color=0x00FF00 if group_enabled else 0xFF0000))
+    group_enabled = status.lower() in ["on","enable","เปิด"]
+    await ctx.send(embed=discord.Embed(title="✅ เปิด" if group_enabled else "❌ ปิด", color=0x00FF00 if group_enabled else 0xFF0000))
+    await update_shop()
+
+@bot.command()
+async def gp(ctx, *, expr):
+    try: await ctx.send(f"🎮 {int(eval(expr.replace(',',''))):,} = **{int(eval(expr.replace(',','')))/GAMEPASS_RATE:,.0f}** บาท")
+    except: await ctx.send("❌ ผิดพลาด")
+
+@bot.command()
+async def g(ctx, *, expr):
+    try:
+        r = int(eval(expr.replace(',','')))
+        rate = GROUP_RATE_LOW if r<2250 else GROUP_RATE_HIGH
+        await ctx.send(f"👥 {r:,} = **{r/rate:,.0f}** บาท")
+    except: await ctx.send("❌ ผิดพลาด")
+
+@bot.command(name="rng")
+async def rng_cmd(ctx):
+    e = discord.Embed(title="🎲 RNG Gacha", description="กดปุ่มด้านล่าง", color=0x00AAFF)
+    e.add_field(name="📊 อัตรา", value="🟤 50% | 🔵 45% | 🟡 5%")
+    await ctx.send(embed=e, view=RNGMainView(ctx.author))
+
+@bot.command(name="roll")
+async def roll_cmd(ctx):
+    iid, it = random_item()
+    add_item(str(ctx.author.id), iid)
+    e = discord.Embed(title="🎲 ผลสุ่ม", description=f"ได้: {it['emoji']} **{it['name']}**", color={"common":0x808080, "rare":0x00AAFF, "legendary":0xFFD700}[it["rarity"]])
+    e.set_footer(text=f"{it['rarity'].upper()} | 🪙 {get_bal(str(ctx.author.id))}")
+    await ctx.send(embed=e)
+
+@bot.command(name="inv", aliases=["inventory"])
+async def inv_cmd(ctx):
+    uid = str(ctx.author.id)
+    inv = get_inv(uid)
+    bal = get_bal(uid)
+    if not inv:
+        return await ctx.send(embed=discord.Embed(title="📦 Inventory", description=f"ไม่มีไอเทม\n💰 {bal} 🪙", color=0x808080))
+    items = []
+    for iid, amt in list(inv.items())[:10]:
+        it = ITEMS[iid]
+        e = {"common":"🟤", "rare":"🔵", "legendary":"🟡"}[it["rarity"]]
+        items.append(f"{e} {it['emoji']} **{it['name']}** x{amt}")
+    e = discord.Embed(title="📦 Inventory", color=0x00AAFF)
+    e.add_field(name="📊 สถิติ", value=f"🟤 {sum(1 for k in inv if k in COMMON)} | 🔵 {sum(1 for k in inv if k in RARE)} | 🟡 {sum(1 for k in inv if k in LEGEND)}")
+    e.add_field(name="📋 รายการ", value="\n".join(items))
+    e.set_footer(text=f"💰 {bal} 🪙")
+    await ctx.send(embed=e)
+
+@bot.command(name="pawnshop", aliases=["pshop"])
+async def pawn_cmd(ctx):
+    uid = str(ctx.author.id)
+    inv = get_inv(uid)
+    bal = get_bal(uid)
+    if not inv:
+        return await ctx.send(embed=discord.Embed(title="🏪 Pawn Shop", description=f"ไม่มีไอเทม\n💰 {bal} 🪙", color=0x808080))
+    items = []
+    for i, (iid, amt) in enumerate(list(inv.items())[:10], 1):
+        it = ITEMS[iid]
+        e = {"common":"🟤", "rare":"🔵", "legendary":"🟡"}[it["rarity"]]
+        price = "1-1k" if it["rarity"]=="common" else "1k-10k" if it["rarity"]=="rare" else "10k-100k"
+        items.append(f"`{i}.` {e} {it['emoji']} **{it['name']}** x{amt} ({price})")
+    e = discord.Embed(title="🏪 Pawn Shop", description=f"💰 {bal} 🪙\n\n" + "\n".join(items), color=0x00AAFF)
+    e.add_field(name="💰 วิธีใช้", value="พิมพ์ `!pselect <เลข>`")
+    await ctx.send(embed=e)
+
+@bot.command(name="pselect")
+async def pselect_cmd(ctx, num: int):
+    uid = str(ctx.author.id)
+    inv = get_inv(uid)
+    bal = get_bal(uid)
+    if not inv: return await ctx.send("❌ ไม่มีไอเทม")
+    items = list(inv.items())
+    if num < 1 or num > len(items): return await ctx.send(f"❌ เลือก 1-{len(items)}")
+    iid, amt = items[num-1]
+    it = ITEMS[iid]
+    cust = PawnCustomer()
+    price = get_price(it)
+    e = discord.Embed(title=f"🏪 {it['emoji']} {it['name']}", description=f"{cust.avatar} **{cust.name}**\nสนใจ{cust.type} {it['emoji']} **{it['name']}**\nราคาพื้นฐาน {price:,} 🪙", color=0x00AAFF)
+    e.add_field(name="📊 ลูกค้า", value=f"พอใจ {cust.sat}% | อดทน {cust.pat} ครั้ง | {'💰 ซื้อ' if cust.type=='buy' else '💸 ขาย'}")
+    e.add_field(name="💰 ยอดคุณ", value=f"{bal} 🪙")
+    bot.pawn_data[uid] = {"iid": iid, "it": it, "cust": cust, "base": price, "cur": price}
+    await ctx.send(embed=e, view=PawnView(ctx.author, iid, it, cust, price, bal))
+
+@bot.command()
+@admin_check()
+async def sync(ctx):
+    try:
+        s = await bot.tree.sync()
+        await ctx.send(f"✅ Synced {len(s)} commands")
+    except Exception as e: await ctx.send(f"❌ {e}")
+
+# ==================== SLASH COMMANDS ====================
+@bot.tree.command(name="rng", description="เล่นเกม RNG Gacha")
+async def rng_slash(i: discord.Interaction):
+    e = discord.Embed(title="🎲 RNG Gacha", description="กดปุ่มด้านล่าง", color=0x00AAFF)
+    e.add_field(name="📊 อัตรา", value="🟤 50% | 🔵 45% | 🟡 5%")
+    await i.response.send_message(embed=e, view=RNGMainView(i.user))
 
 # ==================== TASKS ====================
 @tasks.loop(minutes=1)
-async def update_presence():
-    await bot.change_presence(
-        activity=discord.Activity(
-            type=discord.ActivityType.watching, 
-            name=f"Sushi Shop | GP: {gamepass_stock:,} | กลุ่ม: {group_stock:,}"
-        )
-    )
+async def presence():
+    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=f"Sushi | GP:{gp_stock:,} G:{group_stock:,}"))
 
 @tasks.loop(minutes=5)
-async def save_data():
-    save_json(user_data_file, user_data)
-    save_json(ticket_transcripts_file, ticket_transcripts)
-    save_json(ticket_robux_data_file, ticket_robux_data)
-    save_json(ticket_customer_data_file, ticket_customer_data)
-
-@tasks.loop(minutes=10)
-async def update_credit_channel_task():
-    await check_credit_channel_changes()
+async def save_all():
+    save_json(FILES['user'], user_data)
+    save_json(FILES['ticket'], tickets)
+    save_json(FILES['robux'], robux_data)
+    save_json(FILES['customer'], cust_data)
 
 # ==================== EVENTS ====================
 @bot.event
 async def on_ready():
-    print(f"✅ บอทออนไลน์แล้ว: {bot.user} (ID: {bot.user.id})")
-    
-    if not bot.commands_synced:
-        try:
-            synced = await bot.tree.sync()
-            print(f"✅ Synced {len(synced)} commands")
-            bot.commands_synced = True
-        except Exception as e:
-            print(f"❌ Error syncing commands: {e}")
-    
-    activity_text = f"ร้าน Sushi Shop | GP: {gamepass_stock:,} | Group: {group_stock:,}"
-    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=activity_text))
-    
-    update_presence.start()
-    save_data.start()
-    update_credit_channel_task.start()
-    
-    if not credit_channel_update_task_running:
-        bot.loop.create_task(credit_channel_update_worker())
-        print("✅ เริ่ม credit channel update worker")
-    
-    await update_channel_name()
-    await update_main_channel()
-    await update_credit_channel_name()
-    
-    print("🎯 บอทพร้อมใช้งาน!")
+    print(f"✅ {bot.user}")
+    try:
+        s = await bot.tree.sync()
+        print(f"✅ Synced {len(s)} commands")
+        for cmd in s: print(f"   - /{cmd.name}")
+    except Exception as e: print(f"❌ {e}")
+    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name="Sushi Shop"))
+    presence.start()
+    save_all.start()
+    await update_shop()
 
 @bot.event
-async def on_message(message):
-    if message.channel.id == CREDIT_CHANNEL_ID:
-        if message.author != bot.user:
-            await asyncio.sleep(2)
-            for emoji in ["❤️", "🍣"]:
-                try:
-                    await message.add_reaction(emoji)
-                    await asyncio.sleep(1)
-                except:
-                    pass
-            
-            await credit_channel_queue.put("new_message")
-    
-    await bot.process_commands(message)
-
-@bot.event
-async def on_message_delete(message):
-    if message.channel.id == CREDIT_CHANNEL_ID:
-        await asyncio.sleep(2)
-        await credit_channel_queue.put("delete_message")
-
-@bot.event
-async def on_bulk_message_delete(messages):
-    if messages and messages[0].channel.id == CREDIT_CHANNEL_ID:
-        await asyncio.sleep(2)
-        await credit_channel_queue.put(f"bulk_delete_{len(messages)}")
+async def on_message(m):
+    if m.channel.id == CREDIT_CHANNEL_ID and m.author != bot.user:
+        await asyncio.sleep(1)
+        for e in ["❤️", "🍣"]:
+            try: await m.add_reaction(e); await asyncio.sleep(0.5)
+            except: pass
+        await credit_queue.put("new")
+    await bot.process_commands(m)
 
 # ==================== START ====================
 if __name__ == "__main__":
     keep_alive()
-    print("⏳ รอ 30 วินาทีก่อนเริ่มบอท...")
-    time.sleep(30)
-    
+    time.sleep(3)
     token = os.getenv("TOKEN")
-    if not token:
-        print("❌ ไม่พบ TOKEN ใน environment variables")
-        exit(1)
-    
-    try:
-        bot.run(token)
-    except Exception as e:
-        print(f"❌ Error running bot: {e}")
-        traceback.print_exc()
+    if not token: exit("❌ No TOKEN")
+    try: bot.run(token)
+    except Exception as e: print(f"❌ {e}")
