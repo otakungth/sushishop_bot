@@ -1939,6 +1939,8 @@ def remove_user_balance(user_id: str, amount: int) -> bool:
     balances = load_balances()
     if user_id not in balances:
         balances[user_id] = 100
+        save_balances(balances)
+        return False
     
     print(f"📊 ก่อนลบ: user {user_id} มี {balances[user_id]} จะลบ {amount}")
     
@@ -2056,9 +2058,7 @@ async def rng_prefix(ctx):
     embed.set_footer(text=f"ผู้เล่น: {ctx.author.display_name}")
     
     # ส่งแบบ ephemeral (เห็นแค่คนส่งคำสั่ง)
-    msg = await ctx.send(embed=embed, view=RNGMainView(ctx.author), ephemeral=True)
-    if hasattr(msg, 'id'):
-        bot.game_embeds[str(ctx.author.id)] = msg.id
+    await ctx.send(embed=embed, view=RNGMainView(ctx.author), ephemeral=True)
 
 @bot.command(name="roll", aliases=["rngroll"])
 async def roll_prefix(ctx):
@@ -2069,7 +2069,12 @@ async def roll_prefix(ctx):
     
     # ตรวจสอบเหรียญ
     if not remove_user_balance(user_id, 10):  # เสีย 10 เหรียญต่อการสุ่ม
-        await ctx.send("❌ คุณมีเหรียญไม่พอ! ต้องมีอย่างน้อย 10 เหรียญ", ephemeral=True)
+        embed = discord.Embed(
+            title="❌ ไม่พอ",
+            description="คุณมีเหรียญไม่พอ! ต้องมีอย่างน้อย 10 เหรียญ",
+            color=0xFF0000
+        )
+        await ctx.send(embed=embed, ephemeral=True)
         return
     
     item_id, item = random_item()
