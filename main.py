@@ -140,7 +140,6 @@ class MyBot(commands.Bot):
         self.ticket_counter = load_json(ticket_counter_file, {"counter": 1, "date": get_thailand_time().strftime("%d%m%y")})
         self.stock_message = None
         self.main_channel_message = None
-        self.ms_games = {}  # เก็บเกม Minesweeper
         self.pawn_data = {}  # เก็บข้อมูล Pawn Shop
         self.game_embeds = {}  # เก็บ ID ของ embed เกมเพื่อป้องกันการส่งซ้ำ
     
@@ -1904,7 +1903,9 @@ def load_balances() -> Dict[str, int]:
     try:
         if os.path.exists(rng_balance_file):
             with open(rng_balance_file, 'r', encoding='utf-8') as f:
-                return json.load(f)
+                data = json.load(f)
+                print(f"✅ โหลด balances: {data}")
+                return data
     except Exception as e:
         print(f"❌ Error loading balances: {e}")
     return {}
@@ -1913,12 +1914,17 @@ def save_balances(balances: Dict[str, int]):
     try:
         with open(rng_balance_file, 'w', encoding='utf-8') as f:
             json.dump(balances, f, ensure_ascii=False, indent=2)
+        print(f"✅ บันทึก balances: {balances}")
+        return True
     except Exception as e:
         print(f"❌ Error saving balances: {e}")
+        return False
 
 def get_user_balance(user_id: str) -> int:
     balances = load_balances()
-    return balances.get(user_id, 100)  # เริ่มต้น 100 coins
+    balance = balances.get(user_id, 100)
+    print(f"📊 user {user_id} มี balance: {balance}")
+    return balance
 
 def add_user_balance(user_id: str, amount: int):
     balances = load_balances()
@@ -1926,23 +1932,32 @@ def add_user_balance(user_id: str, amount: int):
         balances[user_id] = 100
     balances[user_id] += amount
     save_balances(balances)
+    print(f"✅ เพิ่ม balance {user_id}: {balances[user_id]}")
     return balances[user_id]
 
 def remove_user_balance(user_id: str, amount: int) -> bool:
     balances = load_balances()
     if user_id not in balances:
         balances[user_id] = 100
+    
+    print(f"📊 ก่อนลบ: user {user_id} มี {balances[user_id]} จะลบ {amount}")
+    
     if balances[user_id] < amount:
+        print(f"❌ ไม่พอ: {balances[user_id]} < {amount}")
         return False
+    
     balances[user_id] -= amount
     save_balances(balances)
+    print(f"✅ หลังลบ: user {user_id} เหลือ {balances[user_id]}")
     return True
 
 def load_inventory() -> Dict[str, Dict[str, int]]:
     try:
         if os.path.exists(rng_inventory_file):
             with open(rng_inventory_file, 'r', encoding='utf-8') as f:
-                return json.load(f)
+                data = json.load(f)
+                print(f"✅ โหลด inventory: {data}")
+                return data
     except Exception as e:
         print(f"❌ Error loading inventory: {e}")
     return {}
@@ -1951,12 +1966,17 @@ def save_inventory(inventory: Dict[str, Dict[str, int]]):
     try:
         with open(rng_inventory_file, 'w', encoding='utf-8') as f:
             json.dump(inventory, f, ensure_ascii=False, indent=2)
+        print(f"✅ บันทึก inventory: {inventory}")
+        return True
     except Exception as e:
         print(f"❌ Error saving inventory: {e}")
+        return False
 
 def get_user_inventory(user_id: str) -> Dict[str, int]:
     inventory = load_inventory()
-    return inventory.get(user_id, {})
+    user_inv = inventory.get(user_id, {})
+    print(f"📊 user {user_id} มี inventory: {user_inv}")
+    return user_inv
 
 def add_item_to_inventory(user_id: str, item_id: str, amount: int = 1):
     inventory = load_inventory()
@@ -2036,12 +2056,16 @@ async def rng_prefix(ctx):
     embed.set_footer(text=f"ผู้เล่น: {ctx.author.display_name}")
     
     # ส่งแบบ ephemeral (เห็นแค่คนส่งคำสั่ง)
-    await ctx.send(embed=embed, view=RNGMainView(ctx.author), ephemeral=True)
+    msg = await ctx.send(embed=embed, view=RNGMainView(ctx.author), ephemeral=True)
+    if hasattr(msg, 'id'):
+        bot.game_embeds[str(ctx.author.id)] = msg.id
 
 @bot.command(name="roll", aliases=["rngroll"])
 async def roll_prefix(ctx):
     """สุ่มไอเทม (ใช้ !roll หรือ !rngroll)"""
     user_id = str(ctx.author.id)
+    
+    print(f"🎲 ผู้ใช้ {user_id} ใช้คำสั่ง !roll")
     
     # ตรวจสอบเหรียญ
     if not remove_user_balance(user_id, 10):  # เสีย 10 เหรียญต่อการสุ่ม
@@ -2054,6 +2078,8 @@ async def roll_prefix(ctx):
     inventory = get_user_inventory(user_id)
     total_items = sum(inventory.values())
     balance = get_user_balance(user_id)
+    
+    print(f"✅ สุ่มได้: {item['name']} | inventory: {inventory} | balance: {balance}")
     
     rarity_color = {"common": 0x808080, "rare": 0x00AAFF, "legendary": 0xFFD700}
     embed = discord.Embed(
@@ -2081,6 +2107,8 @@ class RollResultView(View):
         
         user_id = str(interaction.user.id)
         
+        print(f"🎲 ผู้ใช้ {user_id} กดปุ่มสุ่มต่อ")
+        
         # ตรวจสอบเหรียญ
         if not remove_user_balance(user_id, 10):
             await interaction.response.send_message("❌ คุณมีเหรียญไม่พอ! ต้องมีอย่างน้อย 10 เหรียญ", ephemeral=True)
@@ -2092,6 +2120,8 @@ class RollResultView(View):
         inventory = get_user_inventory(user_id)
         total_items = sum(inventory.values())
         balance = get_user_balance(user_id)
+        
+        print(f"✅ สุ่มได้: {item['name']} | inventory: {inventory} | balance: {balance}")
         
         rarity_color = {"common": 0x808080, "rare": 0x00AAFF, "legendary": 0xFFD700}
         embed = discord.Embed(
@@ -2129,6 +2159,8 @@ async def inventory_prefix(ctx):
     """ดู inventory (ใช้ !inventory, !inv, !bag)"""
     user_id = str(ctx.author.id)
     inventory = get_user_inventory(user_id)
+    
+    print(f"📦 ผู้ใช้ {user_id} ดู inventory: {inventory}")
     
     if not inventory:
         embed = discord.Embed(
@@ -2242,6 +2274,8 @@ async def pawnshop_prefix(ctx):
     """เปิด Pawn Shop (ใช้ !pawnshop, !pshop, !pawngame)"""
     user_id = str(ctx.author.id)
     inventory = get_user_inventory(user_id)
+    
+    print(f"🏪 ผู้ใช้ {user_id} เปิด Pawn Shop, inventory: {inventory}")
     
     if not inventory:
         embed = discord.Embed(
@@ -2641,266 +2675,7 @@ class PawnContinueView(View):
         
         await interaction.response.edit_message(embed=embed, view=RNGMainView(interaction.user))
 
-# ==================== MINESWEEPER GAME (PREFIX COMMANDS) ====================
-class MinesweeperGame:
-    def __init__(self, width=8, height=8, mines=10):
-        self.width = min(width, 10)
-        self.height = min(height, 10)
-        self.mines = min(mines, (width * height) // 3)
-        
-        self.board = [[0 for _ in range(self.width)] for _ in range(self.height)]
-        self.revealed = [[False for _ in range(self.width)] for _ in range(self.height)]
-        self.flagged = [[False for _ in range(self.width)] for _ in range(self.height)]
-        self.game_over = False
-        self.won = False
-        self.first_move = True
-        
-    def place_mines(self, first_row, first_col):
-        positions = []
-        for r in range(self.height):
-            for c in range(self.width):
-                if abs(r - first_row) > 1 or abs(c - first_col) > 1:
-                    positions.append((r, c))
-        
-        random.shuffle(positions)
-        mine_positions = positions[:self.mines]
-        
-        for r, c in mine_positions:
-            self.board[r][c] = -1
-            
-        for r in range(self.height):
-            for c in range(self.width):
-                if self.board[r][c] == -1:
-                    continue
-                count = 0
-                for dr in [-1, 0, 1]:
-                    for dc in [-1, 0, 1]:
-                        if dr == 0 and dc == 0:
-                            continue
-                        nr, nc = r + dr, c + dc
-                        if 0 <= nr < self.height and 0 <= nc < self.width:
-                            if self.board[nr][nc] == -1:
-                                count += 1
-                self.board[r][c] = count
-                
-    def reveal(self, row, col):
-        if self.game_over or self.won or self.revealed[row][col] or self.flagged[row][col]:
-            return
-        
-        if self.first_move:
-            self.place_mines(row, col)
-            self.first_move = False
-            
-        self.revealed[row][col] = True
-        
-        if self.board[row][col] == -1:
-            self.game_over = True
-            return
-            
-        if self.board[row][col] == 0:
-            for dr in [-1, 0, 1]:
-                for dc in [-1, 0, 1]:
-                    if dr == 0 and dc == 0:
-                        continue
-                    nr, nc = row + dr, col + dc
-                    if 0 <= nr < self.height and 0 <= nc < self.width:
-                        if not self.revealed[nr][nc] and not self.flagged[nr][nc]:
-                            self.reveal(nr, nc)
-                            
-        self.check_win()
-        
-    def flag(self, row, col):
-        if self.game_over or self.won or self.revealed[row][col]:
-            return
-        self.flagged[row][col] = not self.flagged[row][col]
-        self.check_win()
-        
-    def check_win(self):
-        unrevealed_safe = 0
-        for r in range(self.height):
-            for c in range(self.width):
-                if self.board[r][c] != -1 and not self.revealed[r][c]:
-                    unrevealed_safe += 1
-        if unrevealed_safe == 0:
-            self.won = True
-            
-    def get_display(self):
-        emoji_numbers = ["⬛", "1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣"]
-        
-        display = ""
-        display += "   " + " ".join([f"{i+1:2}" for i in range(self.width)]) + "\n"
-        
-        for r in range(self.height):
-            row_display = f"{r+1:2} "
-            for c in range(self.width):
-                if self.flagged[r][c]:
-                    row_display += "🚩 "
-                elif self.revealed[r][c]:
-                    if self.board[r][c] == -1:
-                        row_display += "💣 "
-                    else:
-                        row_display += emoji_numbers[self.board[r][c]] + " "
-                else:
-                    row_display += "⬜ "
-            display += row_display + "\n"
-        return display
-
-@bot.command(name="ms", aliases=["minesweeper"])
-async def ms_prefix(ctx, size: str = "medium"):
-    """เล่น Minesweeper (ใช้ !ms, !minesweeper)
-    
-    วิธีใช้: !ms [ขนาด]
-    ขนาด: small, medium, large
-    """
-    # ตรวจสอบว่ามี embed เกมอยู่แล้วหรือไม่
-    if str(ctx.author.id) in bot.game_embeds:
-        try:
-            # ลบ embed เก่า
-            channel = bot.get_channel(ctx.channel.id)
-            if channel:
-                old_msg = await channel.fetch_message(bot.game_embeds[str(ctx.author.id)])
-                await old_msg.delete()
-        except:
-            pass
-    
-    sizes = {
-        "small": (5, 5, 5, "เล็ก (5x5, 5 ระเบิด)"),
-        "medium": (8, 8, 10, "กลาง (8x8, 10 ระเบิด)"),
-        "large": (10, 10, 15, "ใหญ่ (10x10, 15 ระเบิด)")
-    }
-    
-    if size.lower() not in sizes:
-        size = "medium"
-    
-    width, height, mines, size_name = sizes[size.lower()]
-    game = MinesweeperGame(width, height, mines)
-    
-    display = game.get_display()
-    embed = discord.Embed(
-        title=f"💣 Minesweeper - {size_name}",
-        description=f"```{display}```\n**⏳ กำลังเล่น...** (โหมด: ⛏️ เปิดช่อง)",
-        color=0x00AAFF
-    )
-    embed.set_footer(text=f"ผู้เล่น: {ctx.author.display_name}")
-    
-    embed.add_field(
-        name="🎮 วิธีเล่น",
-        value=(
-            "ใช้เลขพิกัด: `!ms_open <แถว> <คอลัมน์>`\n"
-            "ตัวอย่าง: `!ms_open 3 4` (เปิดแถว3 คอลัมน์4)\n"
-            "ปักธง: `!ms_flag <แถว> <คอลัมน์>`\n"
-            "ดูบอร์ด: `!ms_board`"
-        ),
-        inline=False
-    )
-    
-    # เก็บเกมไว้
-    bot.ms_games[str(ctx.author.id)] = game
-    
-    msg = await ctx.send(embed=embed)
-    bot.game_embeds[str(ctx.author.id)] = msg.id
-
-@bot.command(name="ms_open")
-async def ms_open_prefix(ctx, row: int, col: int):
-    """เปิดช่องใน Minesweeper (ใช้ !ms_open <แถว> <คอลัมน์>)"""
-    if str(ctx.author.id) not in bot.ms_games:
-        await ctx.send("❌ ยังไม่มีเกมที่กำลังเล่นอยู่! ใช้ `!ms` เพื่อเริ่มเกมใหม่")
-        return
-    
-    game = bot.ms_games[str(ctx.author.id)]
-    
-    # ปรับเป็น 0-index
-    row -= 1
-    col -= 1
-    
-    if row < 0 or row >= game.height or col < 0 or col >= game.width:
-        await ctx.send(f"❌ พิกัดไม่ถูกต้อง ต้องอยู่ระหว่าง 1-{game.height} และ 1-{game.width}")
-        return
-    
-    game.reveal(row, col)
-    
-    display = game.get_display()
-    status = ""
-    color = 0x00AAFF
-    
-    if game.game_over:
-        status = "**💥 เกมโอเวอร์! คุณโดนระเบิด!**"
-        color = 0xFF0000
-        del bot.ms_games[str(ctx.author.id)]
-    elif game.won:
-        status = "**🎉 ยินดีด้วย! คุณชนะแล้ว!**"
-        color = 0x00FF00
-        del bot.ms_games[str(ctx.author.id)]
-    else:
-        status = "**⏳ กำลังเล่น...**"
-    
-    embed = discord.Embed(
-        title="💣 Minesweeper",
-        description=f"```{display}```\n{status}",
-        color=color
-    )
-    
-    await ctx.send(embed=embed)
-
-@bot.command(name="ms_flag")
-async def ms_flag_prefix(ctx, row: int, col: int):
-    """ปักธงใน Minesweeper (ใช้ !ms_flag <แถว> <คอลัมน์>)"""
-    if str(ctx.author.id) not in bot.ms_games:
-        await ctx.send("❌ ยังไม่มีเกมที่กำลังเล่นอยู่! ใช้ `!ms` เพื่อเริ่มเกมใหม่")
-        return
-    
-    game = bot.ms_games[str(ctx.author.id)]
-    
-    row -= 1
-    col -= 1
-    
-    if row < 0 or row >= game.height or col < 0 or col >= game.width:
-        await ctx.send(f"❌ พิกัดไม่ถูกต้อง ต้องอยู่ระหว่าง 1-{game.height} และ 1-{game.width}")
-        return
-    
-    game.flag(row, col)
-    
-    display = game.get_display()
-    
-    embed = discord.Embed(
-        title="💣 Minesweeper",
-        description=f"```{display}```\n**⏳ กำลังเล่น...**",
-        color=0x00AAFF
-    )
-    
-    await ctx.send(embed=embed)
-
-@bot.command(name="ms_board")
-async def ms_board_prefix(ctx):
-    """ดูบอร์ด Minesweeper ปัจจุบัน"""
-    if str(ctx.author.id) not in bot.ms_games:
-        await ctx.send("❌ ยังไม่มีเกมที่กำลังเล่นอยู่! ใช้ `!ms` เพื่อเริ่มเกมใหม่")
-        return
-    
-    game = bot.ms_games[str(ctx.author.id)]
-    display = game.get_display()
-    
-    embed = discord.Embed(
-        title="💣 Minesweeper",
-        description=f"```{display}```\n**⏳ กำลังเล่น...**",
-        color=0x00AAFF
-    )
-    
-    await ctx.send(embed=embed)
-
 # ==================== SLASH COMMANDS ====================
-@bot.tree.command(name="minesweeper", description="เล่นเกม Minesweeper (กับระเบิด)")
-async def minesweeper_slash(interaction: discord.Interaction):
-    embed = discord.Embed(
-        title="💣 Minesweeper",
-        description="เลือกขนาดเกมที่ต้องการเล่น:",
-        color=0x00AAFF
-    )
-    embed.add_field(name="🎮 วิธีเล่น", value="• กดปุ่ม ⬜ เพื่อเปิดช่อง\n• กด 🚩 เพื่อปักธง\n• เปิดให้หมดยกเว้นช่องระเบิด = ชนะ", inline=False)
-    embed.set_footer(text="เลือกขนาดเพื่อเริ่มเกม!")
-    
-    await interaction.response.send_message(embed=embed, view=SizeSelectView())
-
 @bot.tree.command(name="rng", description="เล่นเกม RNG Gacha (สุ่มไอเทม)")
 async def rng_slash(interaction: discord.Interaction):
     embed = discord.Embed(
@@ -2918,145 +2693,6 @@ async def rng_slash(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed, view=RNGMainView(interaction.user))
 
 # ==================== SLASH COMMAND VIEWS ====================
-class SizeSelectView(View):
-    def __init__(self):
-        super().__init__(timeout=60)
-        
-    @discord.ui.button(label="เล็ก (5x5, 5 ระเบิด)", style=discord.ButtonStyle.primary, emoji="🟢", row=0)
-    async def small_button(self, interaction: discord.Interaction, button: Button):
-        await interaction.response.defer()
-        game = MinesweeperGame(5, 5, 5)
-        await start_minesweeper_game(interaction, game, "เล็ก (5x5, 5 ระเบิด)")
-        
-    @discord.ui.button(label="กลาง (8x8, 10 ระเบิด)", style=discord.ButtonStyle.primary, emoji="🟡", row=0)
-    async def medium_button(self, interaction: discord.Interaction, button: Button):
-        await interaction.response.defer()
-        game = MinesweeperGame(8, 8, 10)
-        await start_minesweeper_game(interaction, game, "กลาง (8x8, 10 ระเบิด)")
-        
-    @discord.ui.button(label="ใหญ่ (10x10, 15 ระเบิด)", style=discord.ButtonStyle.primary, emoji="🔴", row=0)
-    async def large_button(self, interaction: discord.Interaction, button: Button):
-        await interaction.response.defer()
-        game = MinesweeperGame(10, 10, 15)
-        await start_minesweeper_game(interaction, game, "ใหญ่ (10x10, 15 ระเบิด)")
-
-class MinesweeperGameView(View):
-    def __init__(self, game: MinesweeperGame, player: discord.User, size_name: str):
-        super().__init__(timeout=300)
-        self.game = game
-        self.player = player
-        self.size_name = size_name
-        self.flag_mode = False
-        self.message = None
-        self.update_buttons()
-        
-    def update_buttons(self):
-        self.clear_items()
-        
-        for r in range(self.game.height):
-            for c in range(self.game.width):
-                if self.game.revealed[r][c]:
-                    if self.game.board[r][c] == -1:
-                        emoji = "💣"
-                        style = discord.ButtonStyle.danger
-                    else:
-                        emoji = ["⬛", "1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣"][self.game.board[r][c]]
-                        style = discord.ButtonStyle.secondary
-                    button = Button(label="‌", emoji=emoji, style=style, disabled=True, row=r)
-                elif self.game.flagged[r][c]:
-                    button = Button(label="‌", emoji="🚩", style=discord.ButtonStyle.success, row=r)
-                else:
-                    button = Button(label="‌", emoji="⬜", style=discord.ButtonStyle.secondary, row=r)
-                
-                button.custom_id = f"ms_cell_{r}_{c}"
-                button.callback = self.create_cell_callback(r, c)
-                self.add_item(button)
-        
-        mode_emoji = "⛏️" if not self.flag_mode else "🚩"
-        mode_label = "โหมดเปิด" if not self.flag_mode else "โหมดปักธง"
-        mode_btn = Button(label=mode_label, emoji=mode_emoji, style=discord.ButtonStyle.primary, row=self.game.height)
-        mode_btn.callback = self.toggle_mode_callback
-        self.add_item(mode_btn)
-        
-        restart_btn = Button(label="เริ่มใหม่", emoji="🔄", style=discord.ButtonStyle.secondary, row=self.game.height)
-        restart_btn.callback = self.restart_callback
-        self.add_item(restart_btn)
-        
-    def create_cell_callback(self, r, c):
-        async def callback(interaction: discord.Interaction):
-            if interaction.user != self.player:
-                await interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
-                return
-            
-            if self.game.game_over or self.game.won:
-                await interaction.response.send_message("❌ เกมจบแล้ว กด 'เริ่มใหม่' เพื่อเล่นอีกครั้ง", ephemeral=True)
-                return
-                
-            if self.flag_mode:
-                self.game.flag(r, c)
-            else:
-                self.game.reveal(r, c)
-                
-            await self.update_game_message(interaction)
-        return callback
-    
-    async def toggle_mode_callback(self, interaction: discord.Interaction):
-        if interaction.user != self.player:
-            await interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
-            return
-        self.flag_mode = not self.flag_mode
-        mode_text = "🚩 โหมดปักธง" if self.flag_mode else "⛏️ โหมดเปิดช่อง"
-        await interaction.response.send_message(f"เปลี่ยนเป็น: {mode_text}", ephemeral=True)
-        
-    async def restart_callback(self, interaction: discord.Interaction):
-        if interaction.user != self.player:
-            await interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
-            return
-        
-        embed = discord.Embed(
-            title="💣 Minesweeper",
-            description="เลือกขนาดเกมที่ต้องการเล่น:",
-            color=0x00AAFF
-        )
-        await interaction.response.edit_message(embed=embed, view=SizeSelectView())
-        
-    async def update_game_message(self, interaction: discord.Interaction):
-        self.update_buttons()
-        
-        display = self.game.get_display()
-        status = ""
-        color = 0x00AAFF
-        
-        if self.game.game_over:
-            status = "**💥 เกมโอเวอร์! คุณโดนระเบิด!**"
-            color = 0xFF0000
-        elif self.game.won:
-            status = "**🎉 ยินดีด้วย! คุณชนะแล้ว!**"
-            color = 0x00FF00
-        else:
-            status = f"**⏳ กำลังเล่น...** (โหมด: {'🚩 ปักธง' if self.flag_mode else '⛏️ เปิดช่อง'})"
-            
-        embed = discord.Embed(
-            title=f"💣 Minesweeper - {self.size_name}",
-            description=f"```{display}```\n{status}",
-            color=color
-        )
-        embed.set_footer(text=f"ผู้เล่น: {self.player.display_name}")
-        
-        await interaction.response.edit_message(embed=embed, view=self)
-
-async def start_minesweeper_game(interaction: discord.Interaction, game: MinesweeperGame, size_name: str):
-    display = game.get_display()
-    embed = discord.Embed(
-        title=f"💣 Minesweeper - {size_name}",
-        description=f"```{display}```\n**⏳ กำลังเล่น...** (โหมด: ⛏️ เปิดช่อง)",
-        color=0x00AAFF
-    )
-    embed.set_footer(text=f"ผู้เล่น: {interaction.user.display_name}")
-    
-    view = MinesweeperGameView(game, interaction.user, size_name)
-    await interaction.edit_original_response(embed=embed, view=view)
-
 class RNGMainView(View):
     def __init__(self, user: discord.User):
         super().__init__(timeout=60)
@@ -3071,6 +2707,8 @@ class RNGMainView(View):
         
         user_id = str(interaction.user.id)
         
+        print(f"🎲 ผู้ใช้ {user_id} กดปุ่มสุ่มใน RNGMainView")
+        
         # ตรวจสอบเหรียญ
         if not remove_user_balance(user_id, 10):
             await interaction.response.send_message("❌ คุณมีเหรียญไม่พอ! ต้องมีอย่างน้อย 10 เหรียญ", ephemeral=True)
@@ -3083,6 +2721,8 @@ class RNGMainView(View):
         inventory = get_user_inventory(user_id)
         total_items = sum(inventory.values())
         balance = get_user_balance(user_id)
+        
+        print(f"✅ สุ่มได้: {item['name']} | inventory: {inventory} | balance: {balance}")
         
         rarity_color = {"common": 0x808080, "rare": 0x00AAFF, "legendary": 0xFFD700}
         embed = discord.Embed(
@@ -3168,6 +2808,8 @@ class RNGMainView(View):
         
         user_id = str(interaction.user.id)
         inventory = get_user_inventory(user_id)
+        
+        print(f"🏪 ผู้ใช้ {user_id} กดปุ่ม Pawn Shop, inventory: {inventory}")
         
         if not inventory:
             embed = discord.Embed(
