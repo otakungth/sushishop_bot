@@ -1970,6 +1970,7 @@ def add_item_to_inventory(user_id: str, item_id: str, amount: int = 1):
     
     save_inventory(inventory)
     print(f"✅ เพิ่ม {item_id} ให้ {user_id} จำนวน {amount}")
+    return True
 
 def remove_item_from_inventory(user_id: str, item_id: str, amount: int = 1) -> bool:
     inventory = load_inventory()
@@ -2072,7 +2073,7 @@ class RollResultView(View):
         super().__init__(timeout=60)
         self.user = user
         
-    @discord.ui.button(label="🎲 สุ่มต่อ", style=discord.ButtonStyle.success, emoji="🎲", row=0)
+    @discord.ui.button(label="🎲 สุ่มต่อ (10 coins)", style=discord.ButtonStyle.success, emoji="🎲", row=0)
     async def roll_again_button(self, interaction: discord.Interaction, button: Button):
         if interaction.user != self.user:
             await interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
