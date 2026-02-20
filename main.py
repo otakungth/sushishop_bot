@@ -1905,7 +1905,8 @@ def load_balances() -> Dict[str, int]:
             with open(rng_balance_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 print(f"✅ โหลด balances: {data}")
-                return data
+                # แปลงค่าเป็น int ทั้งหมด
+                return {k: int(v) for k, v in data.items()}
     except Exception as e:
         print(f"❌ Error loading balances: {e}")
     return {}
@@ -1922,6 +1923,12 @@ def save_balances(balances: Dict[str, int]):
 
 def get_user_balance(user_id: str) -> int:
     balances = load_balances()
+    # ถ้ายังไม่มี ให้ตั้งค่าเริ่มต้น 100
+    if user_id not in balances:
+        balances[user_id] = 100
+        save_balances(balances)
+        print(f"📊 สร้าง balance ใหม่ให้ user {user_id}: 100")
+        return 100
     balance = balances.get(user_id, 100)
     print(f"📊 user {user_id} มี balance: {balance}")
     return balance
@@ -1930,25 +1937,28 @@ def add_user_balance(user_id: str, amount: int):
     balances = load_balances()
     if user_id not in balances:
         balances[user_id] = 100
-    balances[user_id] += amount
+    balances[user_id] = balances.get(user_id, 100) + amount
     save_balances(balances)
     print(f"✅ เพิ่ม balance {user_id}: {balances[user_id]}")
     return balances[user_id]
 
 def remove_user_balance(user_id: str, amount: int) -> bool:
     balances = load_balances()
+    
+    # ถ้ายังไม่มี user นี้ ให้สร้างใหม่
     if user_id not in balances:
         balances[user_id] = 100
         save_balances(balances)
+        print(f"📊 สร้าง balance ใหม่ให้ user {user_id}: 100")
+    
+    current_balance = balances.get(user_id, 100)
+    print(f"📊 ก่อนลบ: user {user_id} มี {current_balance} จะลบ {amount}")
+    
+    if current_balance < amount:
+        print(f"❌ ไม่พอ: {current_balance} < {amount}")
         return False
     
-    print(f"📊 ก่อนลบ: user {user_id} มี {balances[user_id]} จะลบ {amount}")
-    
-    if balances[user_id] < amount:
-        print(f"❌ ไม่พอ: {balances[user_id]} < {amount}")
-        return False
-    
-    balances[user_id] -= amount
+    balances[user_id] = current_balance - amount
     save_balances(balances)
     print(f"✅ หลังลบ: user {user_id} เหลือ {balances[user_id]}")
     return True
@@ -1958,8 +1968,12 @@ def load_inventory() -> Dict[str, Dict[str, int]]:
         if os.path.exists(rng_inventory_file):
             with open(rng_inventory_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-                print(f"✅ โหลด inventory: {data}")
-                return data
+                # แปลงค่าทั้งหมดเป็น int
+                cleaned_data = {}
+                for user_id, items in data.items():
+                    cleaned_data[user_id] = {k: int(v) for k, v in items.items()}
+                print(f"✅ โหลด inventory: {cleaned_data}")
+                return cleaned_data
     except Exception as e:
         print(f"❌ Error loading inventory: {e}")
     return {}
@@ -1977,6 +1991,8 @@ def save_inventory(inventory: Dict[str, Dict[str, int]]):
 def get_user_inventory(user_id: str) -> Dict[str, int]:
     inventory = load_inventory()
     user_inv = inventory.get(user_id, {})
+    # แปลงค่าเป็น int อีกครั้งเพื่อความปลอดภัย
+    user_inv = {k: int(v) for k, v in user_inv.items()}
     print(f"📊 user {user_id} มี inventory: {user_inv}")
     return user_inv
 
@@ -1986,7 +2002,7 @@ def add_item_to_inventory(user_id: str, item_id: str, amount: int = 1):
         inventory[user_id] = {}
     
     if item_id in inventory[user_id]:
-        inventory[user_id][item_id] += amount
+        inventory[user_id][item_id] = int(inventory[user_id][item_id]) + amount
     else:
         inventory[user_id][item_id] = amount
     
@@ -2002,10 +2018,10 @@ def remove_item_from_inventory(user_id: str, item_id: str, amount: int = 1) -> b
     if item_id not in inventory[user_id]:
         return False
     
-    if inventory[user_id][item_id] < amount:
+    if int(inventory[user_id][item_id]) < amount:
         return False
     
-    inventory[user_id][item_id] -= amount
+    inventory[user_id][item_id] = int(inventory[user_id][item_id]) - amount
     if inventory[user_id][item_id] <= 0:
         del inventory[user_id][item_id]
     
@@ -2058,7 +2074,9 @@ async def rng_prefix(ctx):
     embed.set_footer(text=f"ผู้เล่น: {ctx.author.display_name}")
     
     # ส่งแบบ ephemeral (เห็นแค่คนส่งคำสั่ง)
-    await ctx.send(embed=embed, view=RNGMainView(ctx.author), ephemeral=True)
+    msg = await ctx.send(embed=embed, view=RNGMainView(ctx.author), ephemeral=True)
+    if hasattr(msg, 'id'):
+        bot.game_embeds[str(ctx.author.id)] = msg.id
 
 @bot.command(name="roll", aliases=["rngroll"])
 async def roll_prefix(ctx):
@@ -2067,16 +2085,30 @@ async def roll_prefix(ctx):
     
     print(f"🎲 ผู้ใช้ {user_id} ใช้คำสั่ง !roll")
     
-    # ตรวจสอบเหรียญ
-    if not remove_user_balance(user_id, 10):  # เสีย 10 เหรียญต่อการสุ่ม
+    # ตรวจสอบ balance ก่อน
+    current_balance = get_user_balance(user_id)
+    print(f"💰 Balance ปัจจุบัน: {current_balance}")
+    
+    if current_balance < 10:
         embed = discord.Embed(
-            title="❌ ไม่พอ",
-            description="คุณมีเหรียญไม่พอ! ต้องมีอย่างน้อย 10 เหรียญ",
+            title="❌ เหรียญไม่พอ",
+            description=f"คุณมี {current_balance} เหรียญ ต้องใช้ 10 เหรียญต่อการสุ่ม",
             color=0xFF0000
         )
         await ctx.send(embed=embed, ephemeral=True)
         return
     
+    # พยายามหักเงิน
+    if not remove_user_balance(user_id, 10):
+        embed = discord.Embed(
+            title="❌ เกิดข้อผิดพลาด",
+            description="ไม่สามารถหักเหรียญได้ กรุณาลองใหม่อีกครั้ง",
+            color=0xFF0000
+        )
+        await ctx.send(embed=embed, ephemeral=True)
+        return
+    
+    # สุ่มไอเทม
     item_id, item = random_item()
     add_item_to_inventory(user_id, item_id)
     
@@ -2114,9 +2146,27 @@ class RollResultView(View):
         
         print(f"🎲 ผู้ใช้ {user_id} กดปุ่มสุ่มต่อ")
         
-        # ตรวจสอบเหรียญ
+        # ตรวจสอบ balance ก่อน
+        current_balance = get_user_balance(user_id)
+        print(f"💰 Balance ปัจจุบัน: {current_balance}")
+        
+        if current_balance < 10:
+            embed = discord.Embed(
+                title="❌ เหรียญไม่พอ",
+                description=f"คุณมี {current_balance} เหรียญ ต้องใช้ 10 เหรียญต่อการสุ่ม",
+                color=0xFF0000
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            return
+        
+        # พยายามหักเงิน
         if not remove_user_balance(user_id, 10):
-            await interaction.response.send_message("❌ คุณมีเหรียญไม่พอ! ต้องมีอย่างน้อย 10 เหรียญ", ephemeral=True)
+            embed = discord.Embed(
+                title="❌ เกิดข้อผิดพลาด",
+                description="ไม่สามารถหักเหรียญได้ กรุณาลองใหม่อีกครั้ง",
+                color=0xFF0000
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
             return
         
         item_id, item = random_item()
@@ -2219,6 +2269,38 @@ async def balance_prefix(ctx):
     embed.set_footer(text=f"ผู้เล่น: {ctx.author.display_name}")
     
     await ctx.send(embed=embed, ephemeral=True)
+
+# ==================== DEBUG COMMANDS ====================
+@bot.command(name="checkbal")
+async def check_balance(ctx):
+    """ตรวจสอบ balance (สำหรับดีบัก)"""
+    user_id = str(ctx.author.id)
+    balances = load_balances()
+    
+    embed = discord.Embed(title="🔍 ตรวจสอบ Balance", color=0x00AAFF)
+    embed.add_field(name="👤 ผู้ใช้", value=ctx.author.mention, inline=False)
+    embed.add_field(name="💰 Balance ในระบบ", value=str(balances.get(user_id, "ไม่มี")), inline=False)
+    
+    # ทดสอบอ่านค่าผ่าน get_user_balance
+    real_balance = get_user_balance(user_id)
+    embed.add_field(name="💰 Balance จริง", value=str(real_balance), inline=False)
+    
+    # ดูไฟล์ balances
+    if os.path.exists(rng_balance_file):
+        with open(rng_balance_file, 'r', encoding='utf-8') as f:
+            file_content = f.read()
+            embed.add_field(name="📄 ไฟล์ balances", value=f"```json\n{file_content[:500]}\n```", inline=False)
+    
+    await ctx.send(embed=embed, ephemeral=True)
+
+@bot.command(name="fixbal")
+async def fix_balance(ctx):
+    """แก้ไข balance (สำหรับดีบัก)"""
+    user_id = str(ctx.author.id)
+    balances = load_balances()
+    balances[user_id] = 100
+    save_balances(balances)
+    await ctx.send(f"✅ ตั้งค่า balance ของคุณเป็น 100 เรียบร้อย", ephemeral=True)
 
 # ==================== PAWN SHOP SYSTEM ====================
 CUSTOMER_NAMES = [
@@ -2714,9 +2796,27 @@ class RNGMainView(View):
         
         print(f"🎲 ผู้ใช้ {user_id} กดปุ่มสุ่มใน RNGMainView")
         
-        # ตรวจสอบเหรียญ
+        # ตรวจสอบ balance ก่อน
+        current_balance = get_user_balance(user_id)
+        print(f"💰 Balance ปัจจุบัน: {current_balance}")
+        
+        if current_balance < 10:
+            embed = discord.Embed(
+                title="❌ เหรียญไม่พอ",
+                description=f"คุณมี {current_balance} เหรียญ ต้องใช้ 10 เหรียญต่อการสุ่ม",
+                color=0xFF0000
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            return
+        
+        # พยายามหักเงิน
         if not remove_user_balance(user_id, 10):
-            await interaction.response.send_message("❌ คุณมีเหรียญไม่พอ! ต้องมีอย่างน้อย 10 เหรียญ", ephemeral=True)
+            embed = discord.Embed(
+                title="❌ เกิดข้อผิดพลาด",
+                description="ไม่สามารถหักเหรียญได้ กรุณาลองใหม่อีกครั้ง",
+                color=0xFF0000
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
             return
         
         # สุ่มไอเทม
