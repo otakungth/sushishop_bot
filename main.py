@@ -1074,6 +1074,33 @@ class DeliveryView(View):
                     await self.channel.send(embed=receipt_embed)
                     await self.channel.send("✅ **ส่งสินค้าเรียบร้อย**")
                     
+                    # ========== ส่งใบเสร็จไปยัง DM ผู้ซื้อ (เฉพาะเมื่อกดปุ่มส่งของแล้ว) ==========
+                    if self.buyer:
+                        try:
+                            dm_embed = discord.Embed(
+                                title=f"🧾 ใบเสร็จการซื้อสินค้า ({self.product_type})",
+                                description="ขอบคุณที่ใช้บริการ Sushi Shop นะคะ 🍣",
+                                color=receipt_color
+                            )
+                            dm_embed.add_field(name="📦 สินค้า", value=self.product_type, inline=True)
+                            dm_embed.add_field(name="💸 จำนวนโรบัค", value=f"{self.robux_amount:,}", inline=True)
+                            dm_embed.add_field(name="💰 ราคา", value=f"{self.price:,.0f} บาท", inline=True)
+                            
+                            if delivery_image:
+                                dm_embed.set_image(url=delivery_image)
+                            
+                            dm_embed.add_field(
+                                name="📝 หมายเหตุ", 
+                                value="หากมีปัญหากรุณาติดต่อแอดมินในเซิร์ฟ", 
+                                inline=False
+                            )
+                            dm_embed.set_footer(text="Sushi Shop • ขอบคุณที่ใช้บริการ💖")
+                            
+                            await self.buyer.send(embed=dm_embed)
+                            print(f"✅ ส่งใบเสร็จไปยัง DM ของ {self.buyer.name} เรียบร้อย")
+                        except Exception as e:
+                            print(f"⚠️ ไม่สามารถส่ง DM ถึง {self.buyer.name}: {e}")
+                    
                     try:
                         await interaction.response.edit_message(
                             content="✅ บันทึกการส่งสินค้าเรียบร้อย", 
@@ -1124,6 +1151,54 @@ class DeliveryView(View):
         self.add_item(cancel_btn)
 
 # ==================== COMMANDS ====================
+@bot.command(name="open")
+@admin_only()
+async def open_cmd(ctx):
+    """เปิดร้าน"""
+    global shop_open
+    shop_open = True
+    
+    try:
+        await ctx.message.delete()
+    except:
+        pass
+    
+    await update_channel_name()
+    await update_main_channel()
+    
+    embed = discord.Embed(
+        title="✅ เปิดร้านเรียบร้อย", 
+        description="ร้าน Sushi Shop เปิดให้บริการแล้ว", 
+        color=0x00FF00
+    )
+    embed.set_footer(text=f"เวลา: {get_thailand_time().strftime('%d/%m/%y %H:%M')}")
+    
+    await ctx.send(embed=embed)
+
+@bot.command(name="close")
+@admin_only()
+async def close_cmd(ctx):
+    """ปิดร้าน"""
+    global shop_open
+    shop_open = False
+    
+    try:
+        await ctx.message.delete()
+    except:
+        pass
+    
+    await update_channel_name()
+    await update_main_channel()
+    
+    embed = discord.Embed(
+        title="🔴 ปิดร้านเรียบร้อย", 
+        description="ร้าน Sushi Shop ปิดให้บริการชั่วคราว", 
+        color=0xFF0000
+    )
+    embed.set_footer(text=f"เวลา: {get_thailand_time().strftime('%d/%m/%y %H:%M')}")
+    
+    await ctx.send(embed=embed)
+
 @bot.command(name="shop_open")
 @admin_only()
 async def shop_open_cmd(ctx):
@@ -2014,7 +2089,49 @@ class RNGMainView(View):
         )
         embed.set_footer(text=f"ความหายาก: {item['rarity'].upper()} | ไอเทมทั้งหมด: {total_items} ชิ้น | 🪙 {balance}")
         
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        # สร้าง View สำหรับปุ่ม "สุ่มต่อ"
+        roll_again_view = View(timeout=60)
+        roll_again_button = Button(label="🎲 สุ่มต่อ", style=discord.ButtonStyle.success, emoji="🎲")
+        
+        async def roll_again_callback(roll_interaction):
+            if roll_interaction.user != self.user:
+                await roll_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
+                return
+            
+            # สุ่มใหม่
+            new_item_id, new_item = random_item()
+            add_item_to_inventory(user_id, new_item_id)
+            
+            new_inventory = get_user_inventory(user_id)
+            new_total_items = sum(new_inventory.values())
+            new_balance = get_user_balance(user_id)
+            
+            new_embed = discord.Embed(
+                title="🎲 ผลการสุ่ม",
+                description=f"คุณได้รับ: {new_item['emoji']} **{new_item['name']}**",
+                color=rarity_color[new_item["rarity"]]
+            )
+            new_embed.set_footer(text=f"ความหายาก: {new_item['rarity'].upper()} | ไอเทมทั้งหมด: {new_total_items} ชิ้น | 🪙 {new_balance}")
+            
+            # สร้าง View ใหม่สำหรับสุ่มต่อ
+            new_roll_view = View(timeout=60)
+            new_roll_button = Button(label="🎲 สุ่มต่อ", style=discord.ButtonStyle.success, emoji="🎲")
+            
+            async def new_roll_callback(new_roll_interaction):
+                if new_roll_interaction.user != self.user:
+                    await new_roll_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
+                    return
+                await self.roll_button(new_roll_interaction, button)
+            
+            new_roll_button.callback = new_roll_callback
+            new_roll_view.add_item(new_roll_button)
+            
+            await roll_interaction.response.edit_message(embed=new_embed, view=new_roll_view)
+        
+        roll_again_button.callback = roll_again_callback
+        roll_again_view.add_item(roll_again_button)
+        
+        await interaction.response.send_message(embed=embed, view=roll_again_view, ephemeral=True)
         
     @discord.ui.button(label="📦 ดู Inventory", style=discord.ButtonStyle.primary, emoji="📦", row=0)
     async def inventory_button(self, interaction: discord.Interaction, button: Button):
