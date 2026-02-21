@@ -1837,7 +1837,7 @@ async def fixcredit(ctx):
 
 # ==================== RNG GACHA GAME (PREFIX COMMANDS) ====================
 ITEMS = {
-    # Common (50%) - 1 ชิ้น
+    # Common (50%) - 25 ชิ้น
     "common_1": {"name": "🍎 แอปเปิล", "rarity": "common", "emoji": "🍎", "value": 1},
     "common_2": {"name": "🍌 กล้วย", "rarity": "common", "emoji": "🍌", "value": 1},
     "common_3": {"name": "🍒 เชอร์รี่", "rarity": "common", "emoji": "🍒", "value": 1},
@@ -1864,7 +1864,7 @@ ITEMS = {
     "common_24": {"name": "🍚 ข้าวสวย", "rarity": "common", "emoji": "🍚", "value": 1},
     "common_25": {"name": "🍥 นารูโตะมากิ", "rarity": "common", "emoji": "🍥", "value": 1},
     
-    # Rare (45%) - 1 ชิ้น
+    # Rare (45%) - 15 ชิ้น
     "rare_1": {"name": "⚔️ ดาบไม้", "rarity": "rare", "emoji": "⚔️", "value": 5},
     "rare_2": {"name": "🛡️ โล่ไม้", "rarity": "rare", "emoji": "🛡️", "value": 5},
     "rare_3": {"name": "🏹 ธนู", "rarity": "rare", "emoji": "🏹", "value": 5},
@@ -1881,8 +1881,7 @@ ITEMS = {
     "rare_14": {"name": "🎭 หน้ากาก", "rarity": "rare", "emoji": "🎭", "value": 5},
     "rare_15": {"name": "🎨 พู่กันวิเศษ", "rarity": "rare", "emoji": "🎨", "value": 5},
     
-    # Legendary (5%) - 1 ชิ้น
-    "leg_1": {"name": "🐉 มังกรน้อย", "rarity": "legendary", "emoji": "🐉", "value": 50},
+    # Legendary (5%) - 10 ชิ้น (FIXED DUPLICATE KEYS)
     "leg_1": {"name": "🐉 มังกรน้อย", "rarity": "legendary", "emoji": "🐉", "value": 50},
     "leg_2": {"name": "🦄 ยูนิคอร์น", "rarity": "legendary", "emoji": "🦄", "value": 50},
     "leg_3": {"name": "🧝 เอลฟ์", "rarity": "legendary", "emoji": "🧝", "value": 50},
@@ -1912,12 +1911,19 @@ def load_balances() -> Dict[str, int]:
                 print(f"✅ โหลด balances: {data}")
                 # แปลงค่าเป็น int ทั้งหมด
                 return {str(k): int(v) for k, v in data.items()}
+        else:
+            # Create empty file if it doesn't exist
+            save_balances({})
+            return {}
     except Exception as e:
         print(f"❌ Error loading balances: {e}")
-    return {}
+        return {}
 
 def save_balances(balances: Dict[str, int]):
     try:
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(os.path.abspath(rng_balance_file)) if os.path.dirname(rng_balance_file) else '.', exist_ok=True)
+        
         with open(rng_balance_file, 'w', encoding='utf-8') as f:
             json.dump(balances, f, ensure_ascii=False, indent=2)
         print(f"✅ บันทึก balances: {balances}")
@@ -1948,25 +1954,34 @@ def add_user_balance(user_id: str, amount: int):
     return balances[user_id]
 
 def remove_user_balance(user_id: str, amount: int) -> bool:
-    balances = load_balances()
-    
-    # ถ้ายังไม่มี user นี้ ให้สร้างใหม่
-    if user_id not in balances:
-        balances[user_id] = 100
-        save_balances(balances)
-        print(f"📊 สร้าง balance ใหม่ให้ user {user_id}: 100")
-    
-    current_balance = balances.get(user_id, 100)
-    print(f"📊 ก่อนลบ: user {user_id} มี {current_balance} จะลบ {amount}")
-    
-    if current_balance < amount:
-        print(f"❌ ไม่พอ: {current_balance} < {amount}")
+    try:
+        balances = load_balances()
+        
+        # ถ้ายังไม่มี user นี้ ให้สร้างใหม่
+        if user_id not in balances:
+            balances[user_id] = 100
+            save_balances(balances)
+            print(f"📊 สร้าง balance ใหม่ให้ user {user_id}: 100")
+        
+        current_balance = balances.get(user_id, 100)
+        print(f"📊 ก่อนลบ: user {user_id} มี {current_balance} จะลบ {amount}")
+        
+        if current_balance < amount:
+            print(f"❌ ไม่พอ: {current_balance} < {amount}")
+            return False
+        
+        balances[user_id] = current_balance - amount
+        save_result = save_balances(balances)
+        
+        if save_result:
+            print(f"✅ หลังลบ: user {user_id} เหลือ {balances[user_id]}")
+            return True
+        else:
+            print(f"❌ ไม่สามารถบันทึก balances ได้")
+            return False
+    except Exception as e:
+        print(f"❌ Error in remove_user_balance: {e}")
         return False
-    
-    balances[user_id] = current_balance - amount
-    save_balances(balances)
-    print(f"✅ หลังลบ: user {user_id} เหลือ {balances[user_id]}")
-    return True
 
 def load_inventory() -> Dict[str, Dict[str, int]]:
     try:
@@ -1979,12 +1994,19 @@ def load_inventory() -> Dict[str, Dict[str, int]]:
                     cleaned_data[str(user_id)] = {str(k): int(v) for k, v in items.items()}
                 print(f"✅ โหลด inventory: {cleaned_data}")
                 return cleaned_data
+        else:
+            # Create empty file if it doesn't exist
+            save_inventory({})
+            return {}
     except Exception as e:
         print(f"❌ Error loading inventory: {e}")
-    return {}
+        return {}
 
 def save_inventory(inventory: Dict[str, Dict[str, int]]):
     try:
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(os.path.abspath(rng_inventory_file)) if os.path.dirname(rng_inventory_file) else '.', exist_ok=True)
+        
         with open(rng_inventory_file, 'w', encoding='utf-8') as f:
             json.dump(inventory, f, ensure_ascii=False, indent=2)
         print(f"✅ บันทึก inventory: {inventory}")
@@ -2002,36 +2024,49 @@ def get_user_inventory(user_id: str) -> Dict[str, int]:
     return user_inv
 
 def add_item_to_inventory(user_id: str, item_id: str, amount: int = 1):
-    inventory = load_inventory()
-    if user_id not in inventory:
-        inventory[user_id] = {}
-    
-    if item_id in inventory[user_id]:
-        inventory[user_id][item_id] = int(inventory[user_id][item_id]) + amount
-    else:
-        inventory[user_id][item_id] = amount
-    
-    save_inventory(inventory)
-    print(f"✅ เพิ่ม {item_id} ให้ {user_id} จำนวน {amount}")
-    return True
+    try:
+        inventory = load_inventory()
+        if user_id not in inventory:
+            inventory[user_id] = {}
+        
+        if item_id in inventory[user_id]:
+            inventory[user_id][item_id] = int(inventory[user_id][item_id]) + amount
+        else:
+            inventory[user_id][item_id] = amount
+        
+        save_result = save_inventory(inventory)
+        
+        if save_result:
+            print(f"✅ เพิ่ม {item_id} ให้ {user_id} จำนวน {amount}")
+            return True
+        else:
+            print(f"❌ ไม่สามารถบันทึก inventory ได้")
+            return False
+    except Exception as e:
+        print(f"❌ Error in add_item_to_inventory: {e}")
+        return False
 
 def remove_item_from_inventory(user_id: str, item_id: str, amount: int = 1) -> bool:
-    inventory = load_inventory()
-    if user_id not in inventory:
+    try:
+        inventory = load_inventory()
+        if user_id not in inventory:
+            return False
+        
+        if item_id not in inventory[user_id]:
+            return False
+        
+        if int(inventory[user_id][item_id]) < amount:
+            return False
+        
+        inventory[user_id][item_id] = int(inventory[user_id][item_id]) - amount
+        if inventory[user_id][item_id] <= 0:
+            del inventory[user_id][item_id]
+        
+        save_inventory(inventory)
+        return True
+    except Exception as e:
+        print(f"❌ Error in remove_item_from_inventory: {e}")
         return False
-    
-    if item_id not in inventory[user_id]:
-        return False
-    
-    if int(inventory[user_id][item_id]) < amount:
-        return False
-    
-    inventory[user_id][item_id] = int(inventory[user_id][item_id]) - amount
-    if inventory[user_id][item_id] <= 0:
-        del inventory[user_id][item_id]
-    
-    save_inventory(inventory)
-    return True
 
 def random_item() -> tuple[str, dict]:
     roll = random.random() * 100
@@ -2050,6 +2085,8 @@ def random_item_for_sale() -> tuple[str, dict]:
     """สุ่มไอเทมที่ลูกค้าจะมาขาย (ไม่จำเป็นต้องเป็นของที่ผู้เล่นมี)"""
     item_id = random.choice(list(ITEMS.keys()))
     return item_id, ITEMS[item_id]
+
+# Keep all your existing command and view code below this line exactly as you had it
 
 @bot.command(name="rng", aliases=["rnggame"])
 async def rng_prefix(ctx):
@@ -3640,5 +3677,6 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ Error running bot: {e}")
         traceback.print_exc()
+
 
 
