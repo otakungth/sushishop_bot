@@ -151,30 +151,6 @@ def save_all_data_sync():
     save_stock_values()
     print("✅ All data saved (sync)")
 
-# ==================== SHUTDOWN HANDLER ====================
-async def shutdown_handler(signal_received=None):
-    """Handle graceful shutdown - save all data before exiting"""
-    print("\n⚠️ กำลังปิดระบบอย่างปลอดภัย...")
-    print("💾 กำลังบันทึกข้อมูลทั้งหมด...")
-    
-    # Save all data
-    save_all_data_sync()
-    
-    print("✅ บันทึกข้อมูลเรียบร้อย!")
-    print("👋 ลาก่อน!")
-    
-    # Close bot connection
-    await bot.close()
-    
-    # Exit
-    if signal_received:
-        sys.exit(0)
-
-def setup_shutdown_handlers():
-    """Setup signal handlers for graceful shutdown"""
-    signal.signal(signal.SIGINT, lambda s, f: asyncio.create_task(shutdown_handler(s)))
-    signal.signal(signal.SIGTERM, lambda s, f: asyncio.create_task(shutdown_handler(s)))
-
 # ==================== RATE LIMITER ====================
 class RateLimiter:
     def __init__(self, max_calls=1, period=1.0):
@@ -209,6 +185,7 @@ class MyBot(commands.Bot):
         self.stock_message = None
         self.main_channel_message = None
         self.pawn_data = {}
+        self._shutdown_flag = False
         
         # Load all data on startup
         self.load_all_data()
@@ -235,6 +212,19 @@ class MyBot(commands.Bot):
     async def setup_hook(self):
         global user_data, ticket_transcripts, ticket_robux_data, ticket_customer_data
         print(f"✅ Setup hook completed")
+    
+    async def close(self):
+        """Override close method to save data"""
+        print("\n⚠️ กำลังปิดระบบอย่างปลอดภัย...")
+        print("💾 กำลังบันทึกข้อมูลทั้งหมด...")
+        
+        # Save all data
+        save_all_data_sync()
+        
+        print("✅ บันทึกข้อมูลเรียบร้อย!")
+        print("👋 ลาก่อน!")
+        
+        await super().close()
 
 bot = MyBot()
 
@@ -617,7 +607,7 @@ async def credit_channel_update_worker():
     global credit_channel_update_task_running
     credit_channel_update_task_running = True
     
-    while True:
+    while not bot._shutdown_flag:
         try:
             change = await credit_channel_queue.get()
             
@@ -2371,7 +2361,7 @@ class PawnShopMainView(View):
             await interaction.response.edit_message(embed=embed, view=continue_view)
             return
         
-        await self.show_item_selection(interaction, "buy")
+        await self.show_item_selection(interaction, "sell")
     
     @discord.ui.button(label="🛒 ซื้อไอเทม", style=discord.ButtonStyle.primary, emoji="🛒", row=0)
     async def buy_button(self, interaction: discord.Interaction, button: Button):
@@ -2728,7 +2718,7 @@ class PawnShopSlashView(View):
                     
                     # Create continue view that goes back to Pawn Shop main menu
                     embed = discord.Embed(
-                        title=f"🤝 ดีลสำเร็จ! {emoji}",
+                        title=f"🤝 ดีลสำเร็จ! {emoji",
                         description=f"✅ ดีลสำเร็จ! คุณซื้อ {self.item['emoji']} **{self.item['name']}** ในราคา {self.current_price:,} 🪙\n💰 ยอดเงินปัจจุบัน: {new_balance} 🪙",
                         color=0x00FF00
                     )
@@ -3133,9 +3123,6 @@ async def on_bulk_message_delete(messages):
 # ==================== START ====================
 if __name__ == "__main__":
     keep_alive()
-    
-    # Setup shutdown handlers
-    setup_shutdown_handlers()
     
     print("⏳ รอ 30 วินาทีก่อนเริ่มบอท...")
     time.sleep(30)
