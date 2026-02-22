@@ -403,7 +403,7 @@ async def handle_open_ticket(interaction, category_name, stock_type):
         
         embed = discord.Embed(
             title="🍣 Sushi Shop 🍣", 
-            description="ยินดีต้อนรับ Sushi Shop\n\nกรุณากรอกแบบฟอร์มเพื่อสั่งซื้อ", 
+            description="แจ้งแอดมินขอไม่ระบุตัวตนชื่อลูกค้าได้\n\nกรอกแบบฟอร์มเพื่อสั่งสินค้า", 
             color=0x00FF99
         )
         embed.add_field(name="👤 ผู้ซื้อ", value=interaction.user.mention, inline=False)
@@ -416,12 +416,12 @@ async def handle_open_ticket(interaction, category_name, stock_type):
             )
         else:
             embed.add_field(
-                name="👥 บริการโรบัคกลุ่ม", 
+                name="👥 บริการเติมโรบัคกลุ่ม", 
                 value=f"📦 โรบัคเหลือ: **{group_stock:,}**\n💰 เรท: {group_rate_low} - {group_rate_high}", 
                 inline=False
             )
         
-        embed.set_footer(text="Sushi Shop • กดปุ่มด้านล่างเพื่อกรอกแบบฟอร์ม")
+        embed.set_footer(text="Sushi Shop")
         embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
         
         ticket_view = View(timeout=None)
@@ -526,7 +526,7 @@ async def save_ticket_transcript(channel, action_by=None, robux_amount=None, cus
         print(f"❌ Error saving transcript: {e}")
         return False, str(e)
 
-# ==================== ฟังก์ชันย้ายไป category ส่งของแล้ว ====================
+# ==================== ฟังก์ชันย้ายไป category ส่งของแล้ว (UPDATED - NO CATEGORY CREATION) ====================
 async def move_to_delivered_category(channel, user):
     try:
         guild = channel.guild
@@ -535,8 +535,8 @@ async def move_to_delivered_category(channel, user):
         if not delivered_category or not isinstance(delivered_category, discord.CategoryChannel):
             delivered_category = discord.utils.get(guild.categories, id=DELIVERED_CATEGORY_ID)
             if not delivered_category:
-                delivered_category = await guild.create_category("✅ ส่งของแล้ว")
-                print(f"✅ สร้าง category ส่งของแล้วใหม่")
+                print(f"❌ ไม่พบ category ส่งของแล้ว (ID: {DELIVERED_CATEGORY_ID})")
+                return False
         
         await asyncio.sleep(5)
         
@@ -747,7 +747,7 @@ async def check_credit_channel_changes():
     except Exception as e:
         print(f"❌ Error checking credit channel: {e}")
 
-# ==================== HANDLE TICKET AFTER TY ====================
+# ==================== HANDLE TICKET AFTER TY (UPDATED - NO CATEGORY CREATION) ====================
 async def handle_ticket_after_ty(channel, user, robux_amount=None, customer_name=None):
     try:
         print(f"📝 กำลังจัดการตั๋วหลัง !vouch: {channel.name}")
@@ -760,8 +760,8 @@ async def handle_ticket_after_ty(channel, user, robux_amount=None, customer_name
         if not delivered_category or not isinstance(delivered_category, discord.CategoryChannel):
             delivered_category = discord.utils.get(guild.categories, id=DELIVERED_CATEGORY_ID)
             if not delivered_category:
-                delivered_category = await guild.create_category("✅ ส่งของแล้ว")
-                print(f"✅ สร้าง category ส่งของแล้วใหม่")
+                print(f"❌ ไม่พบ category ส่งของแล้ว (ID: {DELIVERED_CATEGORY_ID})")
+                return False
         
         await bot.channel_edit_rate_limiter.acquire()
         await channel.edit(
@@ -800,7 +800,7 @@ async def handle_ticket_after_ty(channel, user, robux_amount=None, customer_name
         if credit_channel:
             credit_embed_ch = discord.Embed(
                 title="🎉 ส่งของเรียบร้อย",
-                description=f"{user.mention if user else 'ลูกค้า'} ได้รับสินค้าแล้ว\n\nพิมพ์ +1 ให้เครดิตด้วยนะคะ ⭐",
+                description=f"{user.mention if user else 'ลูกค้า'} ได้รับสินค้าแล้ว\n\n +1 ให้เครดิตด้วยนะคะ ⭐",
                 color=0x00FF00
             )
             credit_msg = await credit_channel.send(embed=credit_embed_ch)
@@ -1022,7 +1022,7 @@ class DeliveryView(View):
             
             if not delivery_image:
                 await i.response.send_message(
-                    "❌ ผู้ส่งสินค้าต้องแนบไฟล์หลักฐานการส่งสินค้าก่อน !", 
+                    "❌ ผู้ส่งสินค้าต้องแนบหลักฐานการส่งสินค้าก่อน !", 
                     ephemeral=True
                 )
                 return
@@ -1120,7 +1120,7 @@ class DeliveryView(View):
             
             async def edit_cb(interaction):
                 await interaction.response.send_message(
-                    "📝 กรุณาแนบไฟล์หลักฐานการส่งสินค้าใหม่ แล้วกดปุ่ม 'ส่งสินค้าแล้ว ✅' อีกครั้ง", 
+                    "📝 กรุณาแนบหลักฐานการส่งสินค้า แล้วกดปุ่ม 'ส่งสินค้าแล้ว ✅' อีกครั้ง", 
                     ephemeral=True
                 )
             
@@ -1198,7 +1198,7 @@ async def close_cmd(ctx):
     await update_main_channel()
     
     embed = discord.Embed(
-        title="🔴 ปิดร้านเรียบร้อย", 
+        title="🔴 ปิดร้านแล้ว", 
         description="ร้าน Sushi Shop ปิดให้บริการชั่วคราว", 
         color=0xFF0000
     )
@@ -1223,7 +1223,7 @@ async def shop_open_cmd(ctx):
     await update_main_channel()
     
     embed = discord.Embed(
-        title="✅ เปิดร้านเรียบร้อย", 
+        title="✅ เปิดร้านแล้ว", 
         description="ร้าน Sushi Shop เปิดให้บริการแล้ว", 
         color=0x00FF00
     )
@@ -1345,8 +1345,8 @@ async def group(ctx, status=None):
     elif status.lower() in ["on", "enable", "เปิด"]:
         group_ticket_enabled = True
         embed = discord.Embed(
-            title="✅ เปิดปุ่มตั๋วโรกลุ่ม", 
-            description="เปิดปุ่มตั๋วโรกลุ่มแล้ว", 
+            title="✅ เปิดโรกลุ่ม", 
+            description="เปิดตั๋วโรกลุ่มแล้ว", 
             color=0x00FF00
         )
         await ctx.send(embed=embed)
@@ -1355,8 +1355,8 @@ async def group(ctx, status=None):
     elif status.lower() in ["off", "disable", "ปิด"]:
         group_ticket_enabled = False
         embed = discord.Embed(
-            title="❌ ปิดปุ่มตั๋วโรกลุ่ม", 
-            description="ปิดปุ่มตั๋วโรกลุ่มแล้ว", 
+            title="❌ ปิดโรกลุ่ม", 
+            description="ปิดตั๋วโรกลุ่มแล้ว", 
             color=0xFF0000
         )
         await ctx.send(embed=embed)
@@ -1642,7 +1642,7 @@ async def qr(ctx):
         color=0x00CCFF
     )
     embed.add_field(
-        name="1. ชื่อบัญชี (ธนาคาร SCB)", 
+        name="1. ชื่อบัญชี (ไทยพานิชย์ SCB)", 
         value="**หจก. วอเตอร์ เทค เซลล์ แอนด์ เซอร์วิส**", 
         inline=False
     )
@@ -1821,7 +1821,6 @@ async def sync(ctx):
     except Exception as e:
         await ctx.send(f"❌ Error: {e}")
 
-# ==================== RNG GACHA GAME (SLASH COMMANDS ONLY) ====================
 # ==================== RNG GACHA GAME (SLASH COMMANDS ONLY) ====================
 ITEMS = {
     # Common (50%) - 25 ชิ้น
@@ -2858,4 +2857,3 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ Error running bot: {e}")
         traceback.print_exc()
-
