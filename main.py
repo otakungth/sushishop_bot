@@ -1,6 +1,8 @@
 import os, datetime, discord, re, asyncio, json, traceback, time, aiohttp, logging
 import random
 import math
+import signal
+import sys
 from discord.ext import commands, tasks
 from discord.ui import View, Button, Modal, TextInput, Select
 from discord import app_commands
@@ -60,6 +62,7 @@ ticket_robux_data_file = "ticket_robux_data.json"
 ticket_customer_data_file = "ticket_customer_data.json"
 rng_inventory_file = "rng_inventory.json"
 rng_balance_file = "rng_balance.json"
+stock_file = "stock_values.json"
 
 user_data = {}
 ticket_transcripts = {}
@@ -108,6 +111,82 @@ def save_json(file, data):
         print(f"❌ Error saving {file}: {e}")
         return False
 
+# ==================== STOCK SAVE/LOAD FUNCTIONS ====================
+def save_stock_values():
+    """Save current stock values to a file"""
+    stock_data = {
+        "gamepass_stock": gamepass_stock,
+        "group_stock": group_stock,
+        "gamepass_rate": gamepass_rate,
+        "group_rate_low": group_rate_low,
+        "group_rate_high": group_rate_high,
+        "shop_open": shop_open,
+        "group_ticket_enabled": group_ticket_enabled
+    }
+    save_json(stock_file, stock_data)
+    print(f"✅ Stock values saved")
+
+def load_stock_values():
+    """Load stock values from file"""
+    global gamepass_stock, group_stock, gamepass_rate, group_rate_low, group_rate_high, shop_open, group_ticket_enabled
+    stock_data = load_json(stock_file, {})
+    if stock_data:
+        gamepass_stock = stock_data.get("gamepass_stock", 50000)
+        group_stock = stock_data.get("group_stock", 0)
+        gamepass_rate = stock_data.get("gamepass_rate", 6.5)
+        group_rate_low = stock_data.get("group_rate_low", 4)
+        group_rate_high = stock_data.get("group_rate_high", 4.5)
+        shop_open = stock_data.get("shop_open", True)
+        group_ticket_enabled = stock_data.get("group_ticket_enabled", True)
+        print(f"✅ Loaded stock values from {stock_file}")
+
+# ==================== SAVE ALL DATA FUNCTIONS ====================
+async def save_all_data():
+    """Save all bot data to JSON files"""
+    save_json(user_data_file, user_data)
+    save_json(ticket_transcripts_file, ticket_transcripts)
+    save_json(ticket_robux_data_file, ticket_robux_data)
+    save_json(ticket_customer_data_file, ticket_customer_data)
+    save_json(rng_inventory_file, load_inventory())
+    save_json(rng_balance_file, load_balances())
+    save_stock_values()
+    print(f"✅ All data saved at {get_thailand_time().strftime('%H:%M:%S')}")
+
+def save_all_data_sync():
+    """Sync version of save_all_data for shutdown handler"""
+    save_json(user_data_file, user_data)
+    save_json(ticket_transcripts_file, ticket_transcripts)
+    save_json(ticket_robux_data_file, ticket_robux_data)
+    save_json(ticket_customer_data_file, ticket_customer_data)
+    save_json(rng_inventory_file, load_inventory())
+    save_json(rng_balance_file, load_balances())
+    save_stock_values()
+    print("✅ All data saved (sync)")
+
+# ==================== SHUTDOWN HANDLER ====================
+async def shutdown_handler(signal_received=None):
+    """Handle graceful shutdown - save all data before exiting"""
+    print("\n⚠️ กำลังปิดระบบอย่างปลอดภัย...")
+    print("💾 กำลังบันทึกข้อมูลทั้งหมด...")
+    
+    # Save all data
+    save_all_data_sync()
+    
+    print("✅ บันทึกข้อมูลเรียบร้อย!")
+    print("👋 ลาก่อน!")
+    
+    # Close bot connection
+    await bot.close()
+    
+    # Exit
+    if signal_received:
+        sys.exit(0)
+
+def setup_shutdown_handlers():
+    """Setup signal handlers for graceful shutdown"""
+    signal.signal(signal.SIGINT, lambda s, f: asyncio.create_task(shutdown_handler(s)))
+    signal.signal(signal.SIGTERM, lambda s, f: asyncio.create_task(shutdown_handler(s)))
+
 # ==================== RATE LIMITER ====================
 class RateLimiter:
     def __init__(self, max_calls=1, period=1.0):
@@ -137,19 +216,37 @@ class MyBot(commands.Bot):
         self.api_rate_limiter = RateLimiter()
         self.react_rate_limiter = RateLimiter(1, 0.5)
         self.channel_edit_rate_limiter = RateLimiter(1, 5)
-        self.command_rate_limiter = RateLimiter(1, 2)  # Add rate limiter for commands
+        self.command_rate_limiter = RateLimiter(1, 2)
         self.ticket_counter = load_json(ticket_counter_file, {"counter": 1, "date": get_thailand_time().strftime("%d%m%y")})
         self.stock_message = None
         self.main_channel_message = None
         self.pawn_data = {}
+        
+        # Load all data on startup
+        self.load_all_data()
     
-    async def setup_hook(self):
+    def load_all_data(self):
+        """Load all data from JSON files"""
         global user_data, ticket_transcripts, ticket_robux_data, ticket_customer_data
+        
+        # Load user data
         user_data = load_json(user_data_file, {})
         ticket_transcripts = load_json(ticket_transcripts_file, {})
         ticket_robux_data = load_json(ticket_robux_data_file, {})
         ticket_customer_data = load_json(ticket_customer_data_file, {})
-        print(f"✅ Loaded data: {len(user_data)} users, {len(ticket_transcripts)} tickets")
+        
+        # Load stock values
+        load_stock_values()
+        
+        print(f"✅ Loaded all data:")
+        print(f"   - {len(user_data)} users")
+        print(f"   - {len(ticket_transcripts)} tickets")
+        print(f"   - Stock: GP={gamepass_stock}, Group={group_stock}")
+        print(f"   - Rates: GP={gamepass_rate}, Group={group_rate_low}-{group_rate_high}")
+    
+    async def setup_hook(self):
+        global user_data, ticket_transcripts, ticket_robux_data, ticket_customer_data
+        print(f"✅ Setup hook completed")
 
 bot = MyBot()
 
@@ -189,7 +286,7 @@ async def add_exp(user_id, exp_amount, guild):
             break
     
     user_data[user_id]["level"] = new_level
-    save_json(user_data_file, user_data)
+    save_json(user_data_file, user_data)  # Save immediately
     
     if new_level != old_level:
         member = guild.get_member(int(user_id))
@@ -388,6 +485,9 @@ async def handle_open_ticket(interaction, category_name, stock_type):
             async with bot.stock_lock:
                 group_stock -= 1
         
+        # Save stock immediately
+        save_stock_values()
+        
         await update_main_channel()
         
         view = View()
@@ -526,7 +626,7 @@ async def save_ticket_transcript(channel, action_by=None, robux_amount=None, cus
         print(f"❌ Error saving transcript: {e}")
         return False, str(e)
 
-# ==================== ฟังก์ชันย้ายไป category ส่งของแล้ว (UPDATED - NO CATEGORY CREATION) ====================
+# ==================== ฟังก์ชันย้ายไป category ส่งของแล้ว ====================
 async def move_to_delivered_category(channel, user):
     try:
         guild = channel.guild
@@ -747,7 +847,7 @@ async def check_credit_channel_changes():
     except Exception as e:
         print(f"❌ Error checking credit channel: {e}")
 
-# ==================== HANDLE TICKET AFTER TY (UPDATED - NO CATEGORY CREATION) ====================
+# ==================== HANDLE TICKET AFTER TY ====================
 async def handle_ticket_after_ty(channel, user, robux_amount=None, customer_name=None):
     try:
         print(f"📝 กำลังจัดการตั๋วหลัง !vouch: {channel.name}")
@@ -1116,7 +1216,7 @@ class DeliveryView(View):
                     await self.channel.send(embed=receipt_embed)
                     await self.channel.send("✅ **ส่งสินค้าเรียบร้อย**")
                     
-                    # ========== ส่งใบเสร็จไปยัง DM ผู้ซื้อ (เฉพาะเมื่อกดปุ่มส่งของแล้ว) ==========
+                    # ========== ส่งใบเสร็จไปยัง DM ผู้ซื้อ ==========
                     if self.buyer:
                         try:
                             dm_embed = discord.Embed(
@@ -1205,8 +1305,10 @@ async def open_cmd(ctx):
     except:
         pass
     
-    # Add rate limiting
     await bot.command_rate_limiter.acquire()
+    
+    # Save immediately
+    save_stock_values()
     
     await update_channel_name()
     await update_main_channel()
@@ -1232,8 +1334,10 @@ async def close_cmd(ctx):
     except:
         pass
     
-    # Add rate limiting
     await bot.command_rate_limiter.acquire()
+    
+    # Save immediately
+    save_stock_values()
     
     await update_channel_name()
     await update_main_channel()
@@ -1260,6 +1364,9 @@ async def shop_open_cmd(ctx):
     
     await bot.command_rate_limiter.acquire()
     
+    # Save immediately
+    save_stock_values()
+    
     await update_channel_name()
     await update_main_channel()
     
@@ -1284,6 +1391,9 @@ async def shop_close_cmd(ctx):
         pass
     
     await bot.command_rate_limiter.acquire()
+    
+    # Save immediately
+    save_stock_values()
     
     await update_channel_name()
     await update_main_channel()
@@ -1330,6 +1440,8 @@ async def stock(ctx, stock_type=None, amount=None):
         else:
             try:
                 gamepass_stock = int(amount.replace(",", ""))
+                # Save stock values
+                save_stock_values()
                 embed = discord.Embed(
                     title="✅ ตั้งค่า Stock เรียบร้อย", 
                     description=f"ตั้งค่า สต๊อกเกมพาส เป็น **{gamepass_stock:,}** เรียบร้อยแล้ว", 
@@ -1347,6 +1459,8 @@ async def stock(ctx, stock_type=None, amount=None):
         else:
             try:
                 group_stock = int(amount.replace(",", ""))
+                # Save stock values
+                save_stock_values()
                 embed = discord.Embed(
                     title="✅ ตั้งค่า Stock เรียบร้อย", 
                     description=f"ตั้งค่า สต๊อกโรบัคกลุ่ม เป็น **{group_stock:,}** เรียบร้อยแล้ว", 
@@ -1385,6 +1499,8 @@ async def group(ctx, status=None):
         
     elif status.lower() in ["on", "enable", "เปิด"]:
         group_ticket_enabled = True
+        # Save immediately
+        save_stock_values()
         embed = discord.Embed(
             title="✅ เปิดโรกลุ่ม", 
             description="เปิดตั๋วโรกลุ่มแล้ว", 
@@ -1395,6 +1511,8 @@ async def group(ctx, status=None):
         
     elif status.lower() in ["off", "disable", "ปิด"]:
         group_ticket_enabled = False
+        # Save immediately
+        save_stock_values()
         embed = discord.Embed(
             title="❌ ปิดโรกลุ่ม", 
             description="ปิดตั๋วโรกลุ่มแล้ว", 
@@ -1439,6 +1557,8 @@ async def rate(ctx, rate_type=None, low_rate=None, high_rate=None):
         try:
             group_rate_low = float(low_rate)
             group_rate_high = float(high_rate)
+            # Save immediately
+            save_stock_values()
             embed = discord.Embed(
                 title="✅ เปลี่ยนเรทโรกลุ่มเรียบร้อย", 
                 description=f"ตั้งค่าเรทโรกลุ่มเป็น **{group_rate_low} - {group_rate_high}** เรียบร้อยแล้ว", 
@@ -1452,6 +1572,8 @@ async def rate(ctx, rate_type=None, low_rate=None, high_rate=None):
     else:
         try:
             gamepass_rate = float(rate_type)
+            # Save immediately
+            save_stock_values()
             embed = discord.Embed(
                 title="✅ เปลี่ยนเรทเกมพาสเรียบร้อย", 
                 description=f"ตั้งค่าเรทเกมพาสเป็น **{gamepass_rate}** เรียบร้อยแล้ว", 
@@ -1518,6 +1640,9 @@ async def vouch(ctx):
             elif "group" in category_name or "robux" in category_name:
                 async with bot.stock_lock:
                     group_stock += 1
+        
+        # Save stock immediately
+        save_stock_values()
         
         await processing_msg.delete()
         
@@ -1598,6 +1723,9 @@ async def od(ctx, *, expr):
         async with bot.stock_lock:
             gamepass_stock = max(0, gamepass_stock - robux)
         
+        # Save stock immediately
+        save_stock_values()
+        
         ticket_robux_data[str(ctx.channel.id)] = str(robux)
         save_json(ticket_robux_data_file, ticket_robux_data)
         
@@ -1608,8 +1736,6 @@ async def od(ctx, *, expr):
         embed.set_footer(text=f"รับออร์เดอร์แล้ว 🤗 • {get_thailand_time().strftime('%d/%m/%y, %H:%M')}")
         
         await ctx.send(embed=embed, view=DeliveryView(ctx.channel, "Gamepass", robux, price, buyer))
-        
-        # REMOVED: ใบเสร็จจะส่งตอนกดปุ่มส่งของแล้วเท่านั้น ไม่ส่งตอนนี้
         
         await update_main_channel()
         
@@ -1652,6 +1778,9 @@ async def odg(ctx, *, expr):
         async with bot.stock_lock:
             group_stock = max(0, group_stock - robux)
         
+        # Save stock immediately
+        save_stock_values()
+        
         ticket_robux_data[str(ctx.channel.id)] = str(robux)
         save_json(ticket_robux_data_file, ticket_robux_data)
         
@@ -1662,8 +1791,6 @@ async def odg(ctx, *, expr):
         embed.set_footer(text=f"รับออร์เดอร์แล้ว 🤗 • {get_thailand_time().strftime('%d/%m/%y, %H:%M')}")
         
         await ctx.send(embed=embed, view=DeliveryView(ctx.channel, "Group", robux, price, buyer))
-        
-        # REMOVED: ใบเสร็จจะส่งตอนกดปุ่มส่งของแล้วเท่านั้น ไม่ส่งตอนนี้
         
         await update_main_channel()
         
@@ -1851,6 +1978,14 @@ async def fixcredit(ctx):
     await verify_credit_channel_count()
     await ctx.send("✅ ตรวจสอบเสร็จสิ้น!")
 
+@bot.command()
+@admin_only()
+async def saveall(ctx):
+    """บันทึกข้อมูลทั้งหมดทันที"""
+    await ctx.send("💾 กำลังบันทึกข้อมูลทั้งหมด...")
+    await save_all_data()
+    await ctx.send("✅ บันทึกข้อมูลเรียบร้อย!")
+
 # ==================== SYNC COMMANDS ====================
 @bot.command()
 @admin_only()
@@ -1864,7 +1999,7 @@ async def sync(ctx):
 
 # ==================== RNG GACHA GAME (SLASH COMMANDS ONLY) ====================
 ITEMS = {
-    # Common (50%) - 25 ชิ้น
+    # Common (50%) - 50 ชิ้น
     "common_1": {"name": "🍎 แอปเปิ้ล", "rarity": "common", "emoji": "🍎", "value": 1},
     "common_2": {"name": "🍌 กล้วย", "rarity": "common", "emoji": "🍌", "value": 1},
     "common_3": {"name": "🍒 เชอร์รี่", "rarity": "common", "emoji": "🍒", "value": 1},
@@ -1916,7 +2051,7 @@ ITEMS = {
     "common_49": {"name": "🍢 ลูกชิ้นเสียบไม้", "rarity": "common", "emoji": "🍢", "value": 1},
     "common_50": {"name": "🥞 แพนเค้ก", "rarity": "common", "emoji": "🥞", "value": 1},
     
-    # Rare (45%) - 15 ชิ้น
+    # Rare (45%) - 40 ชิ้น
     "rare_1": {"name": "⚔️ ดาบคู่", "rarity": "rare", "emoji": "⚔️", "value": 5},
     "rare_2": {"name": "🛡️ โล่", "rarity": "rare", "emoji": "🛡️", "value": 5},
     "rare_3": {"name": "🏹 ธนู", "rarity": "rare", "emoji": "🏹", "value": 5},
@@ -2047,7 +2182,6 @@ def add_item_to_inventory(user_id: str, item_id: str, amount: int = 1):
         inventory[user_id][item_id] = amount
     
     save_inventory(inventory)
-    print(f"✅ เพิ่ม {item_id} ให้ {user_id}")
     return True
 
 def remove_item_from_inventory(user_id: str, item_id: str, amount: int = 1) -> bool:
@@ -2122,10 +2256,10 @@ class RNGMainView(View):
         )
         embed.set_footer(text=f"ความหายาก: {item['rarity'].upper()} | ไอเทมทั้งหมด: {total_items} ชิ้น | 🪙 {balance}")
         
-        # สร้าง View สำหรับปุ่ม "สุ่มต่อ" ที่จะแก้ไข embed เดิม
+        # สร้าง View สำหรับปุ่ม "สุ่มต่อ"
         roll_again_view = RollAgainView(self.user, embed)
         
-        # แก้ไข embed เดิมแทนการส่งใหม่
+        # แก้ไข embed เดิม
         await interaction.response.edit_message(embed=embed, view=roll_again_view)
         
     @discord.ui.button(label="📦 ดู Inventory", style=discord.ButtonStyle.primary, emoji="📦", row=0)
@@ -2313,7 +2447,7 @@ class RollAgainView(View):
         )
         new_embed.set_footer(text=f"ความหายาก: {item['rarity'].upper()} | ไอเทมทั้งหมด: {total_items} ชิ้น | 🪙 {balance}")
         
-        # สร้าง View ใหม่สำหรับสุ่มต่อ (เพื่อป้องกัน interaction failed)
+        # สร้าง View ใหม่สำหรับสุ่มต่อ
         new_roll_view = RollAgainView(self.user, new_embed)
         
         # แก้ไข embed เดิม
@@ -2358,7 +2492,7 @@ class PawnShopMainView(View):
                 color=0x808080
             )
             
-            # Add "เล่นต่อ" button here
+            # Add "เล่นต่อ" button
             continue_view = View(timeout=60)
             continue_btn = Button(label="เล่นต่อ", emoji="🎮", style=discord.ButtonStyle.primary)
             
@@ -2745,7 +2879,7 @@ class PawnShopSlashView(View):
         user_id = str(interaction.user.id)
         new_satisfaction, emoji = self.customer.calculate_price_satisfaction(self.current_price, self.base_price)
         
-        # ตรวจสอบว่าดีลสำเร็จหรือไม่ (ใช้ฟังก์ชันใหม่ที่มีโอกาสสำเร็จ)
+        # ตรวจสอบว่าดีลสำเร็จหรือไม่
         deal_success = self.check_deal_success(new_satisfaction)
         
         if deal_success:
@@ -3096,10 +3230,7 @@ async def update_presence():
 
 @tasks.loop(minutes=5)
 async def save_data():
-    save_json(user_data_file, user_data)
-    save_json(ticket_transcripts_file, ticket_transcripts)
-    save_json(ticket_robux_data_file, ticket_robux_data)
-    save_json(ticket_customer_data_file, ticket_customer_data)
+    await save_all_data()
 
 @tasks.loop(minutes=10)
 async def update_credit_channel_task():
@@ -3110,7 +3241,7 @@ async def update_credit_channel_task():
 async def on_ready():
     print(f"✅ บอทออนไลน์แล้ว: {bot.user} (ID: {bot.user.id})")
     
-    # Change bot bio
+    # Change bot bio to the new one
     await bot.change_presence(
         activity=discord.Game(name="บอทเครื่องคิดเลขและเกม RNG ของ wforr")
     )
@@ -3127,9 +3258,6 @@ async def on_ready():
     except Exception as e:
         print(f"❌ Error syncing commands: {e}")
         print("⚠️ กรุณาใช้คำสั่ง !sync เพื่อลอง sync อีกครั้ง")
-    
-    activity_text = f"ร้าน Sushi Shop | GP: {gamepass_stock:,} | Group: {group_stock:,}"
-    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name=activity_text))
     
     update_presence.start()
     save_data.start()
@@ -3176,6 +3304,10 @@ async def on_bulk_message_delete(messages):
 # ==================== START ====================
 if __name__ == "__main__":
     keep_alive()
+    
+    # Setup shutdown handlers
+    setup_shutdown_handlers()
+    
     print("⏳ รอ 30 วินาทีก่อนเริ่มบอท...")
     time.sleep(30)
     
