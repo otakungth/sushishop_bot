@@ -79,18 +79,6 @@ credit_channel_update_task_running = False
 credit_channel_last_update = 0
 credit_channel_update_lock = asyncio.Lock()
 
-LEVELS = {
-    1: {"exp": 1, "role_id": 1361555369825927249},
-    2: {"exp": 5000, "role_id": 1432070662977093703},
-    3: {"exp": 10000, "role_id": 1361555364776247297},
-    4: {"exp": 20000, "role_id": 1432075600746643537},
-    5: {"exp": 50000, "role_id": 1432075369179254804},
-    6: {"exp": 100000, "role_id": 1361554929017294949},
-    7: {"exp": 250000, "role_id": 1432077732862492722},
-    8: {"exp": 500000, "role_id": 1363882685260365894},
-    9: {"exp": 1000000, "role_id": 1406309272786047106}
-}
-
 # ==================== FILE HANDLERS ====================
 def load_json(file, default): 
     try:
@@ -271,38 +259,6 @@ def admin_only():
         return False
     return commands.check(predicate)
 
-async def add_exp(user_id, exp_amount, guild):
-    user_id = str(user_id)
-    if user_id not in user_data:
-        user_data[user_id] = {"exp": 0, "level": 0}
-    user_data[user_id]["exp"] += exp_amount
-    
-    old_level = user_data[user_id]["level"]
-    new_level = 0
-    
-    for lvl, data in sorted(LEVELS.items(), reverse=True):
-        if user_data[user_id]["exp"] >= data["exp"]:
-            new_level = lvl
-            break
-    
-    user_data[user_id]["level"] = new_level
-    save_json(user_data_file, user_data)  # Save immediately
-    
-    if new_level != old_level:
-        member = guild.get_member(int(user_id))
-        if member:
-            if old_level > 0:
-                old_role = guild.get_role(LEVELS[old_level]["role_id"])
-                if old_role and old_role in member.roles:
-                    await member.remove_roles(old_role)
-            
-            if new_level > 0:
-                new_role = guild.get_role(LEVELS[new_level]["role_id"])
-                if new_role and new_role not in member.roles:
-                    await member.add_roles(new_role)
-    
-    return new_level, user_data[user_id]["exp"]
-
 # ==================== CHANNEL NAME UPDATE ====================
 async def update_channel_name():
     try:
@@ -364,7 +320,7 @@ async def update_main_channel():
             group_btn = Button(label="เติมโรกลุ่ม", style=discord.ButtonStyle.success, emoji="👥")
         
         notes_btn = Button(label="จดวันที่เข้ากลุ่ม", style=discord.ButtonStyle.secondary, emoji="📝")
-        level_btn = Button(label="เลเวลของคุณ", style=discord.ButtonStyle.primary, emoji="⭐")
+        rng_btn = Button(label="เล่นเกม RNG", style=discord.ButtonStyle.primary, emoji="🎲")
         
         async def gamepass_cb(i):
             await handle_open_ticket(i, "🍣Sushi Gamepass 🍣", "gamepass")
@@ -375,18 +331,26 @@ async def update_main_channel():
         async def notes_cb(i):
             await i.response.send_modal(PersonalNoteModal())
         
-        async def level_cb(i):
-            await check_user_level(i)
+        async def rng_cb(i):
+            embed = discord.Embed(
+                title="🎲 RNG Sushi Shop",
+                description="ยินดีต้อนรับสู่เกมสุ่มไอเทม!\n\nเลือกปุ่มด้านล่างเพื่อเริ่มเล่น",
+                color=0x00AAFF
+            )
+            embed.add_field(name="📊 อัตราการสุ่ม", value="🟤 Common 75% | 🔵 Rare 20% | 🟡 Legendary 5%", inline=False)
+            embed.set_footer(text=f"ผู้เล่น: {i.user.display_name}")
+            
+            await i.response.send_message(embed=embed, view=RNGMainView(i.user), ephemeral=True)
         
         gamepass_btn.callback = gamepass_cb
         group_btn.callback = group_cb
         notes_btn.callback = notes_cb
-        level_btn.callback = level_cb
+        rng_btn.callback = rng_cb
         
         view.add_item(gamepass_btn)
         view.add_item(group_btn)
         view.add_item(notes_btn)
-        view.add_item(level_btn)
+        view.add_item(rng_btn)
         
         if bot.main_channel_message:
             try:
@@ -959,47 +923,6 @@ async def move_to_archive_after_delay(channel, user, delay_seconds):
                 
     except Exception as e:
         print(f"❌ Error moving to archive: {e}")
-
-# ==================== CHECK USER LEVEL ====================
-async def check_user_level(interaction):
-    user_id = str(interaction.user.id)
-    if user_id not in user_data:
-        user_data[user_id] = {"exp": 0, "level": 0}
-    
-    user_exp = user_data[user_id]["exp"]
-    user_level = user_data[user_id]["level"]
-    
-    embed = discord.Embed(title=f"🍣 ระดับของคุณ {interaction.user.display_name}", color=0x00FF99)
-    
-    if user_level > 0:
-        embed.add_field(name="🎮 ระดับปัจจุบัน", value=f"<@&{LEVELS[user_level]['role_id']}>", inline=True)
-    else:
-        embed.add_field(name="🎮 ระดับปัจจุบัน", value="Level 0", inline=True)
-    
-    embed.add_field(name="⭐ EXP สะสม", value=f"**{user_exp:,} EXP**", inline=True)
-    
-    if user_level < 9:
-        next_exp = LEVELS[user_level + 1]["exp"]
-        embed.add_field(
-            name="🎯 ระดับถัดไป", 
-            value=f"ต้องการอีก **{next_exp - user_exp:,} EXP** เพื่อยศ <@&{LEVELS[user_level + 1]['role_id']}>", 
-            inline=False
-        )
-        
-        current_level_exp = LEVELS[user_level]["exp"] if user_level > 0 else 0
-        progress = user_exp - current_level_exp
-        total = next_exp - current_level_exp
-        
-        if total > 0:
-            pct = (progress / total * 100)
-            bar_count = int(pct / 20)
-            bar = "🟢" * bar_count + "⚫" * (5 - bar_count)
-            embed.add_field(name="🌱 ความคืบหน้า", value=f"{bar} {pct:.1f}%", inline=False)
-    else:
-        embed.add_field(name="🏆 สูงสุดแล้ว!", value="คุณถึงระดับสูงสุดแล้ว! 🎉", inline=False)
-    
-    embed.set_footer(text="ได้รับ EXP จากการซื้อสินค้าในร้าน")
-    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 # ==================== MODALS ====================
 class PersonalNoteModal(Modal, title="📝 จดวันที่เข้ากลุ่ม"):
@@ -1717,9 +1640,6 @@ async def od(ctx, *, expr):
                     buyer = msg.author
                     break
         
-        if buyer:
-            await add_exp(buyer.id, robux, ctx.guild)
-        
         async with bot.stock_lock:
             gamepass_stock = max(0, gamepass_stock - robux)
         
@@ -1771,9 +1691,6 @@ async def odg(ctx, *, expr):
                 if not msg.author.bot and msg.author != ctx.guild.me:
                     buyer = msg.author
                     break
-        
-        if buyer:
-            await add_exp(buyer.id, robux, ctx.guild)
         
         async with bot.stock_lock:
             group_stock = max(0, group_stock - robux)
@@ -1894,52 +1811,6 @@ async def tax(ctx, *, expr):
             )
     except:
         await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง", delete_after=5)
-
-@bot.command()
-async def level(ctx, member=None):
-    if isinstance(member, str):
-        member = ctx.guild.get_member_named(member) or ctx.author
-    elif member is None:
-        member = ctx.author
-    
-    user_id = str(member.id)
-    if user_id not in user_data:
-        user_data[user_id] = {"exp": 0, "level": 0}
-    
-    user_exp = user_data[user_id]["exp"]
-    user_level = user_data[user_id]["level"]
-    
-    embed = discord.Embed(title=f"🍣 ระดับของคุณ {member.display_name}", color=0x00FF99)
-    
-    if user_level > 0:
-        embed.add_field(name="🎮 ระดับปัจจุบัน", value=f"<@&{LEVELS[user_level]['role_id']}>", inline=True)
-    else:
-        embed.add_field(name="🎮 ระดับปัจจุบัน", value="Level 0", inline=True)
-    
-    embed.add_field(name="⭐ EXP สะสม", value=f"**{user_exp:,} EXP**", inline=True)
-    
-    if user_level < 9:
-        next_exp = LEVELS[user_level + 1]["exp"]
-        embed.add_field(
-            name="🎯 ระดับถัดไป", 
-            value=f"ต้องการอีก **{next_exp - user_exp:,} EXP** เพื่อยศ <@&{LEVELS[user_level + 1]['role_id']}>", 
-            inline=False
-        )
-        
-        current_level_exp = LEVELS[user_level]["exp"] if user_level > 0 else 0
-        progress = user_exp - current_level_exp
-        total = next_exp - current_level_exp
-        
-        if total > 0:
-            pct = (progress / total * 100)
-            bar_count = int(pct / 20)
-            bar = "🟢" * bar_count + "⚫" * (5 - bar_count)
-            embed.add_field(name="🌱 ความคืบหน้า", value=f"{bar} {pct:.1f}%", inline=False)
-    else:
-        embed.add_field(name="🏆 สูงสุดแล้ว!", value="คุณถึงระดับสูงสุดแล้ว! 🎉", inline=False)
-    
-    embed.set_footer(text="ได้รับ EXP จากการซื้อสินค้าในร้าน")
-    await ctx.send(embed=embed)
 
 @bot.command()
 async def love(ctx):
@@ -2813,7 +2684,7 @@ class PawnShopSlashView(View):
                 if success:
                     new_balance = add_user_balance(user_id, self.current_price)
                     
-                    # Create continue view without "เล่นต่อ" button
+                    # Create continue view that goes back to Pawn Shop main menu
                     embed = discord.Embed(
                         title=f"🤝 ดีลสำเร็จ! {emoji}",
                         description=f"✅ ดีลสำเร็จ! คุณขาย {self.item['emoji']} **{self.item['name']}** ในราคา {self.current_price:,} 🪙\n💰 ยอดเงินปัจจุบัน: {new_balance} 🪙",
@@ -2822,7 +2693,7 @@ class PawnShopSlashView(View):
                     
                     continue_view = View(timeout=60)
                     
-                    # Add back button to return to main RNG
+                    # Add back button to return to Pawn Shop main menu
                     continue_btn = Button(label="🏪 Sushi Shop", emoji="🏪", style=discord.ButtonStyle.primary)
                     
                     async def continue_callback(cont_interaction):
@@ -2830,15 +2701,16 @@ class PawnShopSlashView(View):
                             await cont_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
                             return
                         
-                        main_embed = discord.Embed(
-                            title="🎲 RNG Sushi Shop",
-                            description="ยินดีต้อนรับสู่เกมสุ่มไอเทม!\n\nเลือกปุ่มด้านล่างเพื่อเริ่มเล่น",
+                        # Go back to Pawn Shop main menu
+                        embed = discord.Embed(
+                            title="🏪 Sushi Shop",
+                            description="เลือกประเภทการค้าขายที่ต้องการ",
                             color=0x00AAFF
                         )
-                        main_embed.add_field(name="📊 อัตราการสุ่ม", value="🟤 Common 75% | 🔵 Rare 20% | 🟡 Legendary 5%", inline=False)
-                        main_embed.set_footer(text=f"ผู้เล่น: {self.user.display_name}")
+                        embed.add_field(name="💰 ระบบราคา", value="🟤 Common: 1 - 1,000 🪙\n🔵 Rare: 1,001 - 10,000 🪙\n🟡 Legendary: 10,001 - 100,000 🪙", inline=False)
+                        embed.add_field(name="💰 ยอดเงินคุณ", value=f"**{get_user_balance(str(cont_interaction.user.id))}** 🪙", inline=False)
                         
-                        await cont_interaction.response.edit_message(embed=main_embed, view=RNGMainView(self.user))
+                        await cont_interaction.response.edit_message(embed=embed, view=PawnShopMainView(self.user))
                     
                     continue_btn.callback = continue_callback
                     continue_view.add_item(continue_btn)
@@ -2854,7 +2726,7 @@ class PawnShopSlashView(View):
                     add_item_to_inventory(user_id, self.item_id)
                     new_balance = get_user_balance(user_id)
                     
-                    # Create continue view without "เล่นต่อ" button
+                    # Create continue view that goes back to Pawn Shop main menu
                     embed = discord.Embed(
                         title=f"🤝 ดีลสำเร็จ! {emoji}",
                         description=f"✅ ดีลสำเร็จ! คุณซื้อ {self.item['emoji']} **{self.item['name']}** ในราคา {self.current_price:,} 🪙\n💰 ยอดเงินปัจจุบัน: {new_balance} 🪙",
@@ -2863,7 +2735,7 @@ class PawnShopSlashView(View):
                     
                     continue_view = View(timeout=60)
                     
-                    # Add back button to return to main RNG
+                    # Add back button to return to Pawn Shop main menu
                     continue_btn = Button(label="🏪 Sushi Shop", emoji="🏪", style=discord.ButtonStyle.primary)
                     
                     async def continue_callback(cont_interaction):
@@ -2871,15 +2743,16 @@ class PawnShopSlashView(View):
                             await cont_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
                             return
                         
-                        main_embed = discord.Embed(
-                            title="🎲 RNG Sushi Shop",
-                            description="ยินดีต้อนรับสู่เกมสุ่มไอเทม!\n\nเลือกปุ่มด้านล่างเพื่อเริ่มเล่น",
+                        # Go back to Pawn Shop main menu
+                        embed = discord.Embed(
+                            title="🏪 Sushi Shop",
+                            description="เลือกประเภทการค้าขายที่ต้องการ",
                             color=0x00AAFF
                         )
-                        main_embed.add_field(name="📊 อัตราการสุ่ม", value="🟤 Common 75% | 🔵 Rare 20% | 🟡 Legendary 5%", inline=False)
-                        main_embed.set_footer(text=f"ผู้เล่น: {self.user.display_name}")
+                        embed.add_field(name="💰 ระบบราคา", value="🟤 Common: 1 - 1,000 🪙\n🔵 Rare: 1,001 - 10,000 🪙\n🟡 Legendary: 10,001 - 100,000 🪙", inline=False)
+                        embed.add_field(name="💰 ยอดเงินคุณ", value=f"**{get_user_balance(str(cont_interaction.user.id))}** 🪙", inline=False)
                         
-                        await cont_interaction.response.edit_message(embed=main_embed, view=RNGMainView(self.user))
+                        await cont_interaction.response.edit_message(embed=embed, view=PawnShopMainView(self.user))
                     
                     continue_btn.callback = continue_callback
                     continue_view.add_item(continue_btn)
@@ -2892,7 +2765,7 @@ class PawnShopSlashView(View):
                     current_balance = get_user_balance(user_id)
                     await interaction.response.send_message(f"❌ เงินไม่พอ! คุณมี {current_balance} 🪙 ต้องการ {self.current_price} 🪙", ephemeral=True)
         else:
-            # Create continue view without "เล่นต่อ" button
+            # Create continue view that goes back to Pawn Shop main menu
             embed = discord.Embed(
                 title="❌ ดีลล้มเหลว",
                 description=f"{emoji} **{self.customer.name}**: ราคานี้ไม่โอเคเลย! ลาก่อน!",
@@ -2901,7 +2774,7 @@ class PawnShopSlashView(View):
             
             continue_view = View(timeout=60)
             
-            # Add back button to return to main RNG
+            # Add back button to return to Pawn Shop main menu
             continue_btn = Button(label="🏪 Sushi Shop", emoji="🏪", style=discord.ButtonStyle.primary)
             
             async def continue_callback(cont_interaction):
@@ -2909,15 +2782,16 @@ class PawnShopSlashView(View):
                     await cont_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
                     return
                 
-                main_embed = discord.Embed(
-                    title="🎲 RNG Sushi Shop",
-                    description="ยินดีต้อนรับสู่เกมสุ่มไอเทม!\n\nเลือกปุ่มด้านล่างเพื่อเริ่มเล่น",
+                # Go back to Pawn Shop main menu
+                embed = discord.Embed(
+                    title="🏪 Sushi Shop",
+                    description="เลือกประเภทการค้าขายที่ต้องการ",
                     color=0x00AAFF
                 )
-                main_embed.add_field(name="📊 อัตราการสุ่ม", value="🟤 Common 75% | 🔵 Rare 20% | 🟡 Legendary 5%", inline=False)
-                main_embed.set_footer(text=f"ผู้เล่น: {self.user.display_name}")
+                embed.add_field(name="💰 ระบบราคา", value="🟤 Common: 1 - 1,000 🪙\n🔵 Rare: 1,001 - 10,000 🪙\n🟡 Legendary: 10,001 - 100,000 🪙", inline=False)
+                embed.add_field(name="💰 ยอดเงินคุณ", value=f"**{get_user_balance(str(cont_interaction.user.id))}** 🪙", inline=False)
                 
-                await cont_interaction.response.edit_message(embed=main_embed, view=RNGMainView(self.user))
+                await cont_interaction.response.edit_message(embed=embed, view=PawnShopMainView(self.user))
             
             continue_btn.callback = continue_callback
             continue_view.add_item(continue_btn)
@@ -2933,7 +2807,7 @@ class PawnShopSlashView(View):
             await interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
             return
         
-        # Create embed without "เล่นต่อ" button inside
+        # Create embed that goes back to Pawn Shop main menu
         embed = discord.Embed(
             title="🚫 ปฏิเสธข้อเสนอ",
             description=f"{self.customer.avatar} **{self.customer.name}**: ไม่เป็นไร ไว้คราวหน้านะครับ/คะ",
@@ -2942,7 +2816,7 @@ class PawnShopSlashView(View):
         
         continue_view = View(timeout=60)
         
-        # Add back button to return to main RNG
+        # Add back button to return to Pawn Shop main menu
         continue_btn = Button(label="🏪 Sushi Shop", emoji="🏪", style=discord.ButtonStyle.primary)
         
         async def continue_callback(cont_interaction):
@@ -2950,15 +2824,16 @@ class PawnShopSlashView(View):
                 await cont_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
                 return
             
-            main_embed = discord.Embed(
-                title="🎲 RNG Sushi Shop",
-                description="ยินดีต้อนรับสู่เกมสุ่มไอเทม!\n\nเลือกปุ่มด้านล่างเพื่อเริ่มเล่น",
+            # Go back to Pawn Shop main menu
+            embed = discord.Embed(
+                title="🏪 Sushi Shop",
+                description="เลือกประเภทการค้าขายที่ต้องการ",
                 color=0x00AAFF
             )
-            main_embed.add_field(name="📊 อัตราการสุ่ม", value="🟤 Common 75% | 🔵 Rare 20% | 🟡 Legendary 5%", inline=False)
-            main_embed.set_footer(text=f"ผู้เล่น: {self.user.display_name}")
+            embed.add_field(name="💰 ระบบราคา", value="🟤 Common: 1 - 1,000 🪙\n🔵 Rare: 1,001 - 10,000 🪙\n🟡 Legendary: 10,001 - 100,000 🪙", inline=False)
+            embed.add_field(name="💰 ยอดเงินคุณ", value=f"**{get_user_balance(str(cont_interaction.user.id))}** 🪙", inline=False)
             
-            await cont_interaction.response.edit_message(embed=main_embed, view=RNGMainView(self.user))
+            await cont_interaction.response.edit_message(embed=embed, view=PawnShopMainView(self.user))
         
         continue_btn.callback = continue_callback
         continue_view.add_item(continue_btn)
@@ -3262,7 +3137,7 @@ if __name__ == "__main__":
     # Setup shutdown handlers
     setup_shutdown_handlers()
     
-    print("⏳ รอ 30 วินาทีก่อนเริ่มบอท...")
+       print("⏳ รอ 30 วินาทีก่อนเริ่มบอท...")
     time.sleep(30)
     
     token = os.getenv("TOKEN")
