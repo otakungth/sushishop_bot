@@ -2104,7 +2104,7 @@ class RNGMainView(View):
         super().__init__(timeout=60)
         self.user = user
         
-    @discord.ui.button(label="🎲 สุ่มไอเทม", style=discord.ButtonStyle.success, emoji="🎲", row=0)
+    @discord.ui.button(label="สุ่มไอเทม", style=discord.ButtonStyle.success, emoji="🎲", row=0)
     async def roll_button(self, interaction: discord.Interaction, button: Button):
         if interaction.user != self.user:
             await interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
@@ -2133,7 +2133,7 @@ class RNGMainView(View):
         # แก้ไข embed เดิม
         await interaction.response.edit_message(embed=embed, view=roll_again_view)
         
-    @discord.ui.button(label="📦 ดู Inventory", style=discord.ButtonStyle.primary, emoji="📦", row=0)
+    @discord.ui.button(label="ดู Inventory", style=discord.ButtonStyle.primary, emoji="📦", row=0)
     async def inventory_button(self, interaction: discord.Interaction, button: Button):
         if interaction.user != self.user:
             await interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
@@ -2215,7 +2215,7 @@ class RNGMainView(View):
         
         await interaction.response.edit_message(embed=embed, view=self)
     
-    @discord.ui.button(label="🏪 Sushi Shop", style=discord.ButtonStyle.secondary, emoji="🏪", row=1)
+    @discord.ui.button(label="ร้านค้าไอเทม", style=discord.ButtonStyle.secondary, emoji="🏪", row=1)
     async def pawnshop_button(self, interaction: discord.Interaction, button: Button):
         if interaction.user != self.user:
             await interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
@@ -2232,7 +2232,7 @@ class RNGMainView(View):
         pawn_view = PawnShopMainView(self.user)
         await interaction.response.edit_message(embed=embed, view=pawn_view)
     
-    @discord.ui.button(label="🏆 อันดับ", style=discord.ButtonStyle.primary, emoji="🏆", row=2)
+    @discord.ui.button(label="Leaderboard", style=discord.ButtonStyle.primary, emoji="🏆", row=2)
     async def leaderboard_button(self, interaction: discord.Interaction, button: Button):
         if interaction.user != self.user:
             await interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
@@ -2254,7 +2254,7 @@ class RNGMainView(View):
         )
         embed.add_field(
             name="🎮 วิธีเล่น",
-            value="1. กด 🎲 เพื่อสุ่มไอเทม\n2. กด 📦 เพื่อดู Inventory\n3. กด 🏪 เพื่อเปิด Pawn Shop\n4. กด 🏆 เพื่อดูอันดับ",
+            value="1. กด 🎲 เพื่อสุ่มไอเทม\n2. กด 📦 เพื่อดู Inventory\n3. กด 🏪 เพื่อเปิดร้านค้าไอเทม\n4. กด 🏆 เพื่อดูอันดับ",
             inline=False
         )
         embed.add_field(
@@ -2277,7 +2277,7 @@ class RollAgainView(View):
         self.user = user
         self.current_embed = current_embed
     
-    @discord.ui.button(label="🎲 สุ่มต่อ", style=discord.ButtonStyle.success, emoji="🎲", row=0)
+    @discord.ui.button(label="สุ่มต่อ", style=discord.ButtonStyle.success, emoji="🎲", row=0)
     async def roll_again_button(self, interaction: discord.Interaction, button: Button):
         if interaction.user != self.user:
             await interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
@@ -2306,7 +2306,7 @@ class RollAgainView(View):
         # แก้ไข embed เดิม
         await interaction.response.edit_message(embed=new_embed, view=new_roll_view)
     
-    @discord.ui.button(label="🔙 กลับ", style=discord.ButtonStyle.secondary, emoji="🔙", row=0)
+    @discord.ui.button(label="กลับ", style=discord.ButtonStyle.secondary, emoji="🔙", row=0)
     async def back_button(self, interaction: discord.Interaction, button: Button):
         if interaction.user != self.user:
             await interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
@@ -2328,7 +2328,7 @@ class PawnShopMainView(View):
         super().__init__(timeout=60)
         self.user = user
     
-    @discord.ui.button(label="💰 ขายไอเทม", style=discord.ButtonStyle.success, emoji="💰", row=0)
+    @discord.ui.button(label="ขายไอเทม", style=discord.ButtonStyle.success, emoji="💰", row=0)
     async def sell_button(self, interaction: discord.Interaction, button: Button):
         if interaction.user != self.user:
             await interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
@@ -2347,7 +2347,7 @@ class PawnShopMainView(View):
             
             # Create continue view without "เล่นต่อ" button
             continue_view = View(timeout=60)
-            back_btn = Button(label="🔙 กลับ", style=discord.ButtonStyle.secondary, emoji="🔙", row=1)
+            back_btn = Button(label="กลับ", style=discord.ButtonStyle.secondary, emoji="🔙", row=1)
             
             async def back_callback(back_interaction):
                 if back_interaction.user != self.user:
@@ -2381,7 +2381,7 @@ class PawnShopMainView(View):
         
         await self.show_random_item_for_sale(interaction)
     
-    @discord.ui.button(label="🔙 กลับ", style=discord.ButtonStyle.secondary, emoji="🔙", row=1)
+    @discord.ui.button(label="กลับ", style=discord.ButtonStyle.secondary, emoji="🔙", row=1)
     async def back_button(self, interaction: discord.Interaction, button: Button):
         if interaction.user != self.user:
             await interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
@@ -2475,7 +2475,7 @@ class PawnShopMainView(View):
         view = View(timeout=60)
         view.add_item(select)
         
-        back_btn = Button(label="🔙 กลับ", style=discord.ButtonStyle.secondary, emoji="🔙", row=2)
+        back_btn = Button(label="กลับ", style=discord.ButtonStyle.secondary, emoji="🔙", row=2)
         
         async def back_callback(back_interaction):
             if back_interaction.user != self.user:
@@ -2694,7 +2694,7 @@ class PawnShopSlashView(View):
                     continue_view = View(timeout=60)
                     
                     # Add back button to return to Pawn Shop main menu
-                    continue_btn = Button(label="🏪 Sushi Shop", emoji="🏪", style=discord.ButtonStyle.primary)
+                    continue_btn = Button(label="ร้านค้าไอเทม", emoji="🏪", style=discord.ButtonStyle.primary)
                     
                     async def continue_callback(cont_interaction):
                         if cont_interaction.user != self.user:
@@ -2736,7 +2736,7 @@ class PawnShopSlashView(View):
                     continue_view = View(timeout=60)
                     
                     # Add back button to return to Pawn Shop main menu
-                    continue_btn = Button(label="🏪 Sushi Shop", emoji="🏪", style=discord.ButtonStyle.primary)
+                    continue_btn = Button(label="ร้านค้าไอเทม", emoji="🏪", style=discord.ButtonStyle.primary)
                     
                     async def continue_callback(cont_interaction):
                         if cont_interaction.user != self.user:
@@ -2775,7 +2775,7 @@ class PawnShopSlashView(View):
             continue_view = View(timeout=60)
             
             # Add back button to return to Pawn Shop main menu
-            continue_btn = Button(label="🏪 Sushi Shop", emoji="🏪", style=discord.ButtonStyle.primary)
+            continue_btn = Button(label="ร้านค้าไอเทม", emoji="🏪", style=discord.ButtonStyle.primary)
             
             async def continue_callback(cont_interaction):
                 if cont_interaction.user != self.user:
@@ -2817,7 +2817,7 @@ class PawnShopSlashView(View):
         continue_view = View(timeout=60)
         
         # Add back button to return to Pawn Shop main menu
-        continue_btn = Button(label="🏪 Sushi Shop", emoji="🏪", style=discord.ButtonStyle.primary)
+        continue_btn = Button(label="ร้านค้าไอเทม", emoji="🏪", style=discord.ButtonStyle.primary)
         
         async def continue_callback(cont_interaction):
             if cont_interaction.user != self.user:
@@ -3137,12 +3137,14 @@ if __name__ == "__main__":
     # Setup shutdown handlers
     setup_shutdown_handlers()
     
-       print("⏳ รอ 30 วินาทีก่อนเริ่มบอท...")
+    print("⏳ รอ 30 วินาทีก่อนเริ่มบอท...")
     time.sleep(30)
     
     token = os.getenv("TOKEN")
     if not token:
         print("❌ ไม่พบ TOKEN ใน environment variables")
+        # For testing, you can use a direct token (remove in production)
+        # token = "YOUR_BOT_TOKEN_HERE"  
         exit(1)
     
     try:
