@@ -2718,7 +2718,7 @@ class PawnShopSlashView(View):
                     
                     # Create continue view that goes back to Pawn Shop main menu
                     embed = discord.Embed(
-                        title=f"🤝 ดีลสำเร็จ! {emoji",
+                        title=f"🤝 ดีลสำเร็จ! {emoji}",
                         description=f"✅ ดีลสำเร็จ! คุณซื้อ {self.item['emoji']} **{self.item['name']}** ในราคา {self.current_price:,} 🪙\n💰 ยอดเงินปัจจุบัน: {new_balance} 🪙",
                         color=0x00FF00
                     )
@@ -3139,3 +3139,4 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ Error running bot: {e}")
         traceback.print_exc()
+
