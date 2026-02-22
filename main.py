@@ -1849,6 +1849,31 @@ ITEMS = {
     "common_23": {"name": "🍛 แกงกะหรี่", "rarity": "common", "emoji": "🍛", "value": 1},
     "common_24": {"name": "🍚 ข้าวสวย", "rarity": "common", "emoji": "🍚", "value": 1},
     "common_25": {"name": "🍥 นารูโตะมากิ", "rarity": "common", "emoji": "🍥", "value": 1},
+    "common_26": {"name": "🍉 แตงโม", "rarity": "common", "emoji": "🍉", "value": 1},
+"common_27": {"name": "🍇 องุ่น", "rarity": "common", "emoji": "🍇", "value": 1},
+"common_28": {"name": "🍓 สตรอว์เบอร์รี่", "rarity": "common", "emoji": "🍓", "value": 1},
+"common_29": {"name": "🥭 มะม่วง", "rarity": "common", "emoji": "🥭", "value": 1},
+"common_30": {"name": "🍍 สับปะรด", "rarity": "common", "emoji": "🍍", "value": 1},
+"common_31": {"name": "🥥 มะพร้าว", "rarity": "common", "emoji": "🥥", "value": 1},
+"common_32": {"name": "🌽 ข้าวโพด", "rarity": "common", "emoji": "🌽", "value": 1},
+"common_33": {"name": "🥔 มันฝรั่ง", "rarity": "common", "emoji": "🥔", "value": 1},
+"common_34": {"name": "🍠 มันหวาน", "rarity": "common", "emoji": "🍠", "value": 1},
+"common_35": {"name": "🥒 แตงกวา", "rarity": "common", "emoji": "🥒", "value": 1},
+"common_36": {"name": "🫑 พริกหยวก", "rarity": "common", "emoji": "🫑", "value": 1},
+"common_37": {"name": "🧄 กระเทียม", "rarity": "common", "emoji": "🧄", "value": 1},
+"common_38": {"name": "🧅 หัวหอม", "rarity": "common", "emoji": "🧅", "value": 1},
+"common_39": {"name": "🍪 คุกกี้", "rarity": "common", "emoji": "🍪", "value": 1},
+"common_40": {"name": "🍩 โดนัท", "rarity": "common", "emoji": "🍩", "value": 1},
+"common_41": {"name": "🧁 คัพเค้ก", "rarity": "common", "emoji": "🧁", "value": 1},
+"common_42": {"name": "🍰 เค้ก", "rarity": "common", "emoji": "🍰", "value": 1},
+"common_43": {"name": "🍫 ช็อกโกแลต", "rarity": "common", "emoji": "🍫", "value": 1},
+"common_44": {"name": "🍿 ป๊อปคอร์น", "rarity": "common", "emoji": "🍿", "value": 1},
+"common_45": {"name": "🥨 เพรทเซล", "rarity": "common", "emoji": "🥨", "value": 1},
+"common_46": {"name": "🍤 กุ้งทอด", "rarity": "common", "emoji": "🍤", "value": 1},
+"common_47": {"name": "🍙 โอนิกิริ", "rarity": "common", "emoji": "🍙", "value": 1},
+"common_48": {"name": "🥟 เกี๊ยว", "rarity": "common", "emoji": "🥟", "value": 1},
+"common_49": {"name": "🍢 ลูกชิ้นเสียบไม้", "rarity": "common", "emoji": "🍢", "value": 1},
+"common_50": {"name": "🥞 แพนเค้ก", "rarity": "common", "emoji": "🥞", "value": 1},
     
     # Rare (45%) - 15 ชิ้น
     "rare_1": {"name": "⚔️ ดาบคู่", "rarity": "rare", "emoji": "⚔️", "value": 5},
@@ -1866,6 +1891,31 @@ ITEMS = {
     "rare_13": {"name": "💡 ตะเกียงวิเศษ", "rarity": "rare", "emoji": "💡", "value": 5},
     "rare_14": {"name": "🎭 หน้ากาก", "rarity": "rare", "emoji": "🎭", "value": 5},
     "rare_15": {"name": "🎨 พู่กัน", "rarity": "rare", "emoji": "🎨", "value": 5},
+    "rare_16": {"name": "🗡️ ดาบสั้น", "rarity": "rare", "emoji": "🗡️", "value": 5},
+"rare_17": {"name": "🔱 ตรีศูล", "rarity": "rare", "emoji": "🔱", "value": 5},
+"rare_18": {"name": "🪄 ไม้กายสิทธิ์", "rarity": "rare", "emoji": "🪄", "value": 5},
+"rare_19": {"name": "📖 หนังสือ", "rarity": "rare", "emoji": "📖", "value": 5},
+"rare_20": {"name": "🧿 เครื่องราง", "rarity": "rare", "emoji": "🧿", "value": 5},
+"rare_21": {"name": "💰 ถุงเงิน", "rarity": "rare", "emoji": "💰", "value": 5},
+"rare_22": {"name": "🪙 เหรียญทอง", "rarity": "rare", "emoji": "🪙", "value": 5},
+"rare_23": {"name": "🏺 โถโบราณ", "rarity": "rare", "emoji": "🏺", "value": 5},
+"rare_24": {"name": "⚖️ ตราชั่ง", "rarity": "rare", "emoji": "⚖️", "value": 5},
+"rare_25": {"name": "🕯️ เทียนศักดิ์สิทธิ์", "rarity": "rare", "emoji": "🕯️", "value": 5},
+"rare_26": {"name": "🛎️ ระฆังเงิน", "rarity": "rare", "emoji": "🛎️", "value": 5},
+"rare_27": {"name": "📿 ลูกประคำ", "rarity": "rare", "emoji": "📿", "value": 5},
+"rare_28": {"name": "🪶 ขนนกวิเศษ", "rarity": "rare", "emoji": "🪶", "value": 5},
+"rare_29": {"name": "🗝️ กุญแจโบราณ", "rarity": "rare", "emoji": "🗝️", "value": 5},
+"rare_30": {"name": "🧨 ระเบิดเวท", "rarity": "rare", "emoji": "🧨", "value": 5},
+"rare_31": {"name": "🎯 เป้าแม่นยำ", "rarity": "rare", "emoji": "🎯", "value": 5},
+"rare_32": {"name": "🎲 ลูกเต๋า", "rarity": "rare", "emoji": "🎲", "value": 5},
+"rare_33": {"name": "🧧 ซองโชคดี", "rarity": "rare", "emoji": "🧧", "value": 5},
+"rare_34": {"name": "🪬 เครื่องหมายลึกลับ", "rarity": "rare", "emoji": "🪬", "value": 5},
+"rare_35": {"name": "📡 คริสตัลพลังงาน", "rarity": "rare", "emoji": "📡", "value": 5},
+"rare_36": {"name": "🧲 แม่เหล็กเวท", "rarity": "rare", "emoji": "🧲", "value": 5},
+"rare_37": {"name": "🪞 กระจกต้องคำสาป", "rarity": "rare", "emoji": "🪞", "value": 5},
+"rare_38": {"name": "📦 กล่องลึกลับ", "rarity": "rare", "emoji": "📦", "value": 5},
+"rare_39": {"name": "🧭 เข็มทิศทองคำ", "rarity": "rare", "emoji": "🧭", "value": 5},
+"rare_40": {"name": "🏆 ถ้วยรางวัล", "rarity": "rare", "emoji": "🏆", "value": 5},
     
     # Legendary (5%) - 10 ชิ้น
     "leg_1": {"name": "🐉 มังกร", "rarity": "legendary", "emoji": "🐉", "value": 50},
@@ -2126,7 +2176,7 @@ class RNGMainView(View):
             return
         
         embed = discord.Embed(
-            title="🏪 Pawn Shop",
+            title="🏪 Sushi Shop",
             description="เลือกประเภทการค้าขายที่ต้องการ",
             color=0x00AAFF
         )
@@ -2153,6 +2203,17 @@ class RNGMainView(View):
         embed.set_footer(text=f"ผู้เล่น: {self.user.display_name}")
         
         await interaction.response.edit_message(embed=embed, view=self)
+
+     @discord.ui.button(label="🏆 อันดับ", style=discord.ButtonStyle.primary, emoji="🏆", row=2)
+    async def leaderboard_button(self, interaction: discord.Interaction, button: Button):
+        if interaction.user != self.user:
+            await interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
+            return
+        
+        await show_leaderboard(interaction)
+    
+    @discord.ui.button(label="ℹ️ วิธีเล่น", style=discord.ButtonStyle.secondary, emoji="ℹ️", row=2)
+    async def help_button(self, interaction: discord.Interaction, button: Button):
     
     @discord.ui.button(label="ℹ️ วิธีเล่น", style=discord.ButtonStyle.secondary, emoji="ℹ️", row=2)
     async def help_button(self, interaction: discord.Interaction, button: Button):
@@ -2534,14 +2595,38 @@ class PawnShopMainView(View):
         
 # ==================== PAWN SHOP SYSTEM ====================
 CUSTOMER_NAMES = [
-    "คุณสมชาย", "คุณสมหญิง", "คุณอนันต์", "คุณประภาพร", "คุณวิชัย", "คุณกัญญา",
-    "คุณธีรศักดิ์", "คุณนภัสสร", "คุณภาณุ", "คุณสิริยากร", "คุณทักษิณ", "คุณบุษบา",
-    "คุณชัชชัย", "คุณจินตนา", "คุณปฏิภาณ", "คุณศิริวรรณ", "คุณสามารถ", "คุณอุบล",
-    "คุณไพศาล", "คุณรัตนา", "คุณธนา", "คุณปาริชาติ", "คุณวรวุฒิ", "คุณสาวิตรี",
-    "Mike", "John", "Sarah", "David", "Emma", "Chris", "Lisa", "Tom", "Anna", "James"
+"คุณซันนี่", "คุณมาวิน", "คุณไอคิว", "คุณอาร์ตี้", "คุณเท็น",
+"คุณฟินน์", "คุณคิรินทร์", "คุณอชิ", "คุณพอร์ชเช่", "คุณธีโอ",
+"คุณลูเซีย", "คุณเอวี่", "คุณเมลโล่", "คุณซินเซีย", "คุณไอด้า",
+"คุณแพรวา", "คุณมิลิน", "คุณอลิสา", "คุณคาน่า", "คุณไออุ่น",
+"คุณวายุ", "คุณภาคิณ", "คุณธันวา", "คุณกวินทร์", "คุณชิณ",
+"คุณแทนไท", "คุณคอปเตอร์", "คุณเจโน่", "คุณไทม์มี่", "คุณเรย์เดน",
+"คุณลลิน", "คุณนาริน", "คุณพิมฐา", "คุณไอหมอก", "คุณเฟย์ลิน",
+"คุณมิวนิค", "คุณข้าวหอม", "คุณพั้นซ์", "คุณโฟร์", "คุณมินตรา",
+"คุณอิงดาว", "คุณเจลลี่", "คุณซินดี้", "คุณบลอสซั่ม", "คุณไอชา",
+"คุณครีมมี่", "คุณแพรไหม", "คุณลูกพีช", "คุณมีนา", "คุณน้ำฟ้า",
+"คุณไบรท์ตัน", "คุณเควิน", "คุณลูคัส", "คุณเจย์เดน", "คุณไคล์",
+"คุณเอเดน", "คุณรีโอ", "คุณคาเลบ", "คุณออสติน", "คุณเลโอ",
+"คุณอันญ่า", "คุณโซอี้", "คุณเอมี่", "คุณลิซ่าเบล", "คุณคาร่า",
+"คุณริชา", "คุณมิล่า", "คุณอิซาเบล", "คุณเอวา", "คุณดรีม",
+"คุณภูผา", "คุณตะวัน", "คุณสายฟ้า", "คุณทิวา", "คุณขุนเขา",
 ]
 
-CUSTOMER_AVATARS = ["👨", "👩", "🧔", "👵", "👴", "🧑", "👱", "👲", "🧕", "👳"]
+CUSTOMER_AVATARS = ["👶", "🧒", "👦", "👧", "🧑‍🦱", "🧑‍🦰", "🧑‍🦳", "🧑‍🦲",
+"👨‍🦱", "👩‍🦱", "👨‍🦰", "👩‍🦰", "👨‍🦳", "👩‍🦳", "👨‍🦲", "👩‍🦲",
+
+"👮", "👮‍♂️", "👮‍♀️", "🕵️", "🕵️‍♂️", "🕵️‍♀️",
+"👷", "👷‍♂️", "👷‍♀️", "👨‍⚕️", "👩‍⚕️", "🧑‍⚕️",
+"👨‍🏫", "👩‍🏫", "🧑‍🏫", "👨‍🍳", "👩‍🍳", "🧑‍🍳",
+"👨‍💻", "👩‍💻", "🧑‍💻", "👨‍🎓", "👩‍🎓", "🧑‍🎓",
+
+"🙋", "🙋‍♂️", "🙋‍♀️", "🙆", "🙆‍♂️", "🙆‍♀️",
+"🤷", "🤷‍♂️", "🤷‍♀️", "🙎", "🙎‍♂️", "🙎‍♀️",
+"🙍", "🙍‍♂️", "🙍‍♀️", "💁", "💁‍♂️", "💁‍♀️",
+
+"🧙", "🧙‍♂️", "🧙‍♀️", "🧛", "🧛‍♂️", "🧛‍♀️",
+"🧝", "🧝‍♂️", "🧝‍♀️", "🧟", "🧟‍♂️", "🧟‍♀️",
+"🧞", "🧞‍♂️", "🧞‍♀️", "🧜", "🧜‍♂️", "🧜‍♀️"]
 
 def get_item_price(item: dict) -> int:
     if item["rarity"] == "common":
@@ -2659,7 +2744,7 @@ class PawnShopSlashView(View):
                 
                 # กลับไปที่หน้า RNG หลัก
                 main_embed = discord.Embed(
-                    title="🎲 RNG Gacha Game",
+                    title="🎲 RNG Sushi Shop",
                     description="ยินดีต้อนรับสู่เกมสุ่มไอเทม!\n\nเลือกปุ่มด้านล่างเพื่อเริ่มเล่น",
                     color=0x00AAFF
                 )
@@ -2765,7 +2850,7 @@ class PawnShopSlashView(View):
         self.customer.satisfaction = new_satisfaction
         
         embed = discord.Embed(
-            title="🤔 การต่อรอง",
+            title="🤔 ต่อรอง",
             description=(
                 f"{self.customer.avatar} **{self.customer.name}**\n\n"
                 f"ราคาปัจจุบัน: **{self.current_price:,}** 🪙\n"
@@ -2804,7 +2889,7 @@ class PawnShopSlashView(View):
         self.customer.satisfaction = new_satisfaction
         
         embed = discord.Embed(
-            title="🤔 การต่อรอง",
+            title="🤔 ต่อรอง",
             description=(
                 f"{self.customer.avatar} **{self.customer.name}**\n\n"
                 f"ราคาปัจจุบัน: **{self.current_price:,}** 🪙\n"
@@ -2824,6 +2909,143 @@ class PawnShopSlashView(View):
         )
         
         await interaction.response.edit_message(embed=embed, view=self)
+
+# ==================== LEADERBOARD SYSTEM ====================
+async def show_leaderboard(interaction: discord.Interaction):
+    """แสดง leaderboard ผู้เล่นที่มีเงินมากที่สุด 5 อันดับ"""
+    balances = load_balances()
+    
+    if not balances:
+        embed = discord.Embed(
+            title="🏆 Leaderboard",
+            description="ยังไม่มีผู้เล่นที่มีเงินในระบบ",
+            color=0xFFD700
+        )
+        await interaction.response.edit_message(embed=embed, view=RNGMainView(interaction.user))
+        return
+    
+    # แปลง balances เป็น list ของ (user_id, money) และเรียงจากมากไปน้อย
+    sorted_balances = sorted(balances.items(), key=lambda x: x[1], reverse=True)
+    top_5 = sorted_balances[:5]
+    
+    embed = discord.Embed(
+        title="🏆 อันดับผู้เล่นที่มีเงินมากที่สุด",
+        description="5 อันดับผู้เล่นที่รวยที่สุดใน RNG Gacha",
+        color=0xFFD700
+    )
+    
+    medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
+    leaderboard_text = ""
+    
+    for idx, (user_id, money) in enumerate(top_5):
+        try:
+            user = await interaction.client.fetch_user(int(user_id))
+            username = user.display_name
+        except:
+            username = f"ผู้ใช้ที่ไม่รู้จัก ({user_id[:5]}...)"
+        
+        medal = medals[idx] if idx < len(medals) else f"{idx+1}."
+        leaderboard_text += f"{medal} **{username}** - {money:,} 🪙\n"
+    
+    embed.add_field(name="💰 อันดับ", value=leaderboard_text, inline=False)
+    
+    # แสดงยอดเงินของผู้เรียกใช้คำสั่ง
+    caller_id = str(interaction.user.id)
+    caller_balance = balances.get(caller_id, 0)
+    
+    if caller_balance > 0:
+        # หาอันดับของผู้เรียกใช้
+        caller_rank = next((i+1 for i, (uid, _) in enumerate(sorted_balances) if uid == caller_id), None)
+        if caller_rank:
+            embed.add_field(
+                name="📊 อันดับของคุณ",
+                value=f"อันดับที่ {caller_rank} | {caller_balance:,} 🪙",
+                inline=False
+            )
+    
+    embed.set_footer(text=f"ผู้เล่นทั้งหมด: {len(balances)} คน | เรียกดูโดย: {interaction.user.display_name}")
+    
+    # สร้าง view สำหรับกลับไปหน้า main
+    view = View(timeout=60)
+    back_btn = Button(label="🔙 กลับ", style=discord.ButtonStyle.secondary, emoji="🔙")
+    
+    async def back_callback(back_interaction):
+        if back_interaction.user != interaction.user:
+            await back_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
+            return
+        
+        # กลับไปที่หน้า RNG หลัก
+        main_embed = discord.Embed(
+            title="🎲 RNG Gacha Game",
+            description="ยินดีต้อนรับสู่เกมสุ่มไอเทม!\n\nเลือกปุ่มด้านล่างเพื่อเริ่มเล่น",
+            color=0x00AAFF
+        )
+        main_embed.add_field(name="📊 อัตราการสุ่ม", value="🟤 Common 75% | 🔵 Rare 20% | 🟡 Legendary 5%", inline=False)
+        main_embed.set_footer(text=f"ผู้เล่น: {interaction.user.display_name}")
+        
+        await back_interaction.response.edit_message(embed=main_embed, view=RNGMainView(interaction.user))
+    
+    back_btn.callback = back_callback
+    view.add_item(back_btn)
+    
+    await interaction.response.edit_message(embed=embed, view=view)
+
+# Slash commands for leaderboard
+@bot.tree.command(name="leaderboard", description="ดูอันดับผู้เล่นที่มีเงินมากที่สุด 5 อันดับ")
+async def leaderboard_slash(interaction: discord.Interaction):
+    balances = load_balances()
+    
+    if not balances:
+        embed = discord.Embed(
+            title="🏆 Leaderboard",
+            description="ยังไม่มีผู้เล่นที่มีเงินในระบบ",
+            color=0xFFD700
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        return
+    
+    sorted_balances = sorted(balances.items(), key=lambda x: x[1], reverse=True)
+    top_5 = sorted_balances[:5]
+    
+    embed = discord.Embed(
+        title="🏆 อันดับผู้เล่นที่มีเงินมากที่สุด",
+        description="5 อันดับผู้เล่นที่รวยที่สุดใน RNG Gacha",
+        color=0xFFD700
+    )
+    
+    medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
+    leaderboard_text = ""
+    
+    for idx, (user_id, money) in enumerate(top_5):
+        try:
+            user = await bot.fetch_user(int(user_id))
+            username = user.display_name
+        except:
+            username = f"ผู้ใช้ที่ไม่รู้จัก ({user_id[:5]}...)"
+        
+        medal = medals[idx] if idx < len(medals) else f"{idx+1}."
+        leaderboard_text += f"{medal} **{username}** - {money:,} 🪙\n"
+    
+    embed.add_field(name="💰 อันดับ", value=leaderboard_text, inline=False)
+    
+    caller_id = str(interaction.user.id)
+    caller_balance = balances.get(caller_id, 0)
+    
+    if caller_balance > 0:
+        caller_rank = next((i+1 for i, (uid, _) in enumerate(sorted_balances) if uid == caller_id), None)
+        if caller_rank:
+            embed.add_field(
+                name="📊 อันดับของคุณ",
+                value=f"อันดับที่ {caller_rank} | {caller_balance:,} 🪙",
+                inline=False
+            )
+    
+    embed.set_footer(text=f"ผู้เล่นทั้งหมด: {len(balances)} คน")
+    await interaction.response.send_message(embed=embed)
+
+@bot.tree.command(name="top", description="ดูอันดับผู้เล่นที่มีเงินมากที่สุด 5 อันดับ")
+async def top_slash(interaction: discord.Interaction):
+    await leaderboard_slash(interaction)
 
 # ==================== TASKS ====================
 @tasks.loop(minutes=1)
@@ -2925,4 +3147,5 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ Error running bot: {e}")
         traceback.print_exc()
+
 
