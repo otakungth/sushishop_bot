@@ -1616,8 +1616,8 @@ async def delcoin(ctx, user_id: str = None, amount: str = None):
         await ctx.send("❌ กรุณากรอกจำนวนเงินเป็นตัวเลข", delete_after=5)
     except Exception as e:
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
-
-# ==================== คำสั่ง VOUCH ====================
+        
+   # ========== vouch ==========
 @bot.command()
 @admin_only()
 async def vouch(ctx):
@@ -1635,22 +1635,40 @@ async def vouch(ctx):
     try:
         processing_msg = await ctx.send("🔄 กำลังดำเนินการ...")
         
+        # Fix: Better user ID extraction that handles anonymous tickets
         buyer = None
         channel_name = ctx.channel.name
-        if channel_name.startswith("ticket-"):
+        
+        # Try to find the buyer from channel history first (more reliable)
+        async for msg in ctx.channel.history(limit=50):
+            if not msg.author.bot and msg.author != ctx.guild.me:
+                buyer = msg.author
+                break
+        
+        # If no buyer found in history, try to extract from channel name
+        if not buyer and channel_name.startswith("ticket-"):
             parts = channel_name.split('-')
-            if len(parts) >= 3:
+            
+            # Check if it's an anonymous ticket (has "annoymous" in the name)
+            if "annoymous" in channel_name.lower():
+                # For anonymous tickets, the fixed ID is at the end
                 try:
                     user_id = int(parts[-1])
                     buyer = ctx.guild.get_member(user_id)
-                except ValueError:
+                except (ValueError, IndexError):
+                    # If can't get from parts, try to find any user in the channel
+                    async for msg in ctx.channel.history(limit=20):
+                        if not msg.author.bot and msg.author != ctx.guild.me:
+                            buyer = msg.author
+                            break
+            else:
+                # Normal ticket format: ticket-username-userid
+                try:
+                    if len(parts) >= 3:
+                        user_id = int(parts[-1])
+                        buyer = ctx.guild.get_member(user_id)
+                except (ValueError, IndexError):
                     pass
-        
-        if not buyer:
-            async for msg in ctx.channel.history(limit=50):
-                if not msg.author.bot and msg.author != ctx.guild.me:
-                    buyer = msg.author
-                    break
         
         robux_amount = ticket_robux_data.get(str(ctx.channel.id))
         customer_name = ticket_customer_data.get(str(ctx.channel.id))
@@ -1699,7 +1717,7 @@ async def vouch(ctx):
         )
         receipt_embed.add_field(
             name="😊 ผู้ซื้อ", 
-            value=buyer.mention if buyer else "ไม่ทราบ", 
+            value=buyer.mention if buyer else "ไม่ระบุตัวตน", 
             inline=False
         )
         receipt_embed.add_field(
@@ -1792,7 +1810,7 @@ async def vouch(ctx):
         print(f"❌ เกิดข้อผิดพลาดใน !vouch: {e}")
         traceback.print_exc()
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=5)
-
+        
 @bot.command()
 @admin_only()
 async def od(ctx, *, expr):
@@ -3289,3 +3307,4 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ Error running bot: {e}")
         traceback.print_exc()
+
