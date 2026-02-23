@@ -2458,6 +2458,147 @@ class PawnShopMainView(View):
             
             roll_btn.callback = roll_callback
             
+            # เพิ่มปุ่มกลับ# ==================== PAWN SHOP MAIN VIEW (แก้ไขส่วนสุ่มไอเทม) ====================
+class PawnShopMainView(View):
+    def __init__(self, user: discord.User):
+        super().__init__(timeout=60)
+        self.user = user
+    
+    @discord.ui.button(label="ขายไอเทม", style=discord.ButtonStyle.success, emoji="💰", row=0)
+    async def sell_button(self, interaction: discord.Interaction, button: Button):
+        if interaction.user != self.user:
+            await interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
+            return
+        
+        user_id = str(interaction.user.id)
+        inventory = get_user_inventory(user_id)
+        balance = get_user_balance(user_id)
+        
+        if not inventory:
+            embed = discord.Embed(
+                title="🏪 ขายไอเทม",
+                description=f"คุณยังไม่มีไอเทม! ไปสุ่มก่อนนะ 🎲\n\n💰 ยอดเงินปัจจุบัน: **{balance}** 🪙",
+                color=0x808080
+            )
+            
+            # สร้าง View ที่มีปุ่ม "สุ่มไอเทม"
+            continue_view = View(timeout=60)
+            
+            # เพิ่มปุ่มสุ่มไอเทม
+            roll_btn = Button(label="🎲 สุ่มไอเทม", style=discord.ButtonStyle.success, emoji="🎲", row=0)
+            
+            async def roll_callback(roll_interaction):
+                if roll_interaction.user != self.user:
+                    await roll_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
+                    return
+                
+                # สุ่มไอเทม
+                item_id, item = random_item()
+                user_id = str(roll_interaction.user.id)
+                add_item_to_inventory(user_id, item_id)
+                
+                inventory = get_user_inventory(user_id)
+                total_items = sum(inventory.values())
+                balance = get_user_balance(user_id)
+                
+                rarity_color = {"common": 0x808080, "rare": 0x00AAFF, "legendary": 0xFFD700}
+                result_embed = discord.Embed(
+                    title="🎲 ผลการสุ่ม",
+                    description=f"คุณได้รับ: {item['emoji']} **{item['name']}**",
+                    color=rarity_color[item["rarity"]]
+                )
+                result_embed.set_footer(text=f"ความหายาก: {item['rarity'].upper()} | ไอเทมทั้งหมด: {total_items} ชิ้น | 🪙 {balance}")
+                
+                # สร้าง View สำหรับสุ่มต่อ
+                roll_again_view = View(timeout=60)
+                
+                # ปุ่มสุ่มต่อ
+                roll_again_btn = Button(label="🎲 สุ่มต่อ", style=discord.ButtonStyle.success, emoji="🎲", row=0)
+                
+                async def roll_again_callback(again_interaction):
+                    if again_interaction.user != self.user:
+                        await again_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
+                        return
+                    
+                    # สุ่มไอเทมใหม่
+                    new_item_id, new_item = random_item()
+                    add_item_to_inventory(user_id, new_item_id)
+                    
+                    new_inventory = get_user_inventory(user_id)
+                    new_total = sum(new_inventory.values())
+                    new_balance = get_user_balance(user_id)
+                    
+                    new_rarity_color = {"common": 0x808080, "rare": 0x00AAFF, "legendary": 0xFFD700}
+                    new_result_embed = discord.Embed(
+                        title="🎲 ผลการสุ่ม",
+                        description=f"คุณได้รับ: {new_item['emoji']} **{new_item['name']}**",
+                        color=new_rarity_color[new_item["rarity"]]
+                    )
+                    new_result_embed.set_footer(text=f"ความหายาก: {new_item['rarity'].upper()} | ไอเทมทั้งหมด: {new_total} ชิ้น | 🪙 {new_balance}")
+                    
+                    # สร้าง View ใหม่สำหรับสุ่มต่อ
+                    new_roll_view = View(timeout=60)
+                    
+                    # ปุ่มสุ่มต่อ
+                    new_roll_again_btn = Button(label="🎲 สุ่มต่อ", style=discord.ButtonStyle.success, emoji="🎲", row=0)
+                    new_roll_again_btn.callback = roll_again_callback
+                    
+                    # ปุ่มกลับ
+                    new_back_btn = Button(label="🔙 กลับ", style=discord.ButtonStyle.secondary, emoji="🔙", row=0)
+                    
+                    async def new_back_callback(back_interaction):
+                        if back_interaction.user != self.user:
+                            await back_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
+                            return
+                        
+                        # กลับไปที่หน้า Pawn Shop หลัก
+                        pawn_embed = discord.Embed(
+                            title="🏪 Sushi Shop",
+                            description="เลือกประเภทการค้าขายที่ต้องการ",
+                            color=0x00AAFF
+                        )
+                        pawn_embed.add_field(name="💰 ระบบราคา", value="🟤 Common: 1 - 1,000 🪙\n🔵 Rare: 1,001 - 10,000 🪙\n🟡 Legendary: 10,001 - 100,000 🪙", inline=False)
+                        pawn_embed.add_field(name="💰 ยอดเงินคุณ", value=f"**{get_user_balance(str(back_interaction.user.id))}** 🪙", inline=False)
+                        
+                        await back_interaction.response.edit_message(embed=pawn_embed, view=PawnShopMainView(self.user))
+                    
+                    new_back_btn.callback = new_back_callback
+                    
+                    new_roll_view.add_item(new_roll_again_btn)
+                    new_roll_view.add_item(new_back_btn)
+                    
+                    await again_interaction.response.edit_message(embed=new_result_embed, view=new_roll_view)
+                
+                roll_again_btn.callback = roll_again_callback
+                
+                # ปุ่มกลับ
+                back_btn = Button(label="🔙 กลับ", style=discord.ButtonStyle.secondary, emoji="🔙", row=0)
+                
+                async def back_callback(back_interaction):
+                    if back_interaction.user != self.user:
+                        await back_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
+                        return
+                    
+                    # กลับไปที่หน้า Pawn Shop หลัก
+                    pawn_embed = discord.Embed(
+                        title="🏪 Sushi Shop",
+                        description="เลือกประเภทการค้าขายที่ต้องการ",
+                        color=0x00AAFF
+                    )
+                    pawn_embed.add_field(name="💰 ระบบราคา", value="🟤 Common: 1 - 1,000 🪙\n🔵 Rare: 1,001 - 10,000 🪙\n🟡 Legendary: 10,001 - 100,000 🪙", inline=False)
+                    pawn_embed.add_field(name="💰 ยอดเงินคุณ", value=f"**{get_user_balance(str(back_interaction.user.id))}** 🪙", inline=False)
+                    
+                    await back_interaction.response.edit_message(embed=pawn_embed, view=PawnShopMainView(self.user))
+                
+                back_btn.callback = back_callback
+                
+                roll_again_view.add_item(roll_again_btn)
+                roll_again_view.add_item(back_btn)
+                
+                await roll_interaction.response.edit_message(embed=result_embed, view=roll_again_view)
+            
+            roll_btn.callback = roll_callback
+            
             # เพิ่มปุ่มกลับ
             back_btn = Button(label="กลับ", style=discord.ButtonStyle.secondary, emoji="🔙", row=1)
             
@@ -2486,200 +2627,6 @@ class PawnShopMainView(View):
             return
         
         await self.show_item_selection(interaction, "sell")
-    
-    @discord.ui.button(label="🛒 ซื้อไอเทม", style=discord.ButtonStyle.primary, emoji="🛒", row=0)
-    async def buy_button(self, interaction: discord.Interaction, button: Button):
-        if interaction.user != self.user:
-            await interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
-            return
-        
-        await self.show_random_item_for_sale(interaction)
-    
-    @discord.ui.button(label="กลับ", style=discord.ButtonStyle.secondary, emoji="🔙", row=1)
-    async def back_button(self, interaction: discord.Interaction, button: Button):
-        if interaction.user != self.user:
-            await interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
-            return
-        
-        # กลับไปที่หน้า RNG หลัก
-        main_embed = discord.Embed(
-            title="🎲 RNG Sushi Shop",
-            description="ยินดีต้อนรับสู่เกมสุ่มไอเทม!\n\nเลือกปุ่มด้านล่างเพื่อเริ่มเล่น",
-            color=0x00AAFF
-        )
-        main_embed.add_field(name="📊 อัตราการสุ่ม", value="🟤 Common 75% | 🔵 Rare 20% | 🟡 Legendary 5%", inline=False)
-        main_embed.set_footer(text=f"ผู้เล่น: {self.user.display_name}")
-        
-        await interaction.response.edit_message(embed=main_embed, view=RNGMainView(self.user))
-    
-    async def show_item_selection(self, interaction: discord.Interaction, deal_type: str):
-        user_id = str(interaction.user.id)
-        inventory = get_user_inventory(user_id)
-        
-        options = []
-        items_data = list(inventory.items())
-        
-        for i, (item_id, amount) in enumerate(items_data[:10]):
-            item = ITEMS[item_id]
-            rarity_emoji = {"common": "🟤", "rare": "🔵", "legendary": "🟡"}[item["rarity"]]
-            price_range = "1-1,000" if item["rarity"] == "common" else ("1,001-10,000" if item["rarity"] == "rare" else "10,001-100,000")
-            
-            options.append(
-                discord.SelectOption(
-                    label=f"{item['name']} x{amount}",
-                    description=f"{rarity_emoji} {item['rarity'].upper()} - ราคา {price_range} 🪙",
-                    emoji=item['emoji'],
-                    value=item_id
-                )
-            )
-        
-        select = Select(
-            placeholder="เลือกไอเทมที่ต้องการขาย...",
-            options=options,
-            row=0
-        )
-        
-        async def select_callback(select_interaction: discord.Interaction):
-            if select_interaction.user != self.user:
-                await select_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
-                return
-            
-            item_id = select_interaction.data["values"][0]
-            item = ITEMS[item_id]
-            
-            customer = PawnCustomer()
-            customer.deal_type = "sell"  # ตั้งเป็น sell เพราะเราขายให้ร้าน
-            base_price = get_item_price(item)
-            current_balance = get_user_balance(user_id)
-            
-            embed = discord.Embed(
-                title=f"🏪 Sushi Shop - ขาย {item['emoji']} {item['name']}",
-                description=f"{customer.avatar} **{customer.name}**\n\nฉันสนใจจะซื้อ {item['emoji']} **{item['name']}**\nราคาที่เหมาะสมน่าจะอยู่ที่ **{base_price:,}** 🪙",
-                color=0x00AAFF
-            )
-            embed.add_field(
-                name="📊 ข้อมูลลูกค้า",
-                value=(
-                    f"ความพอใจ: {customer.satisfaction}%\n"
-                    f"ความอดทน: {customer.patience} ครั้ง\n"
-                    f"มาเพื่อ: 💰 ซื้อไอเทม"
-                ),
-                inline=False
-            )
-            embed.add_field(
-                name="💰 ยอดเงินคุณ",
-                value=f"**{current_balance}** 🪙",
-                inline=False
-            )
-            
-            bot.pawn_data[user_id] = {
-                "item_id": item_id,
-                "item": item,
-                "customer": customer,
-                "base_price": base_price,
-                "current_price": base_price,
-                "deal_type": "sell"
-            }
-            
-            pawn_view = PawnShopSlashView(self.user, item_id, item, customer, base_price, current_balance, "sell")
-            await select_interaction.response.edit_message(embed=embed, view=pawn_view)
-        
-        select.callback = select_callback
-        
-        view = View(timeout=60)
-        view.add_item(select)
-        
-        back_btn = Button(label="กลับ", style=discord.ButtonStyle.secondary, emoji="🔙", row=2)
-        
-        async def back_callback(back_interaction):
-            if back_interaction.user != self.user:
-                await back_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
-                return
-            
-            embed = discord.Embed(
-                title="🏪 Sushi Shop",
-                description="เลือกประเภทการค้าขายที่ต้องการ",
-                color=0x00AAFF
-            )
-            embed.add_field(name="💰 ระบบราคา", value="🟤 Common: 1 - 1,000 🪙\n🔵 Rare: 1,001 - 10,000 🪙\n🟡 Legendary: 10,001 - 100,000 🪙", inline=False)
-            embed.add_field(name="💰 ยอดเงินคุณ", value=f"**{get_user_balance(str(back_interaction.user.id))}** 🪙", inline=False)
-            
-            await back_interaction.response.edit_message(embed=embed, view=PawnShopMainView(self.user))
-        
-        back_btn.callback = back_callback
-        view.add_item(back_btn)
-        
-        embed = discord.Embed(
-            title="🏪 ขายไอเทม",
-            description=f"เลือกไอเทมที่ต้องการขายให้ลูกค้า\n\n💰 ยอดเงินคุณ: **{get_user_balance(user_id)}** 🪙",
-            color=0x00AAFF
-        )
-        
-        await interaction.response.edit_message(embed=embed, view=view)
-    
-    async def show_random_item_for_sale(self, interaction: discord.Interaction):
-        user_id = str(interaction.user.id)
-        
-        item_id = random.choice(list(ITEMS.keys()))
-        item = ITEMS[item_id]
-        
-        customer = PawnCustomer()
-        customer.deal_type = "buy"  # ตั้งเป็น buy เพราะร้านขายให้เรา (เราซื้อ)
-        base_price = get_item_price(item)
-        current_balance = get_user_balance(user_id)
-        
-        embed = discord.Embed(
-            title=f"🏪 Sushi Shop - ซื้อ {item['emoji']} {item['name']}",
-            description=f"{customer.avatar} **{customer.name}**\n\nฉันสนใจจะขาย {item['emoji']} **{item['name']}**\nราคาที่เหมาะสมน่าจะอยู่ที่ **{base_price:,}** 🪙",
-            color=0x00AAFF
-        )
-        embed.add_field(
-            name="📊 ข้อมูลลูกค้า",
-            value=(
-                f"ความพอใจ: {customer.satisfaction}%\n"
-                f"ความอดทน: {customer.patience} ครั้ง\n"
-                f"มาเพื่อ: 💸 ขายไอเทม"
-            ),
-            inline=False
-        )
-        embed.add_field(
-            name="💰 ยอดเงินคุณ",
-            value=f"**{current_balance}** 🪙",
-            inline=False
-        )
-        
-        bot.pawn_data[user_id] = {
-            "item_id": item_id,
-            "item": item,
-            "customer": customer,
-            "base_price": base_price,
-            "current_price": base_price,
-            "deal_type": "buy"
-        }
-        
-        pawn_view = PawnShopSlashView(self.user, item_id, item, customer, base_price, current_balance, "buy")
-        
-        back_btn = Button(label="🔙 กลับ", style=discord.ButtonStyle.secondary, emoji="🔙", row=2)
-        
-        async def back_callback(back_interaction):
-            if back_interaction.user != self.user:
-                await back_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
-                return
-            
-            embed = discord.Embed(
-                title="🏪 Sushi Shop",
-                description="เลือกประเภทการค้าขายที่ต้องการ",
-                color=0x00AAFF
-            )
-            embed.add_field(name="💰 ระบบราคา", value="🟤 Common: 1 - 1,000 🪙\n🔵 Rare: 1,001 - 10,000 🪙\n🟡 Legendary: 10,001 - 100,000 🪙", inline=False)
-            embed.add_field(name="💰 ยอดเงินคุณ", value=f"**{get_user_balance(str(back_interaction.user.id))}** 🪙", inline=False)
-            
-            await back_interaction.response.edit_message(embed=embed, view=PawnShopMainView(self.user))
-        
-        back_btn.callback = back_callback
-        pawn_view.add_item(back_btn)
-        
-        await interaction.response.edit_message(embed=embed, view=pawn_view)
         
 # ==================== PAWN SHOP SYSTEM ====================
 CUSTOMER_NAMES = [
@@ -3268,4 +3215,5 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ Error running bot: {e}")
         traceback.print_exc()
+
 
