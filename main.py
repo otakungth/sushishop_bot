@@ -2394,6 +2394,7 @@ class RollAgainView(View):
         
         await interaction.response.edit_message(embed=main_embed, view=RNGMainView(self.user))
 
+# ==================== PAWN SHOP MAIN VIEW (แก้ไขปุ่มกลับเป็นสุ่มไอเทม) ====================
 class PawnShopMainView(View):
     def __init__(self, user: discord.User):
         super().__init__(timeout=60)
@@ -2416,8 +2417,48 @@ class PawnShopMainView(View):
                 color=0x808080
             )
             
-            # Create continue view without "เล่นต่อ" button
+            # สร้าง View ที่มีปุ่ม "สุ่มไอเทม"
             continue_view = View(timeout=60)
+            
+            # เพิ่มปุ่มสุ่มไอเทม
+            roll_btn = Button(label="🎲 สุ่มไอเทม", style=discord.ButtonStyle.success, emoji="🎲", row=0)
+            
+            async def roll_callback(roll_interaction):
+                if roll_interaction.user != self.user:
+                    await roll_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
+                    return
+                
+                # สุ่มไอเทม
+                item_id, item = random_item()
+                user_id = str(roll_interaction.user.id)
+                add_item_to_inventory(user_id, item_id)
+                
+                inventory = get_user_inventory(user_id)
+                total_items = sum(inventory.values())
+                balance = get_user_balance(user_id)
+                
+                rarity_color = {"common": 0x808080, "rare": 0x00AAFF, "legendary": 0xFFD700}
+                result_embed = discord.Embed(
+                    title="🎲 ผลการสุ่ม",
+                    description=f"คุณได้รับ: {item['emoji']} **{item['name']}**",
+                    color=rarity_color[item["rarity"]]
+                )
+                result_embed.set_footer(text=f"ความหายาก: {item['rarity'].upper()} | ไอเทมทั้งหมด: {total_items} ชิ้น | 🪙 {balance}")
+                
+                # กลับไปที่หน้า pawn shop หลังจากสุ่ม
+                pawn_embed = discord.Embed(
+                    title="🏪 Sushi Shop",
+                    description="เลือกประเภทการค้าขายที่ต้องการ",
+                    color=0x00AAFF
+                )
+                pawn_embed.add_field(name="💰 ระบบราคา", value="🟤 Common: 1 - 1,000 🪙\n🔵 Rare: 1,001 - 10,000 🪙\n🟡 Legendary: 10,001 - 100,000 🪙", inline=False)
+                pawn_embed.add_field(name="💰 ยอดเงินคุณ", value=f"**{get_user_balance(str(roll_interaction.user.id))}** 🪙", inline=False)
+                
+                await roll_interaction.response.edit_message(embed=pawn_embed, view=PawnShopMainView(self.user))
+            
+            roll_btn.callback = roll_callback
+            
+            # เพิ่มปุ่มกลับ
             back_btn = Button(label="กลับ", style=discord.ButtonStyle.secondary, emoji="🔙", row=1)
             
             async def back_callback(back_interaction):
@@ -2437,6 +2478,8 @@ class PawnShopMainView(View):
                 await back_interaction.response.edit_message(embed=embed, view=PawnShopMainView(self.user))
             
             back_btn.callback = back_callback
+            
+            continue_view.add_item(roll_btn)
             continue_view.add_item(back_btn)
             
             await interaction.response.edit_message(embed=embed, view=continue_view)
@@ -2505,7 +2548,7 @@ class PawnShopMainView(View):
             item = ITEMS[item_id]
             
             customer = PawnCustomer()
-            customer.deal_type = deal_type
+            customer.deal_type = "sell"  # ตั้งเป็น sell เพราะเราขายให้ร้าน
             base_price = get_item_price(item)
             current_balance = get_user_balance(user_id)
             
@@ -2581,7 +2624,7 @@ class PawnShopMainView(View):
         item = ITEMS[item_id]
         
         customer = PawnCustomer()
-        customer.deal_type = "sell"
+        customer.deal_type = "buy"  # ตั้งเป็น buy เพราะร้านขายให้เรา (เราซื้อ)
         base_price = get_item_price(item)
         current_balance = get_user_balance(user_id)
         
@@ -2691,9 +2734,14 @@ class PawnCustomer:
     def calculate_price_satisfaction(self, offered_price: int, base_price: int) -> Tuple[int, str]:
         price_diff_percent = ((offered_price - base_price) / base_price) * 100
         
-        if self.deal_type == "buy":  # ลูกค้าซื้อจากเรา (เราขาย) - เมื่อเราขาย ราคายิ่งสูง ลูกค้ายิ่งพอใจน้อย
+        # FIXED LOGIC:
+        if self.deal_type == "sell":  # เราขายไอเทมให้ร้าน (ลูกค้าซื้อ)
+            # เมื่อเราขอเพิ่มราคา (+%) ความพอใจควรลดลง
+            # เมื่อเราขอลดราคา (-%) ความพอใจควรเพิ่มขึ้น
             satisfaction_change = -price_diff_percent * 0.5
-        else:  # ลูกค้าขายให้เรา (เราซื้อ) - เมื่อเราซื้อ ราคายิ่งต่ำ ลูกค้ายิ่งพอใจน้อย
+        else:  # เราซื้อไอเทมจากร้าน (ลูกค้าขาย)
+            # เมื่อเราขอซื้อถูกลง (-%) ความพอใจควรลดลง
+            # เมื่อเราขอซื้อแพงขึ้น (+%) ความพอใจควรเพิ่มขึ้น
             satisfaction_change = price_diff_percent * 0.5
         
         new_satisfaction = self.satisfaction + satisfaction_change
@@ -2701,7 +2749,7 @@ class PawnCustomer:
         
         if new_satisfaction >= 70:
             emoji = "😄"
-        elif new_satisfaction >= 40:
+        elif new_satisfaction >= 50:
             emoji = "😐"
         else:
             emoji = "😡"
@@ -3220,3 +3268,4 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ Error running bot: {e}")
         traceback.print_exc()
+
