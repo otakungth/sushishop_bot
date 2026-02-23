@@ -1164,9 +1164,7 @@ class DeliveryView(View):
                         text=f"จัดส่งสินค้าสำเร็จ 🤗 • {get_thailand_time().strftime('%d/%m/%y, %H:%M')}"
                     )
                     
-                    log_channel = bot.get_channel(SALES_LOG_CHANNEL_ID)
-                    if log_channel:
-                        await log_channel.send(embed=receipt_embed)
+                    # ========== REMOVED: ไม่ส่งใบเสร็จไปยัง sales log ที่นี่ ==========
                     
                     await self.channel.send(embed=receipt_embed)
                     await self.channel.send("✅ **ส่งสินค้าเรียบร้อย**")
@@ -1656,6 +1654,77 @@ async def vouch(ctx):
         
         robux_amount = ticket_robux_data.get(str(ctx.channel.id))
         customer_name = ticket_customer_data.get(str(ctx.channel.id))
+        
+        # ค้นหาข้อมูลสินค้าและราคาจากประวัติแชท
+        product_type = "Gamepass"  # ค่าเริ่มต้น
+        price = 0
+        delivery_image = None
+        
+        # ค้นหาข้อมูลการส่งสินค้าล่าสุด
+        async for msg in ctx.channel.history(limit=50):
+            if msg.author == bot.user and msg.embeds:
+                for embed in msg.embeds:
+                    if embed.title and "ใบเสร็จ" in embed.title:
+                        # ดึงข้อมูลจาก embed ใบเสร็จ
+                        for field in embed.fields:
+                            if field.name == "💸 จำนวนโรบัค":
+                                try:
+                                    robux_amount = int(field.value.replace(",", ""))
+                                except:
+                                    pass
+                            elif field.name == "💰 ราคาตามเรท":
+                                try:
+                                    price = int(float(field.value.replace(" บาท", "").replace(",", "")))
+                                except:
+                                    pass
+                        
+                        if embed.image.url:
+                            delivery_image = embed.image.url
+                        
+                        if "Gamepass" in embed.title:
+                            product_type = "Gamepass"
+                        elif "Group" in embed.title:
+                            product_type = "Group"
+                        
+                        break
+                if product_type:
+                    break
+        
+        receipt_color = 0xFFA500 if product_type == "Gamepass" else 0x00FFFF
+        
+        # สร้าง embed ใบเสร็จ
+        receipt_embed = discord.Embed(
+            title=f"🍣 ใบเสร็จการสั่งซื้อ ({product_type}) 🍣", 
+            color=receipt_color
+        )
+        receipt_embed.add_field(
+            name="😊 ผู้ซื้อ", 
+            value=buyer.mention if buyer else "ไม่ทราบ", 
+            inline=False
+        )
+        receipt_embed.add_field(
+            name="💸 จำนวนโรบัค", 
+            value=f"{robux_amount if robux_amount else 0:,}", 
+            inline=True
+        )
+        receipt_embed.add_field(
+            name="💰 ราคาตามเรท", 
+            value=f"{price:,.0f} บาท" if price > 0 else "ไม่ระบุ", 
+            inline=True
+        )
+        
+        if delivery_image:
+            receipt_embed.set_image(url=delivery_image)
+        
+        receipt_embed.set_footer(
+            text=f"จัดส่งสินค้าสำเร็จ 🤗 • {get_thailand_time().strftime('%d/%m/%y, %H:%M')}"
+        )
+        
+        # ========== ส่งใบเสร็จไปยัง sales log channel ==========
+        log_channel = bot.get_channel(SALES_LOG_CHANNEL_ID)
+        if log_channel:
+            await log_channel.send(embed=receipt_embed)
+            print(f"✅ ส่งใบเสร็จไปยัง sales log channel (ID: {SALES_LOG_CHANNEL_ID}) เรียบร้อย")
         
         await move_to_delivered_category(ctx.channel, buyer)
         
@@ -2436,7 +2505,7 @@ class RollAgainView(View):
         
         await interaction.response.edit_message(embed=main_embed, view=RNGMainView(self.user))
 
-# ==================== PAWN SHOP SYSTEM (FIXED VERSION) ====================
+# ==================== PAWN SHOP SYSTEM ====================
 CUSTOMER_NAMES = [
     "คุณซันนี่", "คุณมาวิน", "คุณไอคิว", "คุณอาร์ตี้", "คุณเท็น",
     "คุณฟินน์", "คุณคิรินทร์", "คุณอชิ", "คุณพอร์ชเช่", "คุณธีโอ",
