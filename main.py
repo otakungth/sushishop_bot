@@ -1497,6 +1497,86 @@ async def rate(ctx, rate_type=None, low_rate=None, high_rate=None):
         except ValueError:
             await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง", delete_after=5)
 
+# ==================== คำสั่ง ANNOYMOUS ====================
+@bot.command()
+@admin_only()
+async def annoymous(ctx):
+    """เปลี่ยนชื่อห้องตั๋วเป็น ticket-annoymous-962001713320058910"""
+    if not ctx.channel.name.startswith("ticket-"):
+        await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
+        return
+    
+    try:
+        # Fixed user ID as requested
+        fixed_id = "962001713320058910"
+        new_name = f"ticket-annoymous-{fixed_id}"
+        
+        await bot.channel_edit_rate_limiter.acquire()
+        await ctx.channel.edit(name=new_name)
+        
+        embed = discord.Embed(
+            title="✅ เปลี่ยนชื่อห้องเรียบร้อย",
+            description=f"ชื่อใหม่: `{new_name}`",
+            color=0x00FF00
+        )
+        await ctx.send(embed=embed)
+        
+    except Exception as e:
+        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
+
+# ==================== คำสั่ง DELCOIN ====================
+@bot.command()
+@admin_only()
+async def delcoin(ctx, user_id: str = None, amount: str = None):
+    """ลบ SushiCoin จากผู้ใช้ !delcoin <userid> <amount>"""
+    if not user_id or not amount:
+        embed = discord.Embed(
+            title="❌ การใช้งานไม่ถูกต้อง",
+            description="**การใช้งาน:** `!delcoin <userid> <amount>`\n**ตัวอย่าง:** `!delcoin 900000000000000000 1000`",
+            color=0xFF0000
+        )
+        await ctx.send(embed=embed)
+        return
+    
+    try:
+        user_id_str = str(user_id)
+        amount_int = int(amount.replace(",", ""))
+        
+        # Load current balances
+        balances = load_balances()
+        
+        if user_id_str not in balances:
+            await ctx.send(f"❌ ไม่พบผู้ใช้ ID {user_id} ในระบบ RNG")
+            return
+        
+        current_balance = balances.get(user_id_str, 0)
+        
+        if current_balance < amount_int:
+            await ctx.send(f"❌ ผู้ใช้มีเงินไม่พอ! ปัจจุบัน: {current_balance:,} 🪙 ต้องการลบ: {amount_int:,} 🪙")
+            return
+        
+        # Remove coins
+        success = remove_user_balance(user_id_str, amount_int)
+        
+        if success:
+            new_balance = get_user_balance(user_id_str)
+            
+            embed = discord.Embed(
+                title="✅ ลบ SushiCoin เรียบร้อย",
+                description=f"ลบเงินจำนวน **{amount_int:,}** 🪙 จากผู้ใช้ ID `{user_id}`",
+                color=0x00FF00
+            )
+            embed.add_field(name="💰 ยอดเงินคงเหลือ", value=f"**{new_balance:,}** 🪙", inline=False)
+            
+            await ctx.send(embed=embed)
+        else:
+            await ctx.send("❌ เกิดข้อผิดพลาดในการลบเงิน")
+            
+    except ValueError:
+        await ctx.send("❌ กรุณากรอกจำนวนเงินเป็นตัวเลข", delete_after=5)
+    except Exception as e:
+        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
+
 # ==================== คำสั่ง VOUCH ====================
 @bot.command()
 @admin_only()
@@ -1726,7 +1806,8 @@ async def qr(ctx):
         value="**120-239181-3**", 
         inline=False
     )
-    embed.set_image(url="https://media.discordapp.net/attachments/1361004239043821610/1473323355791949948/Sushi_SCB.png")
+    # Updated image link as requested
+    embed.set_image(url="https://media.discordapp.net/attachments/1361004239043821610/1475334379550281768/Sushi_SCB_3.png?ex=699d1bb6&is=699bca36&hm=8d0aca020488ee0942aa7e4e1537c8a695b96033f8453552a1e840af93aaa029&=&format=webp&quality=lossless&width=1161&height=1061")
     
     view = View(timeout=None)
     copy_btn = Button(label="คัดลอกเลขบัญชี", style=discord.ButtonStyle.success, emoji="📋")
@@ -2610,9 +2691,9 @@ class PawnCustomer:
     def calculate_price_satisfaction(self, offered_price: int, base_price: int) -> Tuple[int, str]:
         price_diff_percent = ((offered_price - base_price) / base_price) * 100
         
-        if self.deal_type == "buy":  # ลูกค้าซื้อจากเรา (เราขาย)
+        if self.deal_type == "buy":  # ลูกค้าซื้อจากเรา (เราขาย) - เมื่อเราขาย ราคายิ่งสูง ลูกค้ายิ่งพอใจน้อย
             satisfaction_change = -price_diff_percent * 0.5
-        else:  # ลูกค้าขายให้เรา (เราซื้อ)
+        else:  # ลูกค้าขายให้เรา (เราซื้อ) - เมื่อเราซื้อ ราคายิ่งต่ำ ลูกค้ายิ่งพอใจน้อย
             satisfaction_change = price_diff_percent * 0.5
         
         new_satisfaction = self.satisfaction + satisfaction_change
@@ -3139,4 +3220,3 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ Error running bot: {e}")
         traceback.print_exc()
-
