@@ -1088,7 +1088,7 @@ class GroupTicketModal(Modal, title="📋 แบบฟอร์มสั่ง�
         except Exception as e:
             await i.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
 
-# ==================== DELIVERY VIEW ====================
+# ==================== DELIVERY VIEW (FIXED - No sales log) ====================
 class DeliveryView(View):
     def __init__(self, channel, product_type, robux_amount, price, buyer):
         super().__init__(timeout=None)
@@ -1173,40 +1173,7 @@ class DeliveryView(View):
                         text=f"จัดส่งสินค้าสำเร็จ 🤗 • {get_thailand_time().strftime('%d/%m/%y, %H:%M')}"
                     )
                     
-                    # ========== ส่งใบเสร็จไปยัง sales log channel ==========
-                    log_channel = bot.get_channel(SALES_LOG_CHANNEL_ID)
-                    if log_channel:
-                        # Get buyer name for log
-                        buyer_name = self.buyer.name if self.buyer else "ไม่ทราบ"
-                        log_embed = discord.Embed(
-                            title=f"🍣 ใบเสร็จการสั่งซื้อ ({self.product_type}) 🍣", 
-                            color=receipt_color
-                        )
-                        log_embed.add_field(
-                            name="😊 ผู้ซื้อ", 
-                            value=buyer_name, 
-                            inline=False
-                        )
-                        log_embed.add_field(
-                            name="💸 จำนวนโรบัค", 
-                            value=f"{self.robux_amount:,}", 
-                            inline=True
-                        )
-                        log_embed.add_field(
-                            name="💰 ราคาตามเรท", 
-                            value=f"{self.price:,.0f} บาท", 
-                            inline=True
-                        )
-                        
-                        if delivery_image:
-                            log_embed.set_image(url=delivery_image)
-                        
-                        log_embed.set_footer(
-                            text=f"จัดส่งสินค้าสำเร็จ 🤗 • {get_thailand_time().strftime('%d/%m/%y, %H:%M')}"
-                        )
-                        
-                        await log_channel.send(embed=log_embed)
-                        print(f"✅ ส่งใบเสร็จไปยัง sales log channel (ID: {SALES_LOG_CHANNEL_ID}) เรียบร้อย")
+                    # ========== REMOVED: ไม่ส่งใบเสร็จไปยัง sales log channel ==========
                     
                     await self.channel.send(embed=receipt_embed)
                     await self.channel.send("✅ **ส่งสินค้าเรียบร้อย**")
@@ -1734,10 +1701,6 @@ async def ty(ctx):
                     break
         
         # ========== REMOVED: ไม่ส่งใบเสร็จไปยัง sales log channel ==========
-        # log_channel = bot.get_channel(SALES_LOG_CHANNEL_ID)
-        # if log_channel:
-        #     await log_channel.send(embed=receipt_embed)
-        #     print(f"✅ ส่งใบเสร็จไปยัง sales log channel (ID: {SALES_LOG_CHANNEL_ID}) เรียบร้อย")
         
         await move_to_delivered_category(ctx.channel, buyer)
         
@@ -3218,7 +3181,7 @@ class PawnShopDealView(View):
         embed.add_field(
             name="📊 ราคา",
             value=(
-                f"ราคาพื้นฐาน: {self.base_price:,} 🪙\n"
+                f"ราคาพื้นฐาน: {self.base_price:,} 🪙\n
                 f"ต่าง: {((self.current_price - self.base_price) / self.base_price * 100):+.1f}%"
             ),
             inline=False
