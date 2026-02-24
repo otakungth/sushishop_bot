@@ -857,20 +857,17 @@ async def handle_ticket_after_ty(channel, user, robux_amount=None, customer_name
         await channel.send(embed=credit_embed, view=view)
         print(f"✅ ส่ง embed ให้เครดิตเรียบร้อย")
         
-        # Send message in credit channel
+        # ========== ส่งข้อความไปยัง credit channel (ไม่มี embed) ==========
         credit_channel = bot.get_channel(CREDIT_CHANNEL_ID)
         if credit_channel:
-            credit_embed_ch = discord.Embed(
-                title="✅ ส่งของเรียบร้อยแล้ว",
-                description=f"{user.mention if user else 'ลูกค้า'} ได้รับสินค้าแล้ว\n\n+1 ให้เครดิตด้วยนะคะ ⭐",
-                color=0x00FF00
-            )
-            credit_embed_ch.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
-            credit_msg = await credit_channel.send(embed=credit_embed_ch)
+            # ส่งข้อความธรรมดา (ไม่มี embed)
+            credit_msg = await credit_channel.send(f"{user.mention if user else 'ลูกค้า'} ได้รับสินค้าแล้ว\n+1 ให้เครดิตด้วยนะคะ ⭐")
             await credit_msg.add_reaction("❤️")
             await credit_msg.add_reaction("🍣")
+            print(f"✅ ส่งข้อความและเพิ่ม reaction ใน credit channel เรียบร้อย")
         
-        bot.loop.create_task(move_to_archive_after_delay(channel, user, 600))
+        # ========== REMOVED: ไม่ย้ายไป archive channel ==========
+        # bot.loop.create_task(move_to_archive_after_delay(channel, user, 600))
         
         return True
         
@@ -879,49 +876,7 @@ async def handle_ticket_after_ty(channel, user, robux_amount=None, customer_name
         traceback.print_exc()
         return False
 
-async def move_to_archive_after_delay(channel, user, delay_seconds):
-    try:
-        print(f"⏳ กำลังรอ {delay_seconds} วินาทีก่อนย้ายตั๋ว {channel.name} ไป archive")
-        await asyncio.sleep(delay_seconds)
-        
-        if not channel or channel not in channel.guild.channels:
-            print(f"❌ ตั๋ว {channel.name} ไม่มีอยู่แล้ว")
-            return
-        
-        archived_category = channel.guild.get_channel(ARCHIVED_CATEGORY_ID)
-        if not archived_category or not isinstance(archived_category, discord.CategoryChannel):
-            archived_category = discord.utils.get(channel.guild.categories, id=ARCHIVED_CATEGORY_ID)
-            if not archived_category:
-                archived_category = await channel.guild.create_category("📁 เก็บถาวร")
-                print(f"✅ สร้าง category เก็บถาวรใหม่")
-        
-        if archived_category:
-            if user:
-                try:
-                    overwrites = channel.overwrites
-                    if user in overwrites:
-                        overwrites[user].update(read_messages=False)
-                        await bot.channel_edit_rate_limiter.acquire()
-                        await channel.edit(overwrites=overwrites)
-                except Exception as e:
-                    print(f"⚠️ ไม่สามารถลบสิทธิ์ view ของผู้ซื้อ: {e}")
-            
-            await bot.channel_edit_rate_limiter.acquire()
-            await channel.edit(category=archived_category, reason="ย้ายไปเก็บถาวรหลังจาก 10 นาที")
-            print(f"✅ ย้ายตั๋ว {channel.name} ไปเก็บถาวรเรียบร้อยแล้ว")
-            
-            try:
-                archive_embed = discord.Embed(
-                    title="📁 เก็บถาวร", 
-                    description=f"ตั๋วนี้ถูกย้ายไปเก็บถาวรเรียบร้อยแล้ว\n\n**ชื่อไฟล์ transcript:** `{channel.name}`", 
-                    color=0x808080
-                )
-                await channel.send(embed=archive_embed)
-            except:
-                pass
-                
-    except Exception as e:
-        print(f"❌ Error moving to archive: {e}")
+# ========== REMOVED: ฟังก์ชัน move_to_archive_after_delay ถูกลบออกทั้งหมด ==========
 
 # ==================== MODALS (FIXED WITH ANONYMOUS OPTION) ====================
 class PersonalNoteModal(Modal, title="📝 จดวันที่เข้ากลุ่ม"):
@@ -3461,3 +3416,4 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ Error running bot: {e}")
         traceback.print_exc()
+
