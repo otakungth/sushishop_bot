@@ -471,7 +471,7 @@ async def handle_open_ticket(interaction, category_name, stock_type):
         else:
             embed.add_field(
                 name="👥 บริการเติมโรบัคกลุ่ม", 
-                value=f"📦 โรบัคเหลือ: **{group_stock:,}**\n💰 เรท: {group_rate_low} - {group_rate_high}", 
+                value=f"📦 โรบัคเหลือ: **{group_stock:,}**\n💰 เรท: {group_rate_low} | 500+ บาท เรท {group_rate_high}", 
                 inline=False
             )
         
@@ -1057,7 +1057,9 @@ class GroupTicketModal(Modal, title="📋 แบบฟอร์มสั่ง�
                 return
             
             robux = int(self.robux_amount.value)
-            rate = group_rate_low if robux < 1500 else group_rate_high
+            # คำนวณราคาเป็นบาทก่อนเพื่อตรวจสอบว่าเกิน 500 บาทหรือไม่
+            price_baht = robux / group_rate_low
+            rate = group_rate_low if price_baht < 500 else group_rate_high
             
             # Save anonymous preference to ticket data
             if anonymous_option == "ปิด":
@@ -2022,7 +2024,9 @@ async def odg(ctx, *, expr):
     try:
         expr_clean = expr.replace(",", "").lower().replace("x", "*").replace("÷", "/")
         robux = int(eval(expr_clean))
-        rate = group_rate_low if robux < 1500 else group_rate_high
+        # คำนวณราคาเป็นบาทก่อนเพื่อตรวจสอบว่าเกิน 500 บาทหรือไม่
+        price_baht = robux / group_rate_low
+        rate = group_rate_low if price_baht < 500 else group_rate_high
         price = robux / rate
         
         buyer = None
@@ -2115,7 +2119,9 @@ async def g(ctx, *, expr):
     try:
         expr_clean = expr.replace(",", "").lower().replace("x", "*").replace("÷", "/")
         robux = int(eval(expr_clean))
-        rate = group_rate_low if robux < 2250 else group_rate_high
+        # คำนวณราคาเป็นบาทก่อนเพื่อตรวจสอบว่าเกิน 500 บาทหรือไม่
+        price_baht = robux / group_rate_low
+        rate = group_rate_low if price_baht < 500 else group_rate_high
         await ctx.send(f"👥 Group {robux:,} Robux = **{robux/rate:,.0f} บาท** (เรท {rate})")
     except:
         await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง", delete_after=5)
@@ -3181,7 +3187,7 @@ class PawnShopDealView(View):
         embed.add_field(
             name="📊 ราคา",
             value=(
-                f"ราคาพื้นฐาน: {self.base_price:,} 🪙\n
+                f"ราคาพื้นฐาน: {self.base_price:,} 🪙\n"
                 f"ต่าง: {((self.current_price - self.base_price) / self.base_price * 100):+.1f}%"
             ),
             inline=False
