@@ -804,7 +804,7 @@ async def check_credit_channel_changes():
 # ==================== HANDLE TICKET AFTER TY ====================
 async def handle_ticket_after_ty(channel, user, robux_amount=None, customer_name=None):
     try:
-        print(f"📝 กำลังจัดการตั๋วหลัง !vouch: {channel.name}")
+        print(f"📝 กำลังจัดการตั๋วหลัง !ty: {channel.name}")
         guild = channel.guild
         
         if robux_amount is None and str(channel.id) in ticket_robux_data:
@@ -834,29 +834,38 @@ async def handle_ticket_after_ty(channel, user, robux_amount=None, customer_name
             except Exception as e:
                 print(f"⚠️ ไม่สามารถเปลี่ยนชื่อห้อง: {e}")
         
+        # Send credit embed in the ticket
         credit_embed = discord.Embed(
             title="✅ ส่งของเรียบร้อยแล้ว",
-            description="🎉 **ขอบคุณที่ใช้บริการร้าน Sushi Shop 🍣**\nฝากให้เครดิตด้วยนะคะ ⭐\n\n⚠️ **หมายเหตุ:** ตั๋วนี้จะถูกลบใน 10 นาที",
+            description="**ขอบคุณที่ใช้บริการร้าน Sushi Shop** 🍣\nฝากให้เครดิต +1 ให้ด้วยนะคะ ❤️\n\n⚠️ **หมายเหตุ:** ตั๋วนี้จะถูกลบใน 10 นาที",
             color=0x00FF00
         )
-        credit_embed.add_field(
-            name="📦 รายละเอียด",
-            value=f"**จำนวนโรบัค:** {robux_amount if robux_amount else 'ไม่ระบุ'}\n**ลูกค้า:** {customer_name if customer_name else 'ไม่ระบุ'}",
-            inline=False
-        )
-        credit_embed.set_footer(text="Sushi Shop 🍣")
+        credit_embed.set_footer(text="Sushi Shop 🍣❤️")
         credit_embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
         
-        await channel.send(embed=credit_embed)
+        view = View(timeout=None)
+        
+        credit_button = Button(
+            label="ให้เครดิต⭐", 
+            style=discord.ButtonStyle.link,
+            url=f"https://discord.com/channels/{guild.id}/{CREDIT_CHANNEL_ID}",
+            emoji="☑️"
+        )
+        
+        view.add_item(credit_button)
+        
+        await channel.send(embed=credit_embed, view=view)
         print(f"✅ ส่ง embed ให้เครดิตเรียบร้อย")
         
+        # Send message in credit channel
         credit_channel = bot.get_channel(CREDIT_CHANNEL_ID)
         if credit_channel:
             credit_embed_ch = discord.Embed(
-                title="🎉 ส่งของเรียบร้อย",
-                description=f"{user.mention if user else 'ลูกค้า'} ได้รับสินค้าแล้ว\n\n +1 ให้เครดิตด้วยนะคะ ⭐",
+                title="✅ ส่งของเรียบร้อยแล้ว",
+                description=f"{user.mention if user else 'ลูกค้า'} ได้รับสินค้าแล้ว\n\n+1 ให้เครดิตด้วยนะคะ ⭐",
                 color=0x00FF00
             )
+            credit_embed_ch.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
             credit_msg = await credit_channel.send(embed=credit_embed_ch)
             await credit_msg.add_reaction("❤️")
             await credit_msg.add_reaction("🍣")
@@ -1164,7 +1173,40 @@ class DeliveryView(View):
                         text=f"จัดส่งสินค้าสำเร็จ 🤗 • {get_thailand_time().strftime('%d/%m/%y, %H:%M')}"
                     )
                     
-                    # ========== REMOVED: ไม่ส่งใบเสร็จไปยัง sales log ที่นี่ ==========
+                    # ========== ส่งใบเสร็จไปยัง sales log channel ==========
+                    log_channel = bot.get_channel(SALES_LOG_CHANNEL_ID)
+                    if log_channel:
+                        # Get buyer name for log
+                        buyer_name = self.buyer.name if self.buyer else "ไม่ทราบ"
+                        log_embed = discord.Embed(
+                            title=f"🍣 ใบเสร็จการสั่งซื้อ ({self.product_type}) 🍣", 
+                            color=receipt_color
+                        )
+                        log_embed.add_field(
+                            name="😊 ผู้ซื้อ", 
+                            value=buyer_name, 
+                            inline=False
+                        )
+                        log_embed.add_field(
+                            name="💸 จำนวนโรบัค", 
+                            value=f"{self.robux_amount:,}", 
+                            inline=True
+                        )
+                        log_embed.add_field(
+                            name="💰 ราคาตามเรท", 
+                            value=f"{self.price:,.0f} บาท", 
+                            inline=True
+                        )
+                        
+                        if delivery_image:
+                            log_embed.set_image(url=delivery_image)
+                        
+                        log_embed.set_footer(
+                            text=f"จัดส่งสินค้าสำเร็จ 🤗 • {get_thailand_time().strftime('%d/%m/%y, %H:%M')}"
+                        )
+                        
+                        await log_channel.send(embed=log_embed)
+                        print(f"✅ ส่งใบเสร็จไปยัง sales log channel (ID: {SALES_LOG_CHANNEL_ID}) เรียบร้อย")
                     
                     await self.channel.send(embed=receipt_embed)
                     await self.channel.send("✅ **ส่งสินค้าเรียบร้อย**")
@@ -1541,15 +1583,15 @@ async def rate(ctx, rate_type=None, low_rate=None, high_rate=None):
 @bot.command()
 @admin_only()
 async def annoymous(ctx):
-    """เปลี่ยนชื่อห้องตั๋วเป็น ticket-annoymous-962001713320058910"""
+    """เปลี่ยนชื่อห้องตั๋วเป็น ticket-annoymous-sushi-client-962001713320058910"""
     if not ctx.channel.name.startswith("ticket-"):
         await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
         return
     
     try:
-        # Fixed user ID as requested
+        # Fixed ID as requested
         fixed_id = "962001713320058910"
-        new_name = f"ticket-annoymous-{fixed_id}"
+        new_name = f"ticket-annoymous-sushi-client-{fixed_id}"
         
         await bot.channel_edit_rate_limiter.acquire()
         await ctx.channel.edit(name=new_name)
@@ -1616,8 +1658,169 @@ async def delcoin(ctx, user_id: str = None, amount: str = None):
         await ctx.send("❌ กรุณากรอกจำนวนเงินเป็นตัวเลข", delete_after=5)
     except Exception as e:
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
+
+# ==================== คำสั่ง TY ====================
+@bot.command()
+@admin_only()
+async def ty(ctx):
+    """คำสั่ง !ty เหมือน !vouch แต่ส่ง embed ขอบคุณโดยไม่ส่งใบเสร็จไป sales log"""
+    global gamepass_stock, group_stock
+    
+    try:
+        await ctx.message.delete()
+    except:
+        pass
+    
+    if not ctx.channel.name.startswith("ticket-"):
+        await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
+        return
+    
+    try:
+        processing_msg = await ctx.send("🔄 กำลังดำเนินการ...")
         
-   # ========== vouch ==========
+        buyer = None
+        channel_name = ctx.channel.name
+        if channel_name.startswith("ticket-"):
+            parts = channel_name.split('-')
+            if len(parts) >= 3:
+                try:
+                    user_id = int(parts[-1])
+                    buyer = ctx.guild.get_member(user_id)
+                except ValueError:
+                    pass
+        
+        if not buyer:
+            async for msg in ctx.channel.history(limit=50):
+                if not msg.author.bot and msg.author != ctx.guild.me:
+                    buyer = msg.author
+                    break
+        
+        robux_amount = ticket_robux_data.get(str(ctx.channel.id))
+        customer_name = ticket_customer_data.get(str(ctx.channel.id))
+        
+        # ค้นหาข้อมูลสินค้าและราคาจากประวัติแชท
+        product_type = "Gamepass"  # ค่าเริ่มต้น
+        price = 0
+        delivery_image = None
+        
+        # ค้นหาข้อมูลการส่งสินค้าล่าสุด
+        async for msg in ctx.channel.history(limit=50):
+            if msg.author == bot.user and msg.embeds:
+                for embed in msg.embeds:
+                    if embed.title and "ใบเสร็จ" in embed.title:
+                        # ดึงข้อมูลจาก embed ใบเสร็จ
+                        for field in embed.fields:
+                            if field.name == "💸 จำนวนโรบัค":
+                                try:
+                                    robux_amount = int(field.value.replace(",", ""))
+                                except:
+                                    pass
+                            elif field.name == "💰 ราคาตามเรท":
+                                try:
+                                    price = int(float(field.value.replace(" บาท", "").replace(",", "")))
+                                except:
+                                    pass
+                        
+                        if embed.image.url:
+                            delivery_image = embed.image.url
+                        
+                        if "Gamepass" in embed.title:
+                            product_type = "Gamepass"
+                        elif "Group" in embed.title:
+                            product_type = "Group"
+                        
+                        break
+                if product_type:
+                    break
+        
+        # ========== REMOVED: ไม่ส่งใบเสร็จไปยัง sales log channel ==========
+        # log_channel = bot.get_channel(SALES_LOG_CHANNEL_ID)
+        # if log_channel:
+        #     await log_channel.send(embed=receipt_embed)
+        #     print(f"✅ ส่งใบเสร็จไปยัง sales log channel (ID: {SALES_LOG_CHANNEL_ID}) เรียบร้อย")
+        
+        await move_to_delivered_category(ctx.channel, buyer)
+        
+        save_success, filename = await save_ticket_transcript(ctx.channel, buyer, robux_amount, customer_name)
+        
+        if save_success:
+            try:
+                await ctx.channel.edit(name=filename[:100])
+            except:
+                pass
+        
+        if ctx.channel.category:
+            category_name = ctx.channel.category.name.lower()
+            if "gamepass" in category_name:
+                async with bot.stock_lock:
+                    gamepass_stock += 1
+            elif "group" in category_name or "robux" in category_name:
+                async with bot.stock_lock:
+                    group_stock += 1
+        
+        # Save stock immediately
+        save_stock_values()
+        
+        await processing_msg.delete()
+        
+        # ส่ง embed ตามที่ต้องการ
+        embed = discord.Embed(
+            title="✅ ส่งของเรียบร้อยแล้ว",
+            description=(
+                "**ขอบคุณที่ใช้บริการร้าน Sushi Shop** 🍣\n"
+                "ฝากให้เครดิต +1 ให้ด้วยนะคะ ❤️\n\n"
+                "⚠️ **หมายเหตุ:** ตั๋วนี้จะถูกลบใน 10 นาที"
+            ),
+            color=0x00FF00
+        )
+        embed.set_footer(text="Sushi Shop 🍣❤️")
+        embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
+        
+        view = View(timeout=None)
+        
+        credit_button = Button(
+            label="ให้เครดิต⭐", 
+            style=discord.ButtonStyle.link,
+            url=f"https://discord.com/channels/{ctx.guild.id}/{CREDIT_CHANNEL_ID}",
+            emoji="☑️"
+        )
+        
+        view.add_item(credit_button)
+        
+        await ctx.send(embed=embed, view=view)
+        
+        # Send message in credit channel
+        credit_channel = bot.get_channel(CREDIT_CHANNEL_ID)
+        if credit_channel:
+            credit_embed_ch = discord.Embed(
+                title="✅ ส่งของเรียบร้อยแล้ว",
+                description=f"{buyer.mention if buyer else 'ลูกค้า'} ได้รับสินค้าแล้ว\n\n+1 ให้เครดิตด้วยนะคะ ⭐",
+                color=0x00FF00
+            )
+            credit_embed_ch.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
+            credit_msg = await credit_channel.send(embed=credit_embed_ch)
+            await credit_msg.add_reaction("❤️")
+            await credit_msg.add_reaction("🍣")
+        
+        if str(ctx.channel.id) in ticket_robux_data:
+            del ticket_robux_data[str(ctx.channel.id)]
+            save_json(ticket_robux_data_file, ticket_robux_data)
+        
+        if str(ctx.channel.id) in ticket_customer_data:
+            del ticket_customer_data[str(ctx.channel.id)]
+            save_json(ticket_customer_data_file, ticket_customer_data)
+        
+        await update_main_channel()
+        bot.loop.create_task(move_to_archive_after_delay(ctx.channel, buyer, 600))
+        
+        print(f"✅ คำสั่ง !ty ดำเนินการสำเร็จสำหรับห้อง {ctx.channel.name}")
+        
+    except Exception as e:
+        print(f"❌ เกิดข้อผิดพลาดใน !ty: {e}")
+        traceback.print_exc()
+        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=5)
+
+# ==================== คำสั่ง VOUCH ====================
 @bot.command()
 @admin_only()
 async def vouch(ctx):
@@ -1635,40 +1838,22 @@ async def vouch(ctx):
     try:
         processing_msg = await ctx.send("🔄 กำลังดำเนินการ...")
         
-        # Fix: Better user ID extraction that handles anonymous tickets
         buyer = None
         channel_name = ctx.channel.name
-        
-        # Try to find the buyer from channel history first (more reliable)
-        async for msg in ctx.channel.history(limit=50):
-            if not msg.author.bot and msg.author != ctx.guild.me:
-                buyer = msg.author
-                break
-        
-        # If no buyer found in history, try to extract from channel name
-        if not buyer and channel_name.startswith("ticket-"):
+        if channel_name.startswith("ticket-"):
             parts = channel_name.split('-')
-            
-            # Check if it's an anonymous ticket (has "annoymous" in the name)
-            if "annoymous" in channel_name.lower():
-                # For anonymous tickets, the fixed ID is at the end
+            if len(parts) >= 3:
                 try:
                     user_id = int(parts[-1])
                     buyer = ctx.guild.get_member(user_id)
-                except (ValueError, IndexError):
-                    # If can't get from parts, try to find any user in the channel
-                    async for msg in ctx.channel.history(limit=20):
-                        if not msg.author.bot and msg.author != ctx.guild.me:
-                            buyer = msg.author
-                            break
-            else:
-                # Normal ticket format: ticket-username-userid
-                try:
-                    if len(parts) >= 3:
-                        user_id = int(parts[-1])
-                        buyer = ctx.guild.get_member(user_id)
-                except (ValueError, IndexError):
+                except ValueError:
                     pass
+        
+        if not buyer:
+            async for msg in ctx.channel.history(limit=50):
+                if not msg.author.bot and msg.author != ctx.guild.me:
+                    buyer = msg.author
+                    break
         
         robux_amount = ticket_robux_data.get(str(ctx.channel.id))
         customer_name = ticket_customer_data.get(str(ctx.channel.id))
@@ -1717,7 +1902,7 @@ async def vouch(ctx):
         )
         receipt_embed.add_field(
             name="😊 ผู้ซื้อ", 
-            value=buyer.mention if buyer else "ไม่ระบุตัวตน", 
+            value=buyer.mention if buyer else "ไม่ทราบ", 
             inline=False
         )
         receipt_embed.add_field(
@@ -1810,7 +1995,7 @@ async def vouch(ctx):
         print(f"❌ เกิดข้อผิดพลาดใน !vouch: {e}")
         traceback.print_exc()
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=5)
-        
+
 @bot.command()
 @admin_only()
 async def od(ctx, *, expr):
@@ -3307,4 +3492,3 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ Error running bot: {e}")
         traceback.print_exc()
-
