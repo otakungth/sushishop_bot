@@ -277,7 +277,7 @@ async def update_main_channel():
         )
         embed.add_field(
             name=f"👥 โรบัคกลุ่ม | 📊 Stock: {group_stock:,} {'🟢' if group_stock > 0 else '🔴'}", 
-            value=f"```\nเรท: {group_rate_low} | 500+ บาท เรท {group_rate_high}\n⚠️เข้ากลุ่ม 15 วันก่อนซื้อ⚠️\n```", 
+            value=f"```\nเรท: {group_rate_low} (< 2,250) | {group_rate_high} (≥ 2,250)\n⚠️เข้ากลุ่ม 15 วันก่อนซื้อ⚠️\n```", 
             inline=False
         )
         embed.add_field(
@@ -471,7 +471,7 @@ async def handle_open_ticket(interaction, category_name, stock_type):
         else:
             embed.add_field(
                 name="👥 บริการเติมโรบัคกลุ่ม", 
-                value=f"📦 โรบัคเหลือ: **{group_stock:,}**\n💰 เรท: {group_rate_low} | 500+ บาท เรท {group_rate_high}", 
+                value=f"📦 โรบัคเหลือ: **{group_stock:,}**\n💰 เรท: {group_rate_low} (< 2,250) | {group_rate_high} (≥ 2,250)", 
                 inline=False
             )
         
@@ -801,83 +801,6 @@ async def check_credit_channel_changes():
     except Exception as e:
         print(f"❌ Error checking credit channel: {e}")
 
-# ==================== HANDLE TICKET AFTER TY ====================
-async def handle_ticket_after_ty(channel, user, robux_amount=None, customer_name=None):
-    try:
-        print(f"📝 กำลังจัดการตั๋วหลัง !ty: {channel.name}")
-        guild = channel.guild
-        
-        if robux_amount is None and str(channel.id) in ticket_robux_data:
-            robux_amount = ticket_robux_data[str(channel.id)]
-        
-        delivered_category = guild.get_channel(DELIVERED_CATEGORY_ID)
-        if not delivered_category or not isinstance(delivered_category, discord.CategoryChannel):
-            delivered_category = discord.utils.get(guild.categories, id=DELIVERED_CATEGORY_ID)
-            if not delivered_category:
-                print(f"❌ ไม่พบ category ส่งของแล้ว (ID: {DELIVERED_CATEGORY_ID})")
-                return False
-        
-        await bot.channel_edit_rate_limiter.acquire()
-        await channel.edit(
-            category=delivered_category, 
-            reason=f"ย้ายไปห้องส่งของแล้วโดย {user.name if user else 'ระบบ'}"
-        )
-        print(f"✅ ย้ายตั๋วไปยัง category ส่งของแล้ว")
-        
-        save_success, filename = await save_ticket_transcript(channel, user, robux_amount, customer_name)
-        
-        if save_success:
-            try:
-                await bot.channel_edit_rate_limiter.acquire()
-                await channel.edit(name=filename[:100])
-                print(f"✅ เปลี่ยนชื่อห้องเป็น: {filename}")
-            except Exception as e:
-                print(f"⚠️ ไม่สามารถเปลี่ยนชื่อห้อง: {e}")
-        
-        # Send credit embed in the ticket
-        credit_embed = discord.Embed(
-            title="✅ ส่งของเรียบร้อยแล้ว",
-            description="**ขอบคุณที่ใช้บริการร้าน Sushi Shop** 🍣\nฝากให้เครดิต +1 ให้ด้วยนะคะ ❤️\n\n⚠️ **หมายเหตุ:** ตั๋วนี้จะถูกลบใน 10 นาที",
-            color=0x00FF00
-        )
-        credit_embed.set_footer(text="Sushi Shop 🍣❤️")
-        credit_embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
-        
-        view = View(timeout=None)
-        
-        credit_button = Button(
-            label="ให้เครดิต⭐", 
-            style=discord.ButtonStyle.link,
-            url=f"https://discord.com/channels/{guild.id}/{CREDIT_CHANNEL_ID}",
-            emoji="☑️"
-        )
-        
-        view.add_item(credit_button)
-        
-        await channel.send(embed=credit_embed, view=view)
-        print(f"✅ ส่ง embed ให้เครดิตเรียบร้อย")
-        
-        # ========== ส่งข้อความไปยัง credit channel (ไม่มี embed) ==========
-        credit_channel = bot.get_channel(CREDIT_CHANNEL_ID)
-        if credit_channel:
-            # ส่งข้อความธรรมดา (ไม่มี embed)
-            credit_msg = await credit_channel.send(f"{user.mention if user else 'ลูกค้า'} ได้รับสินค้าแล้ว\n+1 ให้เครดิตด้วยนะคะ ⭐")
-            await credit_msg.add_reaction("❤️")
-            await credit_msg.add_reaction("🍣")
-            print(f"✅ ส่งข้อความและเพิ่ม reaction ใน credit channel เรียบร้อย")
-        
-        # ========== REMOVED: ไม่ย้ายไป archive channel ==========
-        # bot.loop.create_task(move_to_archive_after_delay(channel, user, 600))
-        
-        return True
-        
-    except Exception as e:
-        print(f"❌ Error in handle_ticket_after_ty: {e}")
-        traceback.print_exc()
-        return False
-
-# ========== REMOVED: ฟังก์ชัน move_to_archive_after_delay ถูกลบออกทั้งหมด ==========
-
 # ==================== MODALS (FIXED WITH ANONYMOUS OPTION) ====================
 class PersonalNoteModal(Modal, title="📝 จดวันที่เข้ากลุ่ม"):
     note = TextInput(
@@ -1012,9 +935,8 @@ class GroupTicketModal(Modal, title="📋 แบบฟอร์มสั่ง�
                 return
             
             robux = int(self.robux_amount.value)
-            # คำนวณราคาเป็นบาทก่อนเพื่อตรวจสอบว่าเกิน 500 บาทหรือไม่
-            price_baht = robux / group_rate_low
-            rate = group_rate_low if price_baht < 500 else group_rate_high
+            # ใช้ 2,250 Robux เป็นเกณฑ์
+            rate = group_rate_low if robux < 2250 else group_rate_high
             
             # Save anonymous preference to ticket data
             if anonymous_option == "ปิด":
@@ -1045,7 +967,7 @@ class GroupTicketModal(Modal, title="📋 แบบฟอร์มสั่ง�
         except Exception as e:
             await i.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
 
-# ==================== DELIVERY VIEW (FIXED - No sales log) ====================
+# ==================== DELIVERY VIEW (FIXED - No sales log, No extra message) ====================
 class DeliveryView(View):
     def __init__(self, channel, product_type, robux_amount, price, buyer):
         super().__init__(timeout=None)
@@ -1133,7 +1055,7 @@ class DeliveryView(View):
                     # ========== REMOVED: ไม่ส่งใบเสร็จไปยัง sales log channel ==========
                     
                     await self.channel.send(embed=receipt_embed)
-                    await self.channel.send("✅ **ส่งสินค้าเรียบร้อย**")
+                    # ========== REMOVED: ไม่ส่งข้อความ ✅ **ส่งสินค้าเรียบร้อย** ==========
                     
                     # ========== ส่งใบเสร็จไปยัง DM ผู้ซื้อ ==========
                     if self.buyer:
@@ -1460,7 +1382,7 @@ async def rate(ctx, rate_type=None, low_rate=None, high_rate=None):
     if rate_type is None:
         embed = discord.Embed(title="📊 เรทโรบัคปัจจุบัน", color=0x00FF99)
         embed.add_field(name="🎮 Gamepass Rate", value=f"**{gamepass_rate}**", inline=True)
-        embed.add_field(name="👥 Group Rate", value=f"**{group_rate_low} - {group_rate_high}**", inline=True)
+        embed.add_field(name="👥 Group Rate", value=f"**{group_rate_low} (< 2,250) | {group_rate_high} (≥ 2,250)**", inline=True)
         await ctx.send(embed=embed)
         
     elif rate_type.lower() == "group":
@@ -1480,7 +1402,7 @@ async def rate(ctx, rate_type=None, low_rate=None, high_rate=None):
             save_stock_values()
             embed = discord.Embed(
                 title="✅ เปลี่ยนเรทโรกลุ่มเรียบร้อย", 
-                description=f"ตั้งค่าเรทโรกลุ่มเป็น **{group_rate_low} - {group_rate_high}** เรียบร้อยแล้ว", 
+                description=f"ตั้งค่าเรทโรกลุ่มเป็น **{group_rate_low} (< 2,250) | {group_rate_high} (≥ 2,250)** เรียบร้อยแล้ว", 
                 color=0x00FF00
             )
             await ctx.send(embed=embed)
@@ -1709,18 +1631,7 @@ async def ty(ctx):
         
         await ctx.send(embed=embed, view=view)
         
-        # Send message in credit channel
-        credit_channel = bot.get_channel(CREDIT_CHANNEL_ID)
-        if credit_channel:
-            credit_embed_ch = discord.Embed(
-                title="✅ ส่งของเรียบร้อยแล้ว",
-                description=f"{buyer.mention if buyer else 'ลูกค้า'} ได้รับสินค้าแล้ว\n\n+1 ให้เครดิตด้วยนะคะ ⭐",
-                color=0x00FF00
-            )
-            credit_embed_ch.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
-            credit_msg = await credit_channel.send(embed=credit_embed_ch)
-            await credit_msg.add_reaction("❤️")
-            await credit_msg.add_reaction("🍣")
+        # ========== REMOVED: ไม่ส่งข้อความไปยัง credit channel ==========
         
         if str(ctx.channel.id) in ticket_robux_data:
             del ticket_robux_data[str(ctx.channel.id)]
@@ -1731,14 +1642,13 @@ async def ty(ctx):
             save_json(ticket_customer_data_file, ticket_customer_data)
         
         await update_main_channel()
-        bot.loop.create_task(move_to_archive_after_delay(ctx.channel, buyer, 600))
         
         print(f"✅ คำสั่ง !ty ดำเนินการสำเร็จสำหรับห้อง {ctx.channel.name}")
         
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดใน !ty: {e}")
         traceback.print_exc()
-        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=5)
+        # ========== REMOVED: ไม่ส่งข้อความ error ไปยัง user ==========
 
 # ==================== คำสั่ง VOUCH ====================
 @bot.command()
@@ -1898,6 +1808,8 @@ async def vouch(ctx):
         
         await ctx.send(embed=embed, view=view)
         
+        # ========== REMOVED: ไม่ส่งข้อความไปยัง credit channel ==========
+        
         if str(ctx.channel.id) in ticket_robux_data:
             del ticket_robux_data[str(ctx.channel.id)]
             save_json(ticket_robux_data_file, ticket_robux_data)
@@ -1907,14 +1819,13 @@ async def vouch(ctx):
             save_json(ticket_customer_data_file, ticket_customer_data)
         
         await update_main_channel()
-        bot.loop.create_task(move_to_archive_after_delay(ctx.channel, buyer, 600))
         
         print(f"✅ คำสั่ง !vouch ดำเนินการสำเร็จสำหรับห้อง {ctx.channel.name}")
         
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดใน !vouch: {e}")
         traceback.print_exc()
-        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=5)
+        # ========== REMOVED: ไม่ส่งข้อความ error ไปยัง user ==========
 
 @bot.command()
 @admin_only()
@@ -1965,7 +1876,7 @@ async def od(ctx, *, expr):
         
     except Exception as e:
         print(f"❌ Error in !od: {e}")
-        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
+        # ========== REMOVED: ไม่ส่งข้อความ error ไปยัง user ==========
 
 @bot.command()
 @admin_only()
@@ -1979,9 +1890,8 @@ async def odg(ctx, *, expr):
     try:
         expr_clean = expr.replace(",", "").lower().replace("x", "*").replace("÷", "/")
         robux = int(eval(expr_clean))
-        # คำนวณราคาเป็นบาทก่อนเพื่อตรวจสอบว่าเกิน 500 บาทหรือไม่
-        price_baht = robux / group_rate_low
-        rate = group_rate_low if price_baht < 500 else group_rate_high
+        # ใช้ 2,250 Robux เป็นเกณฑ์
+        rate = group_rate_low if robux < 2250 else group_rate_high
         price = robux / rate
         
         buyer = None
@@ -2019,7 +1929,7 @@ async def odg(ctx, *, expr):
         
     except Exception as e:
         print(f"❌ Error in !odg: {e}")
-        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=10)
+        # ========== REMOVED: ไม่ส่งข้อความ error ไปยัง user ==========
 
 @bot.command()
 async def qr(ctx):
@@ -2074,9 +1984,8 @@ async def g(ctx, *, expr):
     try:
         expr_clean = expr.replace(",", "").lower().replace("x", "*").replace("÷", "/")
         robux = int(eval(expr_clean))
-        # คำนวณราคาเป็นบาทก่อนเพื่อตรวจสอบว่าเกิน 500 บาทหรือไม่
-        price_baht = robux / group_rate_low
-        rate = group_rate_low if price_baht < 500 else group_rate_high
+        # ใช้ 2,250 Robux เป็นเกณฑ์
+        rate = group_rate_low if robux < 2250 else group_rate_high
         await ctx.send(f"👥 Group {robux:,} Robux = **{robux/rate:,.0f} บาท** (เรท {rate})")
     except:
         await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง", delete_after=5)
@@ -2097,7 +2006,10 @@ async def gb(ctx, *, expr):
     
     try:
         baht = float(eval(expr.replace(",", "")))
-        rate = group_rate_low if baht < 500 else group_rate_high
+        # แปลงบาทกลับเป็น Robux โดยใช้ rate ต่ำสุดก่อน
+        robux_estimate = baht * group_rate_low
+        # ถ้าประมาณการ Robux เกิน 2,250 ให้ใช้ rate สูง
+        rate = group_rate_low if robux_estimate < 2250 else group_rate_high
         await ctx.send(f"👥 {baht:,.0f} บาท = **{baht * rate:,.0f} Robux** (Group เรท {rate})")
     except:
         await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง", delete_after=5)
@@ -3208,7 +3120,7 @@ async def show_leaderboard(interaction: discord.Interaction):
     
     embed = discord.Embed(
         title="🏆 อันดับผู้เล่นที่มีเงินมากที่สุด",
-        description="5 อันดับผู้เล่นที่รวยที่สุดใน RNG Sushi",
+        description="5 อันดับผู้เล่นที่รวยที่สุดในRNG Sushi",
         color=0xFFD700
     )
     
@@ -3416,4 +3328,3 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ Error running bot: {e}")
         traceback.print_exc()
-
