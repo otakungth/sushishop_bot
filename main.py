@@ -1629,6 +1629,115 @@ async def addcoin(ctx, user_id: str = None, amount: str = None):
     except Exception as e:
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
 
+# ==================== คำสั่ง GIVE ITEM (เพิ่มใหม่) ====================
+@bot.command()
+@admin_only()
+async def give(ctx, item_id: str = None, user_id: str = None, amount: str = None):
+    """ให้ไอเทมแก่ผู้ใช้ !give <item_id> <userid> <amount>"""
+    if not item_id or not user_id or not amount:
+        embed = discord.Embed(
+            title="❌ การใช้งานไม่ถูกต้อง",
+            description="**การใช้งาน:** `!give <item_id> <userid> <amount>`\n"
+                       "**ตัวอย่าง:** `!give myt_1 721699340464160829 50`\n\n"
+                       "**รายการ item_id:**\n"
+                       "• common_1 - common_10 (Common)\n"
+                       "• rare_1 - rare_5 (Rare)\n"
+                       "• epic_1 - epic_5 (Epic)\n"
+                       "• legendary_1 - legendary_4 (Legendary)\n"
+                       "• myt_1 - myt_3 (Mythic)",
+            color=0xFF0000
+        )
+        await ctx.send(embed=embed)
+        return
+    
+    try:
+        # ตรวจสอบว่า item_id มีอยู่ใน ITEMS หรือไม่
+        if item_id not in ITEMS:
+            await ctx.send(f"❌ ไม่พบไอเทม `{item_id}` ในระบบ")
+            return
+        
+        amount_int = int(amount.replace(",", ""))
+        if amount_int <= 0:
+            await ctx.send("❌ กรุณากรอกจำนวนที่มากกว่า 0", delete_after=5)
+            return
+        
+        user_id_str = str(user_id)
+        
+        # ตรวจสอบว่าผู้ใช้มีตัวตนใน Discord หรือไม่
+        try:
+            target_user = await bot.fetch_user(int(user_id_str))
+            display_name = target_user.display_name
+        except:
+            display_name = f"<@{user_id_str}>"
+        
+        # เพิ่มไอเทมให้ผู้ใช้
+        item = ITEMS[item_id]
+        add_item_to_inventory(user_id_str, item_id, amount_int)
+        
+        # สร้าง embed แจ้งเตือน
+        embed = discord.Embed(
+            title="✅ ให้ไอเทมเรียบร้อย",
+            description=f"ให้ {item['emoji']} **{item['name']}** จำนวน **{amount_int:,}** ชิ้น แก่ {display_name}",
+            color=0x00FF00
+        )
+        embed.add_field(
+            name="📊 รายละเอียด",
+            value=f"**รหัสไอเทม:** `{item_id}`\n"
+                  f"**ความหายาก:** {get_rarity_emoji(item['rarity'])} {item['rarity'].upper()}\n"
+                  f"**มูลค่าต่อชิ้น:** {item['value']} 🪙\n"
+                  f"**มูลค่ารวม:** {item['value'] * amount_int:,} 🪙",
+            inline=False
+        )
+        
+        # แสดงยอดเงินปัจจุบันของผู้ใช้ (ถ้ามี)
+        balance = get_user_balance(user_id_str)
+        embed.add_field(
+            name="💰 ยอดเงินผู้รับ",
+            value=f"**{balance:,}** 🪙",
+            inline=False
+        )
+        
+        await ctx.send(embed=embed)
+        
+    except ValueError:
+        await ctx.send("❌ กรุณากรอกจำนวนเงินเป็นตัวเลข", delete_after=5)
+    except Exception as e:
+        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
+
+@bot.command()
+@admin_only()
+async def givelist(ctx):
+    """แสดงรายการ item_id ที่สามารถใช้ได้"""
+    embed = discord.Embed(
+        title="📋 รายการไอเทมสำหรับคำสั่ง !give",
+        description="ใช้คำสั่ง `!give <item_id> <userid> <amount>`",
+        color=0x00AAFF
+    )
+    
+    # Common items
+    common_list = "\n".join([f"`{k}` - {v['emoji']} {v['name']}" for k, v in COMMON_ITEMS.items()])
+    embed.add_field(name=f"{get_rarity_emoji('common')} Common (10 รายการ)", value=common_list, inline=False)
+    
+    # Rare items
+    rare_list = "\n".join([f"`{k}` - {v['emoji']} {v['name']}" for k, v in RARE_ITEMS.items()])
+    embed.add_field(name=f"{get_rarity_emoji('rare')} Rare (5 รายการ)", value=rare_list, inline=False)
+    
+    # Epic items
+    epic_list = "\n".join([f"`{k}` - {v['emoji']} {v['name']}" for k, v in EPIC_ITEMS.items()])
+    embed.add_field(name=f"{get_rarity_emoji('epic')} Epic (5 รายการ)", value=epic_list, inline=False)
+    
+    # Legendary items
+    legendary_list = "\n".join([f"`{k}` - {v['emoji']} {v['name']}" for k, v in LEGENDARY_ITEMS.items()])
+    embed.add_field(name=f"{get_rarity_emoji('legendary')} Legendary (4 รายการ)", value=legendary_list, inline=False)
+    
+    # Mythic items
+    mythic_list = "\n".join([f"`{k}` - {v['emoji']} {v['name']}" for k, v in MYTHIC_ITEMS.items()])
+    embed.add_field(name=f"{get_rarity_emoji('mythic')} Mythic (3 รายการ)", value=mythic_list, inline=False)
+    
+    embed.set_footer(text="ตัวอย่าง: !give myt_1 721699340464160829 50")
+    
+    await ctx.send(embed=embed)
+
 # ==================== คำสั่ง TY ====================
 @bot.command()
 @admin_only()
@@ -4191,3 +4300,4 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ Error running bot: {e}")
         traceback.print_exc()
+
