@@ -329,30 +329,7 @@ async def update_main_channel():
             await i.response.send_modal(PersonalNoteModal())
         
         async def rng_cb(i):
-            embed = discord.Embed(
-                title="🎲 RNG Sushi Shop",
-                description="ยินดีต้อนรับสู่เกมสุ่มไอเทม!\n\nเลือกปุ่มด้านล่างเพื่อเริ่มเล่น",
-                color=0x00AAFF
-            )
-            embed.add_field(
-                name="📊 โอกาสสุ่ม", 
-                value=(
-                    f"{get_rarity_emoji('common')} Common 60%\n"
-                    f"{get_rarity_emoji('rare')} Rare 25%\n"
-                    f"{get_rarity_emoji('epic')} Epic 10%\n"
-                    f"{get_rarity_emoji('legendary')} Legendary 4%\n"
-                    f"{get_rarity_emoji('mythic')} Mythic 1%"
-                ), 
-                inline=False
-            )
-            embed.add_field(
-                name=f"💰 การสุ่มใช้ {format_number(ROLL_COST)} 🪙", 
-                value="",  # Empty value to avoid blank field
-                inline=False
-            )
-            embed.set_footer(text=f"ผู้เล่น: {i.user.display_name}")
-            
-            await i.response.send_message(embed=embed, view=RNGMainView(i.user), ephemeral=True)
+            await show_rng_main_menu(i, i.user)
         
         gamepass_btn.callback = gamepass_cb
         group_btn.callback = group_cb
@@ -2617,11 +2594,10 @@ def calculate_offer_price(base_price: int, is_sell: bool = True) -> int:
         offer = base_price * (1 + variation)
     return max(1, int(offer))  # Ensure at least 1 coin
 
-# ==================== RNG SLASH COMMANDS ====================
-@bot.tree.command(name="rng", description="เล่นเกม RNG Sushi Shop (สุ่มไอเทม)")
-async def rng_slash(interaction: discord.Interaction):
-    # Initialize user balance if needed
-    user_id = str(interaction.user.id)
+# ==================== RNG MAIN MENU HELPER ====================
+async def show_rng_main_menu(interaction_or_message, user: discord.User):
+    """Show RNG main menu with current balance - reusable function"""
+    user_id = str(user.id)
     balance = get_user_balance(user_id)
     
     embed = discord.Embed(
@@ -2645,9 +2621,20 @@ async def rng_slash(interaction: discord.Interaction):
         value=f"การสุ่มแต่ละครั้งใช้ {format_number(ROLL_COST)} 🪙\nเงินของคุณ: {format_number(balance)} 🪙",
         inline=False
     )
-    embed.set_footer(text=f"ผู้เล่น: {interaction.user.display_name}")
+    embed.set_footer(text=f"ผู้เล่น: {user.display_name}")
     
-    await interaction.response.send_message(embed=embed, view=RNGMainView(interaction.user), ephemeral=True)
+    view = RNGMainView(user)
+    
+    # Check if this is an interaction or message
+    if hasattr(interaction_or_message, 'response'):
+        await interaction_or_message.response.edit_message(embed=embed, view=view)
+    else:
+        await interaction_or_message.edit(embed=embed, view=view)
+
+# ==================== RNG SLASH COMMANDS ====================
+@bot.tree.command(name="rng", description="เล่นเกม RNG Sushi Shop (สุ่มไอเทม)")
+async def rng_slash(interaction: discord.Interaction):
+    await show_rng_main_menu(interaction, interaction.user)
 
 class RNGMainView(View):
     def __init__(self, user: discord.User):
@@ -2769,25 +2756,7 @@ class RNGMainView(View):
                     await back_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
                     return
                 
-                main_embed = discord.Embed(
-                    title="🎲 RNG Sushi Shop",
-                    description="ยินดีต้อนรับสู่เกมสุ่มไอเทม!\n\nเลือกปุ่มด้านล่างเพื่อเริ่มเล่น",
-                    color=0x00AAFF
-                )
-                main_embed.add_field(
-                    name="📊 อัตราการสุ่ม", 
-                    value=(
-                        f"{get_rarity_emoji('common')} Common 60%\n"
-                        f"{get_rarity_emoji('rare')} Rare 25%\n"
-                        f"{get_rarity_emoji('epic')} Epic 10%\n"
-                        f"{get_rarity_emoji('legendary')} Legendary 4%\n"
-                        f"{get_rarity_emoji('mythic')} Mythic 1%"
-                    ), 
-                    inline=False
-                )
-                main_embed.set_footer(text=f"ผู้เล่น: {self.user.display_name}")
-                
-                await back_interaction.response.edit_message(embed=main_embed, view=RNGMainView(self.user))
+                await show_rng_main_menu(back_interaction, self.user)
             
             back_btn.callback = back_cb
             empty_inventory_view.add_item(back_btn)
@@ -3008,28 +2977,9 @@ class RollAgainView(View):
             await interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
             return
         
-        # กลับไปที่หน้า main
-        main_embed = discord.Embed(
-            title="🎲 RNG Sushi Shop",
-            description="ยินดีต้อนรับสู่เกมสุ่มไอเทม!\n\nเลือกปุ่มด้านล่างเพื่อเริ่มเล่น",
-            color=0x00AAFF
-        )
-        main_embed.add_field(
-            name="📊 อัตราการสุ่ม", 
-            value=(
-                f"{get_rarity_emoji('common')} Common 60%\n"
-                f"{get_rarity_emoji('rare')} Rare 25%\n"
-                f"{get_rarity_emoji('epic')} Epic 10%\n"
-                f"{get_rarity_emoji('legendary')} Legendary 4%\n"
-                f"{get_rarity_emoji('mythic')} Mythic 1%"
-            ), 
-            inline=False
-        )
-        main_embed.set_footer(text=f"ผู้เล่น: {self.user.display_name}")
-        
-        await interaction.response.edit_message(embed=main_embed, view=RNGMainView(self.user))
+        await show_rng_main_menu(interaction, self.user)
 
-# ==================== PAWN SHOP SYSTEM (FIXED SELLING WITH ±20% OFFER) ====================
+# ==================== PAWN SHOP SYSTEM (FIXED SELLING WITH ±20% OFFER AND ALL BUTTONS) ====================
 CUSTOMER_NAMES = [
     "Sunny", "Mawin", "Kirin", "Theo", "Porsche",
     "Praewa", "Milin", "Kana", "Airi", "Nari",
@@ -3242,25 +3192,7 @@ class PawnShopMainView(View):
                     await back_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
                     return
                 
-                main_embed = discord.Embed(
-                    title="🎲 RNG Sushi Shop",
-                    description="ยินดีต้อนรับสู่เกมสุ่มไอเทม!\n\nเลือกปุ่มด้านล่างเพื่อเริ่มเล่น",
-                    color=0x00AAFF
-                )
-                main_embed.add_field(
-                    name="📊 อัตราการสุ่ม", 
-                    value=(
-                        f"{get_rarity_emoji('common')} Common 60%\n"
-                        f"{get_rarity_emoji('rare')} Rare 25%\n"
-                        f"{get_rarity_emoji('epic')} Epic 10%\n"
-                        f"{get_rarity_emoji('legendary')} Legendary 4%\n"
-                        f"{get_rarity_emoji('mythic')} Mythic 1%"
-                    ), 
-                    inline=False
-                )
-                main_embed.set_footer(text=f"ผู้เล่น: {self.user.display_name}")
-                
-                await back_interaction.response.edit_message(embed=main_embed, view=RNGMainView(self.user))
+                await show_rng_main_menu(back_interaction, self.user)
             
             back_btn.callback = back_cb
             no_items_view.add_item(back_btn)
@@ -3360,26 +3292,7 @@ class PawnShopMainView(View):
                 await back_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
                 return
             
-            # กลับไปที่หน้า RNG หลัก
-            main_embed = discord.Embed(
-                title="🎲 RNG Sushi Shop",
-                description="ยินดีต้อนรับสู่เกมสุ่มไอเทม!\n\nเลือกปุ่มด้านล่างเพื่อเริ่มเล่น",
-                color=0x00AAFF
-            )
-            main_embed.add_field(
-                name="📊 อัตราการสุ่ม", 
-                value=(
-                    f"{get_rarity_emoji('common')} Common 60%\n"
-                    f"{get_rarity_emoji('rare')} Rare 25%\n"
-                    f"{get_rarity_emoji('epic')} Epic 10%\n"
-                    f"{get_rarity_emoji('legendary')} Legendary 4%\n"
-                    f"{get_rarity_emoji('mythic')} Mythic 1%"
-                ), 
-                inline=False
-            )
-            main_embed.set_footer(text=f"ผู้เล่น: {self.user.display_name}")
-            
-            await back_interaction.response.edit_message(embed=main_embed, view=RNGMainView(self.user))
+            await show_rng_main_menu(back_interaction, self.user)
         
         back_btn.callback = back_callback
         
@@ -3446,50 +3359,6 @@ class PawnShopMainView(View):
         }
         
         pawn_view = PawnShopDealView(self.user, [(item_id, item, 1)], customer, base_price, current_balance, "buy", offer_price)
-        
-        # เพิ่มปุ่ม "คนถัดไป" สำหรับการซื้อ
-        next_btn = Button(label="คนถัดไป", style=discord.ButtonStyle.secondary, emoji="👤", row=2)
-        
-        async def next_callback(next_interaction):
-            if next_interaction.user != self.user:
-                await next_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
-                return
-            await self.show_new_buy_deal(next_interaction, user_id)
-        
-        next_btn.callback = next_callback
-        pawn_view.add_item(next_btn)
-        
-        back_btn = Button(label="🔙 กลับ", style=discord.ButtonStyle.secondary, emoji="🔙", row=2)
-        
-        async def back_callback(back_interaction):
-            if back_interaction.user != self.user:
-                await back_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
-                return
-            
-            embed = discord.Embed(
-                title="🏪 Sushi Shop",
-                description="เลือกประเภทการค้าขายที่ต้องการ",
-                color=0x00AAFF
-            )
-            embed.add_field(
-                name="💰 ระบบราคา", 
-                value=(
-                    f"{get_rarity_emoji('common')} Common: {format_number(10)}-{format_number(100)} 🪙\n"
-                    f"{get_rarity_emoji('rare')} Rare: {format_number(101)}-{format_number(500)} 🪙\n"
-                    f"{get_rarity_emoji('epic')} Epic: {format_number(501)}-{format_number(1000)} 🪙\n"
-                    f"{get_rarity_emoji('legendary')} Legendary: {format_number(1001)}-{format_number(10000)} 🪙\n"
-                    f"{get_rarity_emoji('mythic')} Mythic: {format_number(10001)}-{format_number(50000)} 🪙"
-                ), 
-                inline=False
-            )
-            embed.add_field(name="💰 ยอดเงินคุณ", value=f"**{format_number(get_user_balance(user_id))}** 🪙", inline=False)
-            
-            await back_interaction.response.edit_message(embed=embed, view=PawnShopMainView(self.user))
-        
-        back_btn.callback = back_callback
-        
-        pawn_view.add_item(back_btn)
-        
         await interaction.response.edit_message(embed=embed, view=pawn_view)
     
     @discord.ui.button(label="🔙 กลับ", style=discord.ButtonStyle.secondary, emoji="🔙", row=1)
@@ -3498,26 +3367,7 @@ class PawnShopMainView(View):
             await interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
             return
         
-        # กลับไปที่หน้า RNG หลัก
-        main_embed = discord.Embed(
-            title="🎲 RNG Sushi Shop",
-            description="ยินดีต้อนรับสู่เกมสุ่มไอเทม!\n\nเลือกปุ่มด้านล่างเพื่อเริ่มเล่น",
-            color=0x00AAFF
-        )
-        main_embed.add_field(
-            name="📊 อัตราการสุ่ม", 
-            value=(
-                f"{get_rarity_emoji('common')} Common 60%\n"
-                f"{get_rarity_emoji('rare')} Rare 25%\n"
-                f"{get_rarity_emoji('epic')} Epic 10%\n"
-                f"{get_rarity_emoji('legendary')} Legendary 4%\n"
-                f"{get_rarity_emoji('mythic')} Mythic 1%"
-            ), 
-            inline=False
-        )
-        main_embed.set_footer(text=f"ผู้เล่น: {self.user.display_name}")
-        
-        await interaction.response.edit_message(embed=main_embed, view=RNGMainView(self.user))
+        await show_rng_main_menu(interaction, self.user)
 
 class PawnShopDealView(View):
     def __init__(self, user: discord.User, items: List, customer: PawnCustomer, base_price: int, user_balance: int, action_type: str, initial_offer: int):
@@ -3529,6 +3379,11 @@ class PawnShopDealView(View):
         self.current_price = initial_offer
         self.user_balance = user_balance
         self.action_type = action_type
+        
+        # Add all 6 buttons in proper rows
+        # Row 0: Accept, Decline
+        # Row 1: +5%, -5%
+        # Row 2: Next Person, Return
         
     def check_deal_success(self, satisfaction: int) -> bool:
         if satisfaction >= 70:
@@ -3629,51 +3484,8 @@ class PawnShopDealView(View):
         
         # สร้าง view ใหม่
         new_pawn_view = PawnShopDealView(self.user, self.items, new_customer, new_base_price, current_balance, self.action_type, new_offer_price)
-        
-        # เพิ่มปุ่ม "คนถัดไป" ใน view ใหม่
-        next_btn = Button(label="คนถัดไป", style=discord.ButtonStyle.secondary, emoji="👤", row=2)
-        next_btn.callback = self.show_new_customer_for_same_items
-        new_pawn_view.add_item(next_btn)
-        
-        # เพิ่มปุ่มกลับ
-        back_btn = Button(label="🔙 กลับ", style=discord.ButtonStyle.secondary, emoji="🔙", row=2)
-        
-        async def back_callback(back_interaction):
-            if back_interaction.user != self.user:
-                await back_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
-                return
-            
-            # กลับไปที่หน้าเลือกไอเทมขาย
-            pawn_main_view = PawnShopMainView(self.user)
-            
-            if self.action_type == "sell":
-                await pawn_main_view.sell_button(back_interaction, None)
-            else:
-                embed = discord.Embed(
-                    title="🏪 Sushi Shop",
-                    description="เลือกประเภทการค้าขายที่ต้องการ",
-                    color=0x00AAFF
-                )
-                embed.add_field(
-                    name="💰 ระบบราคา", 
-                    value=(
-                        f"{get_rarity_emoji('common')} Common: {format_number(10)}-{format_number(100)} 🪙\n"
-                        f"{get_rarity_emoji('rare')} Rare: {format_number(101)}-{format_number(500)} 🪙\n"
-                        f"{get_rarity_emoji('epic')} Epic: {format_number(501)}-{format_number(1000)} 🪙\n"
-                        f"{get_rarity_emoji('legendary')} Legendary: {format_number(1001)}-{format_number(10000)} 🪙\n"
-                        f"{get_rarity_emoji('mythic')} Mythic: {format_number(10001)}-{format_number(50000)} 🪙"
-                    ), 
-                    inline=False
-                )
-                embed.add_field(name="💰 ยอดเงินคุณ", value=f"**{format_number(get_user_balance(user_id))}** 🪙", inline=False)
-                
-                await back_interaction.response.edit_message(embed=embed, view=PawnShopMainView(self.user))
-        
-        back_btn.callback = back_callback
-        new_pawn_view.add_item(back_btn)
-        
         await interaction.response.edit_message(embed=embed, view=new_pawn_view)
-        
+    
     @discord.ui.button(label="✅ ตกลง", style=discord.ButtonStyle.success, row=0)
     async def accept_button(self, interaction: discord.Interaction, button: Button):
         if interaction.user != self.user:
@@ -3783,25 +3595,7 @@ class PawnShopDealView(View):
                                     await back_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
                                     return
                                 
-                                main_embed = discord.Embed(
-                                    title="🎲 RNG Sushi Shop",
-                                    description="ยินดีต้อนรับสู่เกมสุ่มไอเทม!\n\nเลือกปุ่มด้านล่างเพื่อเริ่มเล่น",
-                                    color=0x00AAFF
-                                )
-                                main_embed.add_field(
-                                    name="📊 อัตราการสุ่ม", 
-                                    value=(
-                                        f"{get_rarity_emoji('common')} Common 60%\n"
-                                        f"{get_rarity_emoji('rare')} Rare 25%\n"
-                                        f"{get_rarity_emoji('epic')} Epic 10%\n"
-                                        f"{get_rarity_emoji('legendary')} Legendary 4%\n"
-                                        f"{get_rarity_emoji('mythic')} Mythic 1%"
-                                    ), 
-                                    inline=False
-                                )
-                                main_embed.set_footer(text=f"ผู้เล่น: {self.user.display_name}")
-                                
-                                await back_interaction.response.edit_message(embed=main_embed, view=RNGMainView(self.user))
+                                await show_rng_main_menu(back_interaction, self.user)
                             
                             back_btn.callback = back_cb
                             no_items_view.add_item(back_btn)
@@ -3896,25 +3690,7 @@ class PawnShopDealView(View):
                                 await back_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
                                 return
                             
-                            main_embed = discord.Embed(
-                                title="🎲 RNG Sushi Shop",
-                                description="ยินดีต้อนรับสู่เกมสุ่มไอเทม!\n\nเลือกปุ่มด้านล่างเพื่อเริ่มเล่น",
-                                color=0x00AAFF
-                            )
-                            main_embed.add_field(
-                                name="📊 อัตราการสุ่ม", 
-                                value=(
-                                    f"{get_rarity_emoji('common')} Common 60%\n"
-                                    f"{get_rarity_emoji('rare')} Rare 25%\n"
-                                    f"{get_rarity_emoji('epic')} Epic 10%\n"
-                                    f"{get_rarity_emoji('legendary')} Legendary 4%\n"
-                                    f"{get_rarity_emoji('mythic')} Mythic 1%"
-                                ), 
-                                inline=False
-                            )
-                            main_embed.set_footer(text=f"ผู้เล่น: {self.user.display_name}")
-                            
-                            await back_interaction.response.edit_message(embed=main_embed, view=RNGMainView(self.user))
+                            await show_rng_main_menu(back_interaction, self.user)
                         
                         back_btn.callback = back_cb
                         selection_view.add_item(back_btn)
@@ -3937,26 +3713,7 @@ class PawnShopDealView(View):
                             await cont_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
                             return
                         
-                        # กลับไปที่หน้า RNG หลัก
-                        main_embed = discord.Embed(
-                            title="🎲 RNG Sushi Shop",
-                            description="ยินดีต้อนรับสู่เกมสุ่มไอเทม!\n\nเลือกปุ่มด้านล่างเพื่อเริ่มเล่น",
-                            color=0x00AAFF
-                        )
-                        main_embed.add_field(
-                            name="📊 อัตราการสุ่ม", 
-                            value=(
-                                f"{get_rarity_emoji('common')} Common 60%\n"
-                                f"{get_rarity_emoji('rare')} Rare 25%\n"
-                                f"{get_rarity_emoji('epic')} Epic 10%\n"
-                                f"{get_rarity_emoji('legendary')} Legendary 4%\n"
-                                f"{get_rarity_emoji('mythic')} Mythic 1%"
-                            ), 
-                            inline=False
-                        )
-                        main_embed.set_footer(text=f"ผู้เล่น: {self.user.display_name}")
-                        
-                        await cont_interaction.response.edit_message(embed=main_embed, view=RNGMainView(self.user))
+                        await show_rng_main_menu(cont_interaction, self.user)
                     
                     back_to_main_btn.callback = back_to_main_callback
                     continue_view.add_item(back_to_main_btn)
@@ -3981,25 +3738,7 @@ class PawnShopDealView(View):
                             await back_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
                             return
                         
-                        main_embed = discord.Embed(
-                            title="🎲 RNG Sushi Shop",
-                            description="ยินดีต้อนรับสู่เกมสุ่มไอเทม!\n\nเลือกปุ่มด้านล่างเพื่อเริ่มเล่น",
-                            color=0x00AAFF
-                        )
-                        main_embed.add_field(
-                            name="📊 อัตราการสุ่ม", 
-                            value=(
-                                f"{get_rarity_emoji('common')} Common 60%\n"
-                                f"{get_rarity_emoji('rare')} Rare 25%\n"
-                                f"{get_rarity_emoji('epic')} Epic 10%\n"
-                                f"{get_rarity_emoji('legendary')} Legendary 4%\n"
-                                f"{get_rarity_emoji('mythic')} Mythic 1%"
-                            ), 
-                            inline=False
-                        )
-                        main_embed.set_footer(text=f"ผู้เล่น: {self.user.display_name}")
-                        
-                        await back_interaction.response.edit_message(embed=main_embed, view=RNGMainView(self.user))
+                        await show_rng_main_menu(back_interaction, self.user)
                     
                     back_btn.callback = back_callback
                     error_view.add_item(back_btn)
@@ -4058,26 +3797,7 @@ class PawnShopDealView(View):
                             await cont_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
                             return
                         
-                        # กลับไปที่หน้า RNG หลัก
-                        main_embed = discord.Embed(
-                            title="🎲 RNG Sushi Shop",
-                            description="ยินดีต้อนรับสู่เกมสุ่มไอเทม!\n\nเลือกปุ่มด้านล่างเพื่อเริ่มเล่น",
-                            color=0x00AAFF
-                        )
-                        main_embed.add_field(
-                            name="📊 อัตราการสุ่ม", 
-                            value=(
-                                f"{get_rarity_emoji('common')} Common 60%\n"
-                                f"{get_rarity_emoji('rare')} Rare 25%\n"
-                                f"{get_rarity_emoji('epic')} Epic 10%\n"
-                                f"{get_rarity_emoji('legendary')} Legendary 4%\n"
-                                f"{get_rarity_emoji('mythic')} Mythic 1%"
-                            ), 
-                            inline=False
-                        )
-                        main_embed.set_footer(text=f"ผู้เล่น: {self.user.display_name}")
-                        
-                        await cont_interaction.response.edit_message(embed=main_embed, view=RNGMainView(self.user))
+                        await show_rng_main_menu(cont_interaction, self.user)
                     
                     back_to_main_btn.callback = back_to_main_callback
                     continue_view.add_item(back_to_main_btn)
@@ -4140,26 +3860,7 @@ class PawnShopDealView(View):
                     await cont_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
                     return
                 
-                # กลับไปที่หน้า RNG หลัก
-                main_embed = discord.Embed(
-                    title="🎲 RNG Sushi Shop",
-                    description="ยินดีต้อนรับสู่เกมสุ่มไอเทม!\n\nเลือกปุ่มด้านล่างเพื่อเริ่มเล่น",
-                    color=0x00AAFF
-                )
-                main_embed.add_field(
-                    name="📊 อัตราการสุ่ม", 
-                    value=(
-                        f"{get_rarity_emoji('common')} Common 60%\n"
-                        f"{get_rarity_emoji('rare')} Rare 25%\n"
-                        f"{get_rarity_emoji('epic')} Epic 10%\n"
-                        f"{get_rarity_emoji('legendary')} Legendary 4%\n"
-                        f"{get_rarity_emoji('mythic')} Mythic 1%"
-                    ), 
-                    inline=False
-                )
-                main_embed.set_footer(text=f"ผู้เล่น: {self.user.display_name}")
-                
-                await cont_interaction.response.edit_message(embed=main_embed, view=RNGMainView(self.user))
+                await show_rng_main_menu(cont_interaction, self.user)
             
             back_to_main_btn.callback = back_to_main_callback
             continue_view.add_item(back_to_main_btn)
@@ -4228,26 +3929,7 @@ class PawnShopDealView(View):
                 await cont_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
                 return
             
-            # กลับไปที่หน้า RNG หลัก
-            main_embed = discord.Embed(
-                title="🎲 RNG Sushi Shop",
-                description="ยินดีต้อนรับสู่เกมสุ่มไอเทม!\n\nเลือกปุ่มด้านล่างเพื่อเริ่มเล่น",
-                color=0x00AAFF
-            )
-            main_embed.add_field(
-                name="📊 อัตราการสุ่ม", 
-                value=(
-                    f"{get_rarity_emoji('common')} Common 60%\n"
-                    f"{get_rarity_emoji('rare')} Rare 25%\n"
-                    f"{get_rarity_emoji('epic')} Epic 10%\n"
-                    f"{get_rarity_emoji('legendary')} Legendary 4%\n"
-                    f"{get_rarity_emoji('mythic')} Mythic 1%"
-                ), 
-                inline=False
-            )
-            main_embed.set_footer(text=f"ผู้เล่น: {self.user.display_name}")
-            
-            await cont_interaction.response.edit_message(embed=main_embed, view=RNGMainView(self.user))
+            await show_rng_main_menu(cont_interaction, self.user)
         
         back_to_main_btn.callback = back_to_main_callback
         continue_view.add_item(back_to_main_btn)
@@ -4352,6 +4034,48 @@ class PawnShopDealView(View):
         )
         
         await interaction.response.edit_message(embed=embed, view=self)
+    
+    @discord.ui.button(label="👤 คนถัดไป", style=discord.ButtonStyle.secondary, emoji="👤", row=2)
+    async def next_person_button(self, interaction: discord.Interaction, button: Button):
+        """แสดงลูกค้าคนถัดไปสำหรับไอเทมเดิม"""
+        if interaction.user != self.user:
+            await interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
+            return
+        await self.show_new_customer_for_same_items(interaction)
+    
+    @discord.ui.button(label="🔙 กลับ", style=discord.ButtonStyle.secondary, emoji="🔙", row=2)
+    async def return_button(self, interaction: discord.Interaction, button: Button):
+        """กลับไปหน้าร้านค้าหลัก"""
+        if interaction.user != self.user:
+            await interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
+            return
+        
+        user_id = str(interaction.user.id)
+        
+        # Clear pawn data
+        if user_id in bot.pawn_data:
+            del bot.pawn_data[user_id]
+        
+        # Return to pawn shop main menu
+        embed = discord.Embed(
+            title="🏪 Sushi Shop",
+            description="เลือกประเภทการค้าขายที่ต้องการ",
+            color=0x00AAFF
+        )
+        embed.add_field(
+            name="💰 ระบบราคา", 
+            value=(
+                f"{get_rarity_emoji('common')} Common: {format_number(10)}-{format_number(100)} 🪙\n"
+                f"{get_rarity_emoji('rare')} Rare: {format_number(101)}-{format_number(500)} 🪙\n"
+                f"{get_rarity_emoji('epic')} Epic: {format_number(501)}-{format_number(1000)} 🪙\n"
+                f"{get_rarity_emoji('legendary')} Legendary: {format_number(1001)}-{format_number(10000)} 🪙\n"
+                f"{get_rarity_emoji('mythic')} Mythic: {format_number(10001)}-{format_number(50000)} 🪙"
+            ), 
+            inline=False
+        )
+        embed.add_field(name="💰 ยอดเงินคุณ", value=f"**{format_number(get_user_balance(user_id))}** 🪙", inline=False)
+        
+        await interaction.response.edit_message(embed=embed, view=PawnShopMainView(self.user))
 
 # ==================== LEADERBOARD SYSTEM (FIXED USERNAME DISPLAY) ====================
 async def show_leaderboard(interaction: discord.Interaction):
@@ -4429,25 +4153,7 @@ async def show_leaderboard(interaction: discord.Interaction):
             await back_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
             return
         
-        main_embed = discord.Embed(
-            title="🎲 RNG Sushi Shop",
-            description="ยินดีต้อนรับสู่เกมสุ่มไอเทม!\n\nเลือกปุ่มด้านล่างเพื่อเริ่มเล่น",
-            color=0x00AAFF
-        )
-        main_embed.add_field(
-            name="📊 อัตราการสุ่ม", 
-            value=(
-                f"{get_rarity_emoji('common')} Common 60%\n"
-                f"{get_rarity_emoji('rare')} Rare 25%\n"
-                f"{get_rarity_emoji('epic')} Epic 10%\n"
-                f"{get_rarity_emoji('legendary')} Legendary 4%\n"
-                f"{get_rarity_emoji('mythic')} Mythic 1%"
-            ), 
-            inline=False
-        )
-        main_embed.set_footer(text=f"ผู้เล่น: {interaction.user.display_name}")
-        
-        await back_interaction.response.edit_message(embed=main_embed, view=RNGMainView(interaction.user))
+        await show_rng_main_menu(back_interaction, interaction.user)
     
     back_btn.callback = back_callback
     view.add_item(back_btn)
