@@ -44,8 +44,8 @@ group_rate_low = 4
 group_rate_high = 4.5
 shop_open = True
 group_ticket_enabled = True
-gamepass_stock = 50000
-group_stock = 0
+gamepass_stock = 0
+group_stock = 7000
 ROLL_COST = 50  # ค่าใช้จ่ายในการสุ่มไอเทม
 STARTING_BALANCE = 300  # เงินเริ่มต้น
 
@@ -287,11 +287,7 @@ async def update_main_channel():
             value=f"```\nเรท: {group_rate_low} | 500 บาท+ เรท {group_rate_high}\n⚠️เข้ากลุ่ม 15 วันก่อนซื้อ⚠️\n```", 
             inline=False
         )
-        embed.add_field(
-            name="🏪 RNG GAME", 
-            value=f"```\nค่าใช้จ่ายในการสุ่ม: {format_number(ROLL_COST)} 🪙\nเงินเริ่มต้น: {format_number(STARTING_BALANCE)} 🪙\n```", 
-            inline=False
-        )
+        # REMOVED: RNG GAME section is no longer displayed
         embed.add_field(
             name="🏪 สถานะร้าน", 
             value=f"```\n{'🟢 เปิด' if shop_open else '🔴 ปิดชั่วคราว'}\n```", 
@@ -340,7 +336,7 @@ async def update_main_channel():
                 color=0x00AAFF
             )
             embed.add_field(
-                name="📊 อัตราการสุ่ม", 
+                name="📊 โอกาสสุ่ม", 
                 value=(
                     f"{get_rarity_emoji('common')} Common 60%\n"
                     f"{get_rarity_emoji('rare')} Rare 25%\n"
@@ -350,10 +346,11 @@ async def update_main_channel():
                 ), 
                 inline=False
             )
-            embed.add_field(
-                name="💰 ค่าใช้จ่าย", 
-                value=f"การสุ่มแต่ละครั้งใช้ {format_number(ROLL_COST)} 🪙",
-                inline=False
+embed.add_field(
+    name=f"💰 การสุ่มใช้ {format_number(ROLL_COST)} 🪙", 
+    value="",  # Empty value to avoid blank field
+    inline=False
+)
             )
             embed.set_footer(text=f"ผู้เล่น: {i.user.display_name}")
             
@@ -4608,3 +4605,4 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ Error running bot: {e}")
         traceback.print_exc()
+
