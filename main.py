@@ -46,6 +46,8 @@ shop_open = True
 group_ticket_enabled = True
 gamepass_stock = 50000
 group_stock = 0
+ROLL_COST = 50  # ค่าใช้จ่ายในการสุ่มไอเทม
+STARTING_BALANCE = 300  # เงินเริ่มต้น
 
 # Channel IDs
 MAIN_CHANNEL_ID = 1361044752975532152
@@ -282,6 +284,11 @@ async def update_main_channel():
             inline=False
         )
         embed.add_field(
+            name="🏪 RNG GAME", 
+            value=f"```\nค่าใช้จ่ายในการสุ่ม: {ROLL_COST} 🪙\nเงินเริ่มต้น: {STARTING_BALANCE} 🪙\n```", 
+            inline=False
+        )
+        embed.add_field(
             name="🏪 สถานะร้าน", 
             value=f"```\n{'🟢 เปิด' if shop_open else '🔴 ปิดชั่วคราว'}\n```", 
             inline=False
@@ -337,6 +344,11 @@ async def update_main_channel():
                     f"{get_rarity_emoji('legendary')} Legendary 4%\n"
                     f"{get_rarity_emoji('mythic')} Mythic 1%"
                 ), 
+                inline=False
+            )
+            embed.add_field(
+                name="💰 ค่าใช้จ่าย", 
+                value=f"การสุ่มแต่ละครั้งใช้ {ROLL_COST} 🪙",
                 inline=False
             )
             embed.set_footer(text=f"ผู้เล่น: {i.user.display_name}")
@@ -1596,9 +1608,16 @@ async def addcoin(ctx, user_id: str = None, amount: str = None):
         # Add coins
         new_balance = add_user_balance(user_id_str, amount_int)
         
+        # Try to get user for display name
+        try:
+            user = await bot.fetch_user(int(user_id_str))
+            display_name = user.display_name
+        except:
+            display_name = f"<@{user_id_str}>"
+        
         embed = discord.Embed(
             title="✅ เพิ่ม SushiCoin เรียบร้อย",
-            description=f"เพิ่มเงินจำนวน **{amount_int:,}** 🪙 ให้ผู้ใช้ ID `{user_id}`",
+            description=f"เพิ่มเงินจำนวน **{amount_int:,}** 🪙 ให้ {display_name}",
             color=0x00FF00
         )
         embed.add_field(name="💰 ยอดเงินปัจจุบัน", value=f"**{new_balance:,}** 🪙", inline=False)
@@ -2284,13 +2303,24 @@ def save_balances(balances: Dict[str, int]):
     except Exception as e:
         print(f"❌ Error saving balances: {e}")
 
+def initialize_user_balance(user_id: str) -> int:
+    """Initialize user with starting balance if they don't exist"""
+    balances = load_balances()
+    if user_id not in balances:
+        balances[user_id] = STARTING_BALANCE
+        save_balances(balances)
+        return STARTING_BALANCE
+    return balances[user_id]
+
 def get_user_balance(user_id: str) -> int:
     balances = load_balances()
+    if user_id not in balances:
+        return initialize_user_balance(user_id)
     return balances.get(user_id, 0)
 
 def add_user_balance(user_id: str, amount: int) -> int:
     balances = load_balances()
-    current = balances.get(user_id, 0)
+    current = balances.get(user_id, STARTING_BALANCE)
     new_balance = current + amount
     balances[user_id] = new_balance
     save_balances(balances)
@@ -2298,12 +2328,12 @@ def add_user_balance(user_id: str, amount: int) -> int:
 
 def remove_user_balance(user_id: str, amount: int) -> bool:
     balances = load_balances()
-    current = balances.get(user_id, 0)
+    current = balances.get(user_id, STARTING_BALANCE)
     if current < amount:
         return False
     new_balance = current - amount
     if new_balance == 0:
-        del balances[user_id]
+        balances[user_id] = 0
     else:
         balances[user_id] = new_balance
     save_balances(balances)
@@ -2440,6 +2470,10 @@ def get_item_price(item: dict) -> int:
 # ==================== RNG SLASH COMMANDS ====================
 @bot.tree.command(name="rng", description="เล่นเกม RNG Sushi Shop (สุ่มไอเทม)")
 async def rng_slash(interaction: discord.Interaction):
+    # Initialize user balance if needed
+    user_id = str(interaction.user.id)
+    balance = get_user_balance(user_id)
+    
     embed = discord.Embed(
         title="🎲 RNG Sushi Shop",
         description="ยินดีต้อนรับสู่เกมสุ่มไอเทม!\n\nเลือกปุ่มด้านล่างเพื่อเริ่มเล่น",
@@ -2454,6 +2488,11 @@ async def rng_slash(interaction: discord.Interaction):
             f"{get_rarity_emoji('legendary')} Legendary 4%\n"
             f"{get_rarity_emoji('mythic')} Mythic 1%"
         ), 
+        inline=False
+    )
+    embed.add_field(
+        name="💰 ค่าใช้จ่าย", 
+        value=f"การสุ่มแต่ละครั้งใช้ {ROLL_COST} 🪙\nเงินของคุณ: {balance} 🪙",
         inline=False
     )
     embed.set_footer(text=f"ผู้เล่น: {interaction.user.display_name}")
@@ -2471,14 +2510,29 @@ class RNGMainView(View):
             await interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
             return
         
+        user_id = str(interaction.user.id)
+        balance = get_user_balance(user_id)
+        
+        # Check if user has enough coins
+        if balance < ROLL_COST:
+            embed = discord.Embed(
+                title="❌ เงินไม่พอ",
+                description=f"คุณต้องมี {ROLL_COST} 🪙 ในการสุ่มแต่ละครั้ง\nเงินคุณ: {balance} 🪙",
+                color=0xFF0000
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            return
+        
+        # Deduct coins
+        remove_user_balance(user_id, ROLL_COST)
+        
         # สุ่มไอเทม
         item_id, item = random_item()
-        user_id = str(interaction.user.id)
         add_item_to_inventory(user_id, item_id)
         
         inventory = get_user_inventory(user_id)
         total_items = sum(inventory.values())
-        balance = get_user_balance(user_id)
+        new_balance = get_user_balance(user_id)
         total_value = calculate_total_inventory_value(user_id)
         
         embed = discord.Embed(
@@ -2486,7 +2540,7 @@ class RNGMainView(View):
             description=f"คุณได้รับ: {item['emoji']} **{item['name']}**",
             color=get_rarity_color(item["rarity"])
         )
-        embed.set_footer(text=f"{get_rarity_emoji(item['rarity'])} {item['rarity'].upper()} | ไอเทมทั้งหมด: {total_items} ชิ้น | 🪙 {balance} | มูลค่ารวม: {total_value} 🪙")
+        embed.set_footer(text=f"{get_rarity_emoji(item['rarity'])} {item['rarity'].upper()} | ไอเทมทั้งหมด: {total_items} ชิ้น | 🪙 {new_balance} | มูลค่ารวม: {total_value} 🪙")
         
         # สร้าง View สำหรับปุ่ม "สุ่มต่อ"
         roll_again_view = RollAgainView(self.user, embed)
@@ -2521,14 +2575,27 @@ class RNGMainView(View):
                     await roll_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
                     return
                 
-                # สุ่มไอเทม
-                item_id, item = random_item()
+                # Check balance
                 user_id = str(roll_interaction.user.id)
+                balance = get_user_balance(user_id)
+                
+                if balance < ROLL_COST:
+                    embed = discord.Embed(
+                        title="❌ เงินไม่พอ",
+                        description=f"คุณต้องมี {ROLL_COST} 🪙 ในการสุ่ม\nเงินคุณ: {balance} 🪙",
+                        color=0xFF0000
+                    )
+                    await roll_interaction.response.send_message(embed=embed, ephemeral=True)
+                    return
+                
+                # Deduct coins and roll
+                remove_user_balance(user_id, ROLL_COST)
+                item_id, item = random_item()
                 add_item_to_inventory(user_id, item_id)
                 
                 inventory = get_user_inventory(user_id)
                 total_items = sum(inventory.values())
-                balance = get_user_balance(user_id)
+                new_balance = get_user_balance(user_id)
                 total_value = calculate_total_inventory_value(user_id)
                 
                 embed = discord.Embed(
@@ -2536,7 +2603,7 @@ class RNGMainView(View):
                     description=f"คุณได้รับ: {item['emoji']} **{item['name']}**",
                     color=get_rarity_color(item["rarity"])
                 )
-                embed.set_footer(text=f"{get_rarity_emoji(item['rarity'])} {item['rarity'].upper()} | ไอเทมทั้งหมด: {total_items} ชิ้น | 🪙 {balance} | มูลค่ารวม: {total_value} 🪙")
+                embed.set_footer(text=f"{get_rarity_emoji(item['rarity'])} {item['rarity'].upper()} | ไอเทมทั้งหมด: {total_items} ชิ้น | 🪙 {new_balance} | มูลค่ารวม: {total_value} 🪙")
                 
                 roll_again_view = RollAgainView(self.user, embed)
                 await roll_interaction.response.edit_message(embed=embed, view=roll_again_view)
@@ -2718,6 +2785,11 @@ class RNGMainView(View):
             inline=False
         )
         embed.add_field(
+            name="💰 ค่าใช้จ่าย",
+            value=f"การสุ่มแต่ละครั้งใช้ {ROLL_COST} 🪙\nผู้เล่นใหม่ได้รับ {STARTING_BALANCE} 🪙 เริ่มต้น",
+            inline=False
+        )
+        embed.add_field(
             name="🎮 วิธีเล่น",
             value=(
                 "• มี 2 โหมด: ขายไอเทม / ซื้อไอเทม\n"
@@ -2743,14 +2815,29 @@ class RollAgainView(View):
             await interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
             return
         
+        user_id = str(interaction.user.id)
+        balance = get_user_balance(user_id)
+        
+        # Check if user has enough coins
+        if balance < ROLL_COST:
+            embed = discord.Embed(
+                title="❌ เงินไม่พอ",
+                description=f"คุณต้องมี {ROLL_COST} 🪙 ในการสุ่ม\nเงินคุณ: {balance} 🪙",
+                color=0xFF0000
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            return
+        
+        # Deduct coins
+        remove_user_balance(user_id, ROLL_COST)
+        
         # สุ่มไอเทมใหม่
         item_id, item = random_item()
-        user_id = str(interaction.user.id)
         add_item_to_inventory(user_id, item_id)
         
         inventory = get_user_inventory(user_id)
         total_items = sum(inventory.values())
-        balance = get_user_balance(user_id)
+        new_balance = get_user_balance(user_id)
         total_value = calculate_total_inventory_value(user_id)
         
         new_embed = discord.Embed(
@@ -2758,7 +2845,7 @@ class RollAgainView(View):
             description=f"คุณได้รับ: {item['emoji']} **{item['name']}**",
             color=get_rarity_color(item["rarity"])
         )
-        new_embed.set_footer(text=f"{get_rarity_emoji(item['rarity'])} {item['rarity'].upper()} | ไอเทมทั้งหมด: {total_items} ชิ้น | 🪙 {balance} | มูลค่ารวม: {total_value} 🪙")
+        new_embed.set_footer(text=f"{get_rarity_emoji(item['rarity'])} {item['rarity'].upper()} | ไอเทมทั้งหมด: {total_items} ชิ้น | 🪙 {new_balance} | มูลค่ารวม: {total_value} 🪙")
         
         # สร้าง View ใหม่สำหรับสุ่มต่อ
         new_roll_view = RollAgainView(self.user, new_embed)
@@ -2960,14 +3047,27 @@ class PawnShopMainView(View):
                     await roll_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
                     return
                 
-                # สุ่มไอเทม
-                item_id, item = random_item()
+                # Check balance
                 user_id = str(roll_interaction.user.id)
+                balance = get_user_balance(user_id)
+                
+                if balance < ROLL_COST:
+                    embed = discord.Embed(
+                        title="❌ เงินไม่พอ",
+                        description=f"คุณต้องมี {ROLL_COST} 🪙 ในการสุ่ม\nเงินคุณ: {balance} 🪙",
+                        color=0xFF0000
+                    )
+                    await roll_interaction.response.send_message(embed=embed, ephemeral=True)
+                    return
+                
+                # Deduct coins and roll
+                remove_user_balance(user_id, ROLL_COST)
+                item_id, item = random_item()
                 add_item_to_inventory(user_id, item_id)
                 
                 inventory = get_user_inventory(user_id)
                 total_items = sum(inventory.values())
-                balance = get_user_balance(user_id)
+                new_balance = get_user_balance(user_id)
                 total_value = calculate_total_inventory_value(user_id)
                 
                 embed = discord.Embed(
@@ -2975,7 +3075,7 @@ class PawnShopMainView(View):
                     description=f"คุณได้รับ: {item['emoji']} **{item['name']}**",
                     color=get_rarity_color(item["rarity"])
                 )
-                embed.set_footer(text=f"{get_rarity_emoji(item['rarity'])} {item['rarity'].upper()} | ไอเทมทั้งหมด: {total_items} ชิ้น | 🪙 {balance} | มูลค่ารวม: {total_value} 🪙")
+                embed.set_footer(text=f"{get_rarity_emoji(item['rarity'])} {item['rarity'].upper()} | ไอเทมทั้งหมด: {total_items} ชิ้น | 🪙 {new_balance} | มูลค่ารวม: {total_value} 🪙")
                 
                 roll_again_view = RollAgainView(self.user, embed)
                 await roll_interaction.response.edit_message(embed=embed, view=roll_again_view)
@@ -3885,7 +3985,7 @@ async def show_leaderboard(interaction: discord.Interaction):
             user = await interaction.client.fetch_user(int(user_id))
             username = user.display_name
         except:
-            username = f"ผู้ใช้ที่ไม่รู้จัก ({user_id[:5]}...)"
+            username = f"<@{user_id}>"
         
         medal = medals[idx] if idx < len(medals) else f"{idx+1}."
         leaderboard_text += f"{medal} **{username}** - {money:,} 🪙\n"
@@ -3970,7 +4070,7 @@ async def leaderboard_slash(interaction: discord.Interaction):
             user = await bot.fetch_user(int(user_id))
             username = user.display_name
         except:
-            username = f"ผู้ใช้ที่ไม่รู้จัก ({user_id[:5]}...)"
+            username = f"<@{user_id}>"
         
         medal = medals[idx] if idx < len(medals) else f"{idx+1}."
         leaderboard_text += f"{medal} **{username}** - {money:,} 🪙\n"
