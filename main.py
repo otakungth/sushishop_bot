@@ -1568,9 +1568,16 @@ async def delcoin(ctx, user_id: str = None, amount: str = None):
         if success:
             new_balance = get_user_balance(user_id_str)
             
+            # Try to get user for display name
+            try:
+                user = await bot.fetch_user(int(user_id_str))
+                display_name = user.display_name
+            except:
+                display_name = f"<@{user_id_str}>"
+            
             embed = discord.Embed(
                 title="✅ ลบ SushiCoin เรียบร้อย",
-                description=f"ลบเงินจำนวน **{amount_int:,}** 🪙 จากผู้ใช้ ID `{user_id}`",
+                description=f"ลบเงินจำนวน **{amount_int:,}** 🪙 จาก {display_name}",
                 color=0x00FF00
             )
             embed.add_field(name="💰 ยอดเงินคงเหลือ", value=f"**{new_balance:,}** 🪙", inline=False)
@@ -1629,7 +1636,7 @@ async def addcoin(ctx, user_id: str = None, amount: str = None):
     except Exception as e:
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
 
-# ==================== คำสั่ง GIVE ITEM (เพิ่มใหม่) ====================
+# ==================== คำสั่ง GIVE ITEM ====================
 @bot.command()
 @admin_only()
 async def give(ctx, item_id: str = None, user_id: str = None, amount: str = None):
@@ -2668,15 +2675,16 @@ class RNGMainView(View):
         balance = get_user_balance(user_id)
         total_value = calculate_total_inventory_value(user_id)
         
+        # Create embed even if inventory is empty
+        embed = discord.Embed(title="📦 Inventory", color=0x00AAFF)
+        
         if not inventory:
-            embed = discord.Embed(
-                title="📦 Inventory",
-                description=f"ยังไม่มีไอเทม! กด 🎲 เพื่อสุ่มก่อน\n\n💰 ยอดเงิน: **{balance}** 🪙",
-                color=0x808080
-            )
+            embed.description = "ยังไม่มีไอเทม! กด 🎲 เพื่อสุ่มก่อน"
+            embed.add_field(name="💰 ยอดเงิน", value=f"**{balance}** 🪙", inline=False)
+            embed.set_footer(text=f"ผู้เล่น: {self.user.display_name}")
             
-            # สร้าง view พร้อมปุ่ม "สุ่มไอเทม"
-            no_items_view = View(timeout=60)
+            # Create view with "สุ่มไอเทม" and "กลับ" buttons
+            empty_inventory_view = View(timeout=60)
             roll_btn = Button(label="สุ่มไอเทม", style=discord.ButtonStyle.success, emoji="🎲")
             
             async def roll_cb(roll_interaction):
@@ -2718,7 +2726,7 @@ class RNGMainView(View):
                 await roll_interaction.response.edit_message(embed=embed, view=roll_again_view)
             
             roll_btn.callback = roll_cb
-            no_items_view.add_item(roll_btn)
+            empty_inventory_view.add_item(roll_btn)
             
             back_btn = Button(label="กลับ", style=discord.ButtonStyle.secondary, emoji="🔙")
             
@@ -2748,9 +2756,9 @@ class RNGMainView(View):
                 await back_interaction.response.edit_message(embed=main_embed, view=RNGMainView(self.user))
             
             back_btn.callback = back_cb
-            no_items_view.add_item(back_btn)
+            empty_inventory_view.add_item(back_btn)
             
-            await interaction.response.edit_message(embed=embed, view=no_items_view)
+            await interaction.response.edit_message(embed=embed, view=empty_inventory_view)
             return
         
         # Prepare items list sorted by value (highest to lowest)
@@ -2809,7 +2817,6 @@ class RNGMainView(View):
             for _, item, amount in common_items:
                 display_items.append(f"  {item['emoji']} **{item['name']}** x{amount} (มูลค่า {item['value']} 🪙)")
         
-        embed = discord.Embed(title="📦 Inventory", color=0x00AAFF)
         embed.add_field(
             name="📊 กระเป๋า",
             value=(
@@ -2989,7 +2996,7 @@ class RollAgainView(View):
         
         await interaction.response.edit_message(embed=main_embed, view=RNGMainView(self.user))
 
-# ==================== PAWN SHOP SYSTEM (UPDATED WITH NEW CUSTOMER NAMES AND SORTING) ====================
+# ==================== PAWN SHOP SYSTEM (UPDATED WITH FIXED SELLING) ====================
 CUSTOMER_NAMES = [
     "Sunny", "Mawin", "Kirin", "Theo", "Porsche",
     "Praewa", "Milin", "Kana", "Airi", "Nari",
@@ -3058,9 +3065,9 @@ class PawnCustomer:
         self.patience -= 1
 
 class MultiItemSelect(Select):
-    def __init__(self, user: discord.User, items: List[Tuple[str, dict, int]]):
+    def __init__(self, user: discord.User, items: List[Tuple[str, dict, int]], view):
         self.user = user
-        self.selected_items = []  # List of (item_id, item, amount)
+        self.parent_view = view
         
         # Sort items by value (highest first)
         items.sort(key=lambda x: x[1]["value"], reverse=True)
@@ -3102,7 +3109,9 @@ class MultiItemSelect(Select):
         
         # Sort selected items by value (highest first)
         selected_items.sort(key=lambda x: x[1]["value"], reverse=True)
-        self.view.selected_items = selected_items
+        
+        # Store in parent view
+        self.parent_view.selected_items = selected_items
         
         total_value = sum(item[1]["value"] * item[2] for item in selected_items)
         
@@ -3123,7 +3132,7 @@ class MultiItemSelect(Select):
         )
         embed.set_footer(text=f"เลือก {len(selected_ids)} จาก 5 ชิ้น | กด 'ขาย' เพื่อดำเนินการต่อ")
         
-        await interaction.response.edit_message(embed=embed, view=self.view)
+        await interaction.response.edit_message(embed=embed, view=self.parent_view)
 
 class PawnShopMainView(View):
     def __init__(self, user: discord.User):
@@ -3235,7 +3244,7 @@ class PawnShopMainView(View):
         items_list.sort(key=lambda x: x[1]["value"], reverse=True)
         
         # Create multi-select
-        select = MultiItemSelect(self.user, items_list)
+        select = MultiItemSelect(self.user, items_list, self)
         
         # Create sell button
         sell_btn = Button(label="ขาย", style=discord.ButtonStyle.success, emoji="✅", row=1)
@@ -3245,12 +3254,12 @@ class PawnShopMainView(View):
                 await sell_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
                 return
             
-            if not hasattr(select, 'selected_items') or not select.selected_items:
+            if not self.selected_items:
                 await sell_interaction.response.send_message("❌ กรุณาเลือกไอเทมก่อน", ephemeral=True)
                 return
             
             user_id = str(sell_interaction.user.id)
-            selected_items = select.selected_items
+            selected_items = self.selected_items
             
             # Calculate total value
             total_value = sum(item[1]["value"] * item[2] for item in selected_items)
@@ -3341,7 +3350,6 @@ class PawnShopMainView(View):
         view.add_item(select)
         view.add_item(sell_btn)
         view.add_item(back_btn)
-        view.selected_items = []  # Initialize selected items
         
         embed = discord.Embed(
             title="🏪 ขายไอเทม",
@@ -4077,7 +4085,13 @@ async def show_leaderboard(interaction: discord.Interaction):
         await interaction.response.edit_message(embed=embed, view=RNGMainView(interaction.user))
         return
     
-    sorted_balances = sorted(balances.items(), key=lambda x: x[1], reverse=True)
+    # Remove duplicate user entries by keeping the highest balance
+    unique_balances = {}
+    for user_id, balance in balances.items():
+        if user_id not in unique_balances or balance > unique_balances[user_id]:
+            unique_balances[user_id] = balance
+    
+    sorted_balances = sorted(unique_balances.items(), key=lambda x: x[1], reverse=True)
     top_5 = sorted_balances[:5]
     
     embed = discord.Embed(
@@ -4102,7 +4116,7 @@ async def show_leaderboard(interaction: discord.Interaction):
     embed.add_field(name="💰 อันดับ", value=leaderboard_text, inline=False)
     
     caller_id = str(interaction.user.id)
-    caller_balance = balances.get(caller_id, 0)
+    caller_balance = unique_balances.get(caller_id, 0)
     
     if caller_balance > 0:
         caller_rank = next((i+1 for i, (uid, _) in enumerate(sorted_balances) if uid == caller_id), None)
@@ -4113,7 +4127,7 @@ async def show_leaderboard(interaction: discord.Interaction):
                 inline=False
             )
     
-    embed.set_footer(text=f"ผู้เล่นทั้งหมด: {len(balances)} คน | เรียกดูโดย: {interaction.user.display_name}")
+    embed.set_footer(text=f"ผู้เล่นทั้งหมด: {len(unique_balances)} คน | เรียกดูโดย: {interaction.user.display_name}")
     
     view = View(timeout=60)
     back_btn = Button(label="🔙 กลับ", style=discord.ButtonStyle.secondary, emoji="🔙")
@@ -4162,7 +4176,13 @@ async def leaderboard_slash(interaction: discord.Interaction):
         await interaction.response.send_message(embed=embed, ephemeral=True)
         return
     
-    sorted_balances = sorted(balances.items(), key=lambda x: x[1], reverse=True)
+    # Remove duplicate user entries
+    unique_balances = {}
+    for user_id, balance in balances.items():
+        if user_id not in unique_balances or balance > unique_balances[user_id]:
+            unique_balances[user_id] = balance
+    
+    sorted_balances = sorted(unique_balances.items(), key=lambda x: x[1], reverse=True)
     top_5 = sorted_balances[:5]
     
     embed = discord.Embed(
@@ -4187,7 +4207,7 @@ async def leaderboard_slash(interaction: discord.Interaction):
     embed.add_field(name="💰 อันดับ", value=leaderboard_text, inline=False)
     
     caller_id = str(interaction.user.id)
-    caller_balance = balances.get(caller_id, 0)
+    caller_balance = unique_balances.get(caller_id, 0)
     
     if caller_balance > 0:
         caller_rank = next((i+1 for i, (uid, _) in enumerate(sorted_balances) if uid == caller_id), None)
@@ -4198,7 +4218,7 @@ async def leaderboard_slash(interaction: discord.Interaction):
                 inline=False
             )
     
-    embed.set_footer(text=f"ผู้เล่นทั้งหมด: {len(balances)} คน")
+    embed.set_footer(text=f"ผู้เล่นทั้งหมด: {len(unique_balances)} คน")
     await interaction.response.send_message(embed=embed)
 
 # ==================== TASKS ====================
@@ -4300,4 +4320,3 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ Error running bot: {e}")
         traceback.print_exc()
-
