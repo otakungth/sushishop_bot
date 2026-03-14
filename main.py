@@ -1,4 +1,4 @@
-import os, datetime, discord, re, asyncio, json, traceback, time, aiohttp, logging
+import os, datetime, discord, re, asyncio, json, traceback, time, aivohttp, logging
 import random
 import math
 import signal
@@ -9,6 +9,71 @@ from discord import app_commands
 from flask import Flask, jsonify
 from threading import Thread
 from typing import Dict, List, Optional, Tuple
+
+# ==================== PERSISTENT STORAGE FOR REPLIT ====================
+# This ensures your data never resets when you restart or redeploy
+try:
+    from replit import db
+    REPLIT_DB_AVAILABLE = True
+    print("✅ Replit DB connected - your data will be saved permanently!")
+except ImportError:
+    REPLIT_DB_AVAILABLE = False
+    print("⚠️ Replit DB not available - data may reset on restart")
+
+def save_json(file, data):
+    """Save data to both file and Replit DB (permanent storage)"""
+    try:
+        # Save to file (for local backup)
+        with open(file, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        
+        # Save to Replit DB (permanent storage)
+        if REPLIT_DB_AVAILABLE:
+            db_key = file.replace('.', '_').replace('.json', '')
+            db[db_key] = json.dumps(data)
+            print(f"💾 Saved {file} to permanent storage")
+        
+        return True
+    except Exception as e:
+        print(f"❌ Error saving {file}: {e}")
+        return False
+
+def load_json(file, default):
+    """Load data from Replit DB first (permanent), then file as backup"""
+    try:
+        # Try Replit DB first (permanent storage)
+        if REPLIT_DB_AVAILABLE:
+            db_key = file.replace('.', '_').replace('.json', '')
+            if db_key in db:
+                data = json.loads(db[db_key])
+                print(f"📂 Loaded {file} from permanent storage")
+                
+                # Also save to file as backup
+                with open(file, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2)
+                
+                return data
+        
+        # If not in DB, load from file
+        if os.path.exists(file):
+            with open(file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                print(f"📂 Loaded {file} from file")
+                
+                # Save to DB for next time
+                if REPLIT_DB_AVAILABLE:
+                    db_key = file.replace('.', '_').replace('.json', '')
+                    db[db_key] = json.dumps(data)
+                
+                return data
+        
+        return default
+    except Exception as e:
+        print(f"❌ Error loading {file}: {e}")
+        return default
+
+print("✅ Persistent storage system initialized!")
+# =============================================================
 
 # ==================== CONFIG ====================
 app = Flask(__name__)
@@ -84,26 +149,6 @@ credit_channel_update_task_running = False
 # ==================== CREDIT CHANNEL VARIABLES ====================
 credit_channel_last_update = 0
 credit_channel_update_lock = asyncio.Lock()
-
-# ==================== FILE HANDLERS ====================
-def load_json(file, default): 
-    try:
-        if os.path.exists(file):
-            with open(file, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        return default
-    except Exception as e:
-        print(f"❌ Error loading {file}: {e}")
-        return default
-
-def save_json(file, data): 
-    try:
-        with open(file, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        return True
-    except Exception as e:
-        print(f"❌ Error saving {file}: {e}")
-        return False
 
 # ==================== STOCK SAVE/LOAD FUNCTIONS ====================
 def save_stock_values():
@@ -1518,7 +1563,7 @@ async def rate(ctx, rate_type=None, low_rate=None, high_rate=None):
         except ValueError:
             await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง", delete_after=5)
 
-# ==================== FIXED ANONYMOUS COMMANDS (with your misspelling) ====================
+# ==================== FIXED ANONYMOUS COMMANDS ====================
 @bot.command(name="annoymous")
 @admin_only()
 async def annoymous_cmd(ctx):
@@ -1598,7 +1643,7 @@ async def annoymous_off_cmd(ctx):
     except Exception as e:
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
 
-# ==================== FIXED TKD COMMAND (supports Thai characters) ====================
+# ==================== FIXED TKD COMMAND (Supports all your formats) ====================
 @bot.command()
 @admin_only()
 async def tkd(ctx):
@@ -1615,15 +1660,15 @@ async def tkd(ctx):
     if channel_name.startswith("ticket-"):
         valid_formats = True
     
-    # ตรวจสอบรูปแบบ [ddmmyytime-amount-user]
-    # เช่น 1403251430-1099-wforr, 1403262047-1-wforr, 1403262329-1099-ไม่ระบุตัวตน
-    # รองรับภาษาไทยที่ท้าย
-    pattern = r'^\d{12}-\d+-[\w\u0E00-\u0E7F]+$'  # \u0E00-\u0E7F คือช่วงตัวอักษรไทย
+    # ตรวจสอบรูปแบบ [ddmmyytime-amount-user] - รองรับทุกกรณี
+    # เช่น 0703262106-4-eurrai, 0903261133-800-redviar4678, 1403262329-1099-ไม่ระบุตัวตน
+    # รูปแบบ: 12 ตัวเลข (ddmmyyHHMM) + ขีด + ตัวเลข (amount) + ขีด + ตัวอักษร/ตัวเลข/ภาษาไทย
+    pattern = r'^\d{12}-\d+-[\w\u0E00-\u0E7F]+$'
     if re.match(pattern, channel_name):
         valid_formats = True
     
     if not valid_formats:
-        await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในช่องตั๋วเท่านั้น (รูปแบบ: ticket-... หรือ [ddmmyytime-amount-user])", delete_after=5)
+        await ctx.send(f"❌ คำสั่งนี้ใช้ได้เฉพาะในช่องตั๋วเท่านั้น\nรูปแบบที่ใช้ได้: ticket-... หรือ [ddmmyytime-amount-user]\nตัวอย่าง: 0703262106-4-eurrai, 0903261133-800-redviar4678", delete_after=10)
         return
     
     try:
@@ -1641,6 +1686,37 @@ async def tkd(ctx):
         
     except Exception as e:
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
+
+# ==================== STORAGE CHECK COMMAND ====================
+@bot.command()
+@admin_only()
+async def checkstorage(ctx):
+    """ตรวจสอบสถานะการเก็บข้อมูล"""
+    if REPLIT_DB_AVAILABLE:
+        # นับจำนวนไฟล์ที่ถูกบันทึก
+        saved_files = []
+        data_files = [
+            'user_data', 'ticket_transcripts', 'ticket_counter',
+            'ticket_robux_data', 'ticket_customer_data',
+            'rng_inventory', 'rng_balance', 'stock_values'
+        ]
+        
+        for key in db.keys():
+            if any(file in key for file in data_files):
+                saved_files.append(key)
+        
+        embed = discord.Embed(
+            title="💾 สถานะการเก็บข้อมูล",
+            color=0x00FF00
+        )
+        embed.add_field(name="Replit DB", value="✅ เชื่อมต่อแล้ว", inline=True)
+        embed.add_field(name="ไฟล์ที่บันทึก", value=str(len(saved_files)), inline=True)
+        embed.add_field(name="ข้อมูลปลอดภัย", value="✅ ถาวร", inline=True)
+        embed.add_field(name="วิธีการทำงาน", value="ข้อมูลทั้งหมดจะถูกบันทึกถาวร แม้รีสตาร์ทหรืออัปเดตบอท", inline=False)
+        
+        await ctx.send(embed=embed)
+    else:
+        await ctx.send("⚠️ Replit DB ไม่พร้อมใช้งาน - ข้อมูลอาจหายเมื่อรีสตาร์ท!")
 
 # ==================== คำสั่ง COIN MANAGEMENT ====================
 @bot.command()
@@ -2307,7 +2383,6 @@ async def qr(ctx):
         value="**120-239181-3**", 
         inline=False
     )
-    # Updated image link as requested
     embed.set_image(url="https://media.discordapp.net/attachments/1361004239043821610/1475334379550281768/Sushi_SCB_3.png?ex=699d1bb6&is=699bca36&hm=8d0aca020488ee0942aa7e4e1537c8a695b96033f8453552a1e840af93aaa029&=&format=webp&quality=lossless&width=1161&height=1061")
     
     view = View(timeout=None)
@@ -3173,7 +3248,7 @@ class RollAgainView(View):
         
         await interaction.response.edit_message(embed=main_embed, view=RNGMainView(self.user))
 
-# ==================== PAWN SHOP SYSTEM (FIXED - NOW GOES DIRECTLY TO NEGOTIATION) ====================
+# ==================== PAWN SHOP SYSTEM ====================
 CUSTOMER_NAMES = [
     "Sunny", "Mawin", "Kirin", "Theo", "Porsche",
     "Praewa", "Milin", "Kana", "Airi", "Nari",
