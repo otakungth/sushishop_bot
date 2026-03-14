@@ -39,13 +39,13 @@ except:
 # ==================== GLOBALS ====================
 intents = discord.Intents.all()
 intents.message_content = True
-gamepass_rate = 6.5
+gamepass_rate = 6
 group_rate_low = 4
 group_rate_high = 4.5
 shop_open = True
 group_ticket_enabled = True
-gamepass_stock = 50000
-group_stock = 0
+gamepass_stock = 0
+group_stock = 10000
 ROLL_COST = 50  # ค่าใช้จ่ายในการสุ่มไอเทม
 STARTING_BALANCE = 300  # เงินเริ่มต้น
 
@@ -4461,3 +4461,4 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"❌ Error running bot: {e}")
         traceback.print_exc()
+
