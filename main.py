@@ -886,7 +886,7 @@ async def check_credit_channel_changes():
     except Exception as e:
         print(f"❌ Error checking credit channel: {e}")
 
-# ==================== MODALS (FIXED WITH ANONYMOUS OPTION) ====================
+# ==================== MODALS ====================
 class PersonalNoteModal(Modal, title="📝 จดวันที่เข้ากลุ่ม"):
     note = TextInput(
         label="จดวันที่เข้ากลุ่ม ดูจากวันที่ปัจจุบัน", 
@@ -1518,10 +1518,10 @@ async def rate(ctx, rate_type=None, low_rate=None, high_rate=None):
         except ValueError:
             await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง", delete_after=5)
 
-# ==================== FIXED ANONYMOUS COMMANDS ====================
-@bot.command(name="anonymous")
+# ==================== FIXED ANONYMOUS COMMANDS (with your misspelling) ====================
+@bot.command(name="annoymous")
 @admin_only()
-async def anonymous_cmd(ctx):
+async def annoymous_cmd(ctx):
     """เปิดโหมดไม่ระบุตัวตน (ไม่เปลี่ยนชื่อห้อง)"""
     if not ctx.channel.name.startswith("ticket-"):
         await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
@@ -1546,9 +1546,9 @@ async def anonymous_cmd(ctx):
     except Exception as e:
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
 
-@bot.command(name="anonymous_off")
+@bot.command(name="annoymous_off")
 @admin_only()
-async def anonymous_off_cmd(ctx):
+async def annoymous_off_cmd(ctx):
     """ปิดโหมดไม่ระบุตัวตน"""
     if not ctx.channel.name.startswith("ticket-"):
         await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
@@ -1598,7 +1598,7 @@ async def anonymous_off_cmd(ctx):
     except Exception as e:
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
 
-# ==================== FIXED TKD COMMAND ====================
+# ==================== FIXED TKD COMMAND (supports Thai characters) ====================
 @bot.command()
 @admin_only()
 async def tkd(ctx):
@@ -1606,7 +1606,7 @@ async def tkd(ctx):
     channel = ctx.channel
     
     # ตรวจสอบว่าอยู่ใน channel ที่มีรูปแบบที่กำหนดหรือไม่
-    channel_name = channel.name.lower()
+    channel_name = channel.name
     
     # รูปแบบที่อนุญาต
     valid_formats = False
@@ -1616,8 +1616,9 @@ async def tkd(ctx):
         valid_formats = True
     
     # ตรวจสอบรูปแบบ [ddmmyytime-amount-user]
-    # เช่น 1403251430-1099-wforr, 1403262047-1-wforr, 2302262249-200-ft_st3, 0703262106-4-eurrai
-    pattern = r'^\d{12}-\d+-\w+$'
+    # เช่น 1403251430-1099-wforr, 1403262047-1-wforr, 1403262329-1099-ไม่ระบุตัวตน
+    # รองรับภาษาไทยที่ท้าย
+    pattern = r'^\d{12}-\d+-[\w\u0E00-\u0E7F]+$'  # \u0E00-\u0E7F คือช่วงตัวอักษรไทย
     if re.match(pattern, channel_name):
         valid_formats = True
     
@@ -2515,7 +2516,7 @@ async def resetbalance(ctx, user_id: str = None):
     except Exception as e:
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
 
-# ==================== RNG GACHA GAME (UPDATED WITH NEW RARITIES AND SORTING) ====================
+# ==================== RNG GACHA GAME ====================
 ITEMS = {
     # Common (60%) - 10 ชิ้น
     "common_1": {"name": "Apple 🍎", "rarity": "common", "emoji": "🍎", "value": 50},
