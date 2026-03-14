@@ -2529,6 +2529,7 @@ def initialize_user_balance(user_id: str) -> int:
     if user_id not in balances:
         balances[user_id] = STARTING_BALANCE
         save_balances(balances)
+        print(f"✅ Initialized balance for user {user_id}: {STARTING_BALANCE} 🪙")
         return STARTING_BALANCE
     return balances[user_id]
 
