@@ -1616,7 +1616,7 @@ async def tkd(ctx):
         valid_formats = True
     
     # ตรวจสอบรูปแบบ [ddmmyytime-amount-user]
-    # เช่น 1403251430-1099-wforr
+    # เช่น 1403251430-1099-wforr, 1403262047-1-wforr, 2302262249-200-ft_st3, 0703262106-4-eurrai
     pattern = r'^\d{12}-\d+-\w+$'
     if re.match(pattern, channel_name):
         valid_formats = True
@@ -2443,6 +2443,77 @@ async def sync(ctx):
         await ctx.send(f"✅ Synced {len(synced)} commands")
     except Exception as e:
         await ctx.send(f"❌ Error: {e}")
+
+# ==================== BALANCE CHECK COMMANDS ====================
+@bot.command()
+@admin_only()
+async def checkbalance(ctx, user_id: str = None):
+    """ตรวจสอบยอดเงินของผู้ใช้ (admin only)"""
+    if user_id is None:
+        user_id = str(ctx.author.id)
+    
+    try:
+        user_id_str = str(user_id)
+        balance = get_user_balance(user_id_str)
+        
+        # Try to get user info
+        try:
+            user = await bot.fetch_user(int(user_id_str))
+            display_name = user.display_name
+        except:
+            display_name = f"User {user_id_str}"
+        
+        embed = discord.Embed(
+            title="💰 ตรวจสอบยอดเงิน",
+            description=f"ผู้ใช้: {display_name}\nยอดเงิน: **{format_number(balance)}** 🪙",
+            color=0x00AAFF
+        )
+        
+        # Show if user exists in balances file
+        balances = load_balances()
+        if user_id_str in balances:
+            embed.add_field(name="สถานะ", value="✅ มีข้อมูลในระบบ", inline=False)
+        else:
+            embed.add_field(name="สถานะ", value="⚠️ กำลังสร้างข้อมูลใหม่", inline=False)
+            # Initialize if not exists
+            initialize_user_balance(user_id_str)
+            new_balance = get_user_balance(user_id_str)
+            embed.add_field(name="ยอดเงินใหม่", value=f"**{format_number(new_balance)}** 🪙", inline=False)
+        
+        await ctx.send(embed=embed)
+        
+    except Exception as e:
+        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
+
+@bot.command()
+@admin_only()
+async def resetbalance(ctx, user_id: str = None):
+    """รีเซ็ตยอดเงินผู้ใช้กลับไปที่ 300 (admin only)"""
+    if user_id is None:
+        user_id = str(ctx.author.id)
+    
+    try:
+        user_id_str = str(user_id)
+        balances = load_balances()
+        balances[user_id_str] = STARTING_BALANCE
+        save_balances(balances)
+        
+        # Try to get user info
+        try:
+            user = await bot.fetch_user(int(user_id_str))
+            display_name = user.display_name
+        except:
+            display_name = f"User {user_id_str}"
+        
+        embed = discord.Embed(
+            title="✅ รีเซ็ตยอดเงินเรียบร้อย",
+            description=f"ผู้ใช้: {display_name}\nยอดเงินใหม่: **{format_number(STARTING_BALANCE)}** 🪙",
+            color=0x00FF00
+        )
+        await ctx.send(embed=embed)
+        
+    except Exception as e:
+        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
 
 # ==================== RNG GACHA GAME (UPDATED WITH NEW RARITIES AND SORTING) ====================
 ITEMS = {
@@ -3678,7 +3749,7 @@ class PawnShopMainView(View):
         )
         main_embed.set_footer(text=f"ผู้เล่น: {self.user.display_name}")
         
-        await interaction.response.edit_message(embed=main_embed, view=RNGMainView(self.user))
+        await back_interaction.response.edit_message(embed=main_embed, view=RNGMainView(self.user))
 
 class PawnShopDealView(View):
     def __init__(self, user: discord.User, items: List, customer: PawnCustomer, base_price: int, user_balance: int, action_type: str):
