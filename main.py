@@ -3380,11 +3380,6 @@ class PawnShopDealView(View):
         self.user_balance = user_balance
         self.action_type = action_type
         
-        # Add all 6 buttons in proper rows
-        # Row 0: Accept, Decline
-        # Row 1: +5%, -5%
-        # Row 2: Next Person, Return
-        
     def check_deal_success(self, satisfaction: int) -> bool:
         if satisfaction >= 70:
             return True
