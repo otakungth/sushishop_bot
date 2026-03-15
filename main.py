@@ -3533,6 +3533,7 @@ class ItemSelectionView(View):
         self.user = user
         self.selected_items = []
         self.inventory = inventory
+        self.start_sell_clicked = False  # เพิ่มตัวแปรเพื่อป้องกันการกดซ้ำ
         
         # Prepare items list for selection - sorted by value (highest first)
         items_list = []
@@ -3612,6 +3613,10 @@ class ItemSelectionView(View):
         start_sell_btn = Button(label="เริ่มขาย", style=discord.ButtonStyle.success, emoji="💰", row=1)
         
         async def start_sell_callback(start_interaction: discord.Interaction):
+            # ป้องกันการกดซ้ำ
+            if self.start_sell_clicked:
+                return
+            
             if start_interaction.user != self.user:
                 await start_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
                 return
@@ -3619,6 +3624,9 @@ class ItemSelectionView(View):
             if not self.selected_items:
                 await start_interaction.response.send_message("❌ กรุณาเลือกไอเทมก่อน", ephemeral=True)
                 return
+            
+            # ตั้งค่าว่ากำลังดำเนินการ
+            self.start_sell_clicked = True
             
             user_id = str(start_interaction.user.id)
             selected_items = self.selected_items
@@ -3769,8 +3777,15 @@ class ItemSelectionView(View):
             pawn_view.add_item(next_btn)
             pawn_view.add_item(back_to_shop_btn)
             
-            # ไปที่หน้าการเจรจา
-            await start_interaction.response.edit_message(embed=embed, view=pawn_view)
+            # รอสักครู่เพื่อป้องกันการกดซ้ำ
+            await asyncio.sleep(0.5)
+            
+            # ไปที่หน้าการเจรจา - ใช้ edit_message แทน response
+            try:
+                await start_interaction.response.edit_message(embed=embed, view=pawn_view)
+            except:
+                # ถ้า response ถูกใช้ไปแล้ว ให้ใช้ followup
+                await start_interaction.followup.send(embed=embed, view=pawn_view, ephemeral=True)
         
         start_sell_btn.callback = start_sell_callback
         self.add_item(start_sell_btn)
@@ -3815,7 +3830,6 @@ class ItemSelectionView(View):
             description=f"เลือกไอเทมที่ต้องการขาย (เลือกได้สูงสุด 5 ชิ้น)\n\n💰 ยอดเงินคุณ: **{format_number(get_user_balance(user_id))}** 🪙",
             color=0x00AAFF
         )
-
 
 class PawnShopDealView(View):
     def __init__(self, user: discord.User, items: List, customer: PawnCustomer, base_price: int, user_balance: int, action_type: str):
