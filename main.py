@@ -1643,6 +1643,7 @@ async def annoymous_off_cmd(ctx):
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
 
 # ==================== FIXED TKD COMMAND ====================
+# ==================== FIXED TKD COMMAND ====================
 @bot.command()
 @admin_only()
 async def tkd(ctx):
@@ -1659,15 +1660,12 @@ async def tkd(ctx):
     if channel_name.startswith("ticket-"):
         valid_formats = True
     
-    # ตรวจสอบรูปแบบ [ddmmyytime-amount-user]
-    # เช่น 1403251430-1099-wforr, 1403262047-1-wforr, 1403262329-1099-ไม่ระบุตัวตน
-    # รองรับภาษาไทยที่ท้าย
-    pattern = r'^\d{12}-\d+-[\w\u0E00-\u0E7F]+$'  # \u0E00-\u0E7F คือช่วงตัวอักษรไทย
+    pattern = r'^\d{10}-\d+-[\w\u0E00-\u0E7F]+$'  # 10 ตัวเลข + ขีด + ตัวเลข + ขีด + ตัวอักษร/ไทย
     if re.match(pattern, channel_name):
         valid_formats = True
     
     if not valid_formats:
-        await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในช่องตั๋วเท่านั้น (รูปแบบ: ticket-... หรือ [ddmmyytime-amount-user])", delete_after=5)
+        await ctx.send(f"❌ คำสั่งนี้ใช้ได้เฉพาะในช่องตั๋วเท่านั้น\nรูปแบบที่ใช้ได้: ticket-... หรือ [ddmmyytime-amount-user]\nตัวอย่าง: 0703262106-4-eurrai", delete_after=10)
         return
     
     try:
@@ -1685,7 +1683,6 @@ async def tkd(ctx):
         
     except Exception as e:
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
-
 # ==================== คำสั่ง COIN MANAGEMENT ====================
 @bot.command()
 @admin_only()
