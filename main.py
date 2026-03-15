@@ -300,7 +300,7 @@ async def update_main_channel():
         embed = discord.Embed(title="🍣 Sushi Shop 🍣 เปิดให้บริการ", color=0xFFA500)
         embed.add_field(
             name=f"🎮 กดเกมพาส | 📊 Stock: {format_number(gamepass_stock)} {'🟢' if gamepass_stock > 0 else '🔴'}", 
-            value=f"```\nเรท: {gamepass_rate} | โรแท้\nเช็คราคาพิมพ์: !gp <จำนวน>\n```", 
+            value=f"```\nเรท: {gamepass_rate} \nเช็คราคาพิมพ์: !gp <จำนวน>\n```", 
             inline=False
         )
         embed.add_field(
@@ -309,13 +309,8 @@ async def update_main_channel():
             inline=False
         )
         embed.add_field(
-            name="🏪 RNG GAME", 
-            value=f"```\nค่าใช้จ่ายในการสุ่ม: {format_number(ROLL_COST)} 🪙\nเงินเริ่มต้น: {format_number(STARTING_BALANCE)} 🪙\n```", 
-            inline=False
-        )
-        embed.add_field(
             name="🏪 สถานะร้าน", 
-            value=f"```\n{'🟢 เปิด' if shop_open else '🔴 ปิดชั่วคราว'}\n```", 
+            value=f"```\n{'🟢 เปิดขายเฉพาะโรกลุ่ม' if shop_open else '🔴 ปิดชั่วคราว'}\n```", 
             inline=False
         )
         embed.set_footer(
