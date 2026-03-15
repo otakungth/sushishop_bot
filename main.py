@@ -1709,10 +1709,11 @@ async def addcoin(ctx, user_id: str = None, amount: str = None):
     except Exception as e:
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
 
-# ==================== GIVE ITEM ====================
+# ==================== FIXED GIVE ITEM COMMAND ====================
 @bot.command()
 @admin_only()
 async def give(ctx, item_id: str = None, user_id: str = None, amount: str = None):
+    """ให้ไอเทมแก่ผู้ใช้ !give <item_id> <userid> <amount>"""
     if not item_id or not user_id or not amount:
         embed = discord.Embed(
             title="❌ การใช้งานไม่ถูกต้อง",
@@ -1730,6 +1731,7 @@ async def give(ctx, item_id: str = None, user_id: str = None, amount: str = None
         return
     
     try:
+        # ตรวจสอบว่า item_id มีอยู่ใน ITEMS หรือไม่
         if item_id not in ITEMS:
             await ctx.send(f"❌ ไม่พบไอเทม `{item_id}` ในระบบ")
             return
@@ -1741,42 +1743,59 @@ async def give(ctx, item_id: str = None, user_id: str = None, amount: str = None
         
         user_id_str = str(user_id)
         
+        # ตรวจสอบว่าผู้ใช้มีตัวตนใน Discord หรือไม่
         try:
             target_user = await bot.fetch_user(int(user_id_str))
             display_name = target_user.display_name
         except:
             display_name = f"<@{user_id_str}>"
         
+        # เพิ่มไอเทมให้ผู้ใช้
         item = ITEMS[item_id]
-        add_item_to_inventory(user_id_str, item_id, amount_int)
+        success = add_item_to_inventory(user_id_str, item_id, amount_int)
         
-        embed = discord.Embed(
-            title="✅ ให้ไอเทมเรียบร้อย",
-            description=f"ให้ {item['emoji']} **{item['name']}** จำนวน **{format_number(amount_int)}** ชิ้น แก่ {display_name}",
-            color=0x00FF00
-        )
-        embed.add_field(
-            name="📊 รายละเอียด",
-            value=f"**รหัสไอเทม:** `{item_id}`\n"
-                  f"**ความหายาก:** {get_rarity_emoji(item['rarity'])} {item['rarity'].upper()}\n"
-                  f"**มูลค่าต่อชิ้น:** {format_number(item['value'])} 🪙\n"
-                  f"**มูลค่ารวม:** {format_number(item['value'] * amount_int)} 🪙",
-            inline=False
-        )
-        
-        balance = get_user_balance(user_id_str)
-        embed.add_field(
-            name="💰 ยอดเงินผู้รับ",
-            value=f"**{format_number(balance)}** 🪙",
-            inline=False
-        )
-        
-        await ctx.send(embed=embed)
+        if success:
+            # ตรวจสอบ inventory หลังจากเพิ่ม
+            inventory = get_user_inventory(user_id_str)
+            current_amount = inventory.get(item_id, 0)
+            
+            embed = discord.Embed(
+                title="✅ ให้ไอเทมเรียบร้อย",
+                description=f"ให้ {item['emoji']} **{item['name']}** จำนวน **{format_number(amount_int)}** ชิ้น แก่ {display_name}",
+                color=0x00FF00
+            )
+            embed.add_field(
+                name="📊 รายละเอียด",
+                value=f"**รหัสไอเทม:** `{item_id}`\n"
+                      f"**ความหายาก:** {get_rarity_emoji(item['rarity'])} {item['rarity'].upper()}\n"
+                      f"**มูลค่าต่อชิ้น:** {format_number(item['value'])} 🪙\n"
+                      f"**มูลค่ารวม:** {format_number(item['value'] * amount_int)} 🪙",
+                inline=False
+            )
+            embed.add_field(
+                name="📦 คงเหลือในกระเป๋าผู้รับ",
+                value=f"**{format_number(current_amount)}** ชิ้น",
+                inline=False
+            )
+            
+            # แสดงยอดเงินปัจจุบันของผู้ใช้ (ถ้ามี)
+            balance = get_user_balance(user_id_str)
+            embed.add_field(
+                name="💰 ยอดเงินผู้รับ",
+                value=f"**{format_number(balance)}** 🪙",
+                inline=False
+            )
+            
+            await ctx.send(embed=embed)
+            print(f"✅ ให้ไอเทม {item_id} x{amount_int} แก่ {user_id_str} สำเร็จ")
+        else:
+            await ctx.send("❌ เกิดข้อผิดพลาดในการให้ไอเทม")
         
     except ValueError:
         await ctx.send("❌ กรุณากรอกจำนวนเงินเป็นตัวเลข", delete_after=5)
     except Exception as e:
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
+        traceback.print_exc()
 
 @bot.command()
 @admin_only()
@@ -2544,18 +2563,23 @@ def get_user_inventory(user_id: str) -> Dict[str, int]:
     inventory = load_inventory()
     return inventory.get(user_id, {})
 
-def add_item_to_inventory(user_id: str, item_id: str, amount: int = 1):
-    inventory = load_inventory()
-    if user_id not in inventory:
-        inventory[user_id] = {}
-    
-    if item_id in inventory[user_id]:
-        inventory[user_id][item_id] += amount
-    else:
-        inventory[user_id][item_id] = amount
-    
-    save_inventory(inventory)
-    return True
+def add_item_to_inventory(user_id: str, item_id: str, amount: int = 1) -> bool:
+    try:
+        inventory = load_inventory()
+        if user_id not in inventory:
+            inventory[user_id] = {}
+        
+        if item_id in inventory[user_id]:
+            inventory[user_id][item_id] += amount
+        else:
+            inventory[user_id][item_id] = amount
+        
+        save_inventory(inventory)
+        print(f"✅ Added {amount} x {item_id} to {user_id}'s inventory")
+        return True
+    except Exception as e:
+        print(f"❌ Error adding item to inventory: {e}")
+        return False
 
 def remove_item_from_inventory(user_id: str, item_id: str, amount: int = 1) -> bool:
     inventory = load_inventory()
@@ -3051,7 +3075,7 @@ class RollAgainView(View):
         
         await interaction.response.edit_message(embed=main_embed, view=RNGMainView(self.user))
 
-# ==================== PAWN SHOP SYSTEM ====================
+# ==================== PAWN SHOP SYSTEM (FIXED) ====================
 CUSTOMER_NAMES = [
     "Sunny", "Mawin", "Kirin", "Theo", "Porsche",
     "Praewa", "Milin", "Kana", "Airi", "Nari",
