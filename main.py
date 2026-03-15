@@ -1643,7 +1643,7 @@ async def annoymous_off_cmd(ctx):
     except Exception as e:
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
 
-# ==================== FIXED TKD COMMAND (Supports all your formats) ====================
+# ==================== FIXED TKD COMMAND ====================
 @bot.command()
 @admin_only()
 async def tkd(ctx):
@@ -1660,15 +1660,15 @@ async def tkd(ctx):
     if channel_name.startswith("ticket-"):
         valid_formats = True
     
-    # ตรวจสอบรูปแบบ [ddmmyytime-amount-user] - รองรับทุกกรณี
-    # เช่น 0703262106-4-eurrai, 0903261133-800-redviar4678, 1403262329-1099-ไม่ระบุตัวตน
-    # รูปแบบ: 12 ตัวเลข (ddmmyyHHMM) + ขีด + ตัวเลข (amount) + ขีด + ตัวอักษร/ตัวเลข/ภาษาไทย
-    pattern = r'^\d{12}-\d+-[\w\u0E00-\u0E7F]+$'
+    # ตรวจสอบรูปแบบ [ddmmyytime-amount-user]
+    # เช่น 1403251430-1099-wforr, 1403262047-1-wforr, 1403262329-1099-ไม่ระบุตัวตน
+    # รองรับภาษาไทยที่ท้าย
+    pattern = r'^\d{12}-\d+-[\w\u0E00-\u0E7F]+$'  # \u0E00-\u0E7F คือช่วงตัวอักษรไทย
     if re.match(pattern, channel_name):
         valid_formats = True
     
     if not valid_formats:
-        await ctx.send(f"❌ คำสั่งนี้ใช้ได้เฉพาะในช่องตั๋วเท่านั้น\nรูปแบบที่ใช้ได้: ticket-... หรือ [ddmmyytime-amount-user]\nตัวอย่าง: 0703262106-4-eurrai, 0903261133-800-redviar4678", delete_after=10)
+        await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในช่องตั๋วเท่านั้น (รูปแบบ: ticket-... หรือ [ddmmyytime-amount-user])", delete_after=5)
         return
     
     try:
@@ -1686,37 +1686,6 @@ async def tkd(ctx):
         
     except Exception as e:
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
-
-# ==================== STORAGE CHECK COMMAND ====================
-@bot.command()
-@admin_only()
-async def checkstorage(ctx):
-    """ตรวจสอบสถานะการเก็บข้อมูล"""
-    if REPLIT_DB_AVAILABLE:
-        # นับจำนวนไฟล์ที่ถูกบันทึก
-        saved_files = []
-        data_files = [
-            'user_data', 'ticket_transcripts', 'ticket_counter',
-            'ticket_robux_data', 'ticket_customer_data',
-            'rng_inventory', 'rng_balance', 'stock_values'
-        ]
-        
-        for key in db.keys():
-            if any(file in key for file in data_files):
-                saved_files.append(key)
-        
-        embed = discord.Embed(
-            title="💾 สถานะการเก็บข้อมูล",
-            color=0x00FF00
-        )
-        embed.add_field(name="Replit DB", value="✅ เชื่อมต่อแล้ว", inline=True)
-        embed.add_field(name="ไฟล์ที่บันทึก", value=str(len(saved_files)), inline=True)
-        embed.add_field(name="ข้อมูลปลอดภัย", value="✅ ถาวร", inline=True)
-        embed.add_field(name="วิธีการทำงาน", value="ข้อมูลทั้งหมดจะถูกบันทึกถาวร แม้รีสตาร์ทหรืออัปเดตบอท", inline=False)
-        
-        await ctx.send(embed=embed)
-    else:
-        await ctx.send("⚠️ Replit DB ไม่พร้อมใช้งาน - ข้อมูลอาจหายเมื่อรีสตาร์ท!")
 
 # ==================== คำสั่ง COIN MANAGEMENT ====================
 @bot.command()
@@ -2383,6 +2352,7 @@ async def qr(ctx):
         value="**120-239181-3**", 
         inline=False
     )
+    # Updated image link as requested
     embed.set_image(url="https://media.discordapp.net/attachments/1361004239043821610/1475334379550281768/Sushi_SCB_3.png?ex=699d1bb6&is=699bca36&hm=8d0aca020488ee0942aa7e4e1537c8a695b96033f8453552a1e840af93aaa029&=&format=webp&quality=lossless&width=1161&height=1061")
     
     view = View(timeout=None)
@@ -3248,7 +3218,7 @@ class RollAgainView(View):
         
         await interaction.response.edit_message(embed=main_embed, view=RNGMainView(self.user))
 
-# ==================== PAWN SHOP SYSTEM (FIXED - NOW GOES DIRECTLY TO NEGOTIATION) ====================
+# ==================== PAWN SHOP SYSTEM (FIXED) ====================
 CUSTOMER_NAMES = [
     "Sunny", "Mawin", "Kirin", "Theo", "Porsche",
     "Praewa", "Milin", "Kana", "Airi", "Nari",
@@ -3386,13 +3356,12 @@ class MultiItemSelect(Select):
             value=f"**{format_number(total_value)}** 🪙",
             inline=False
         )
-        embed.set_footer(text=f"เลือก {format_number(len(selected_ids))} จาก 5 ชิ้น | กด 'ดำเนินการต่อ' เพื่อไปยังหน้าการเจรจา")
+        embed.set_footer(text=f"เลือก {format_number(len(selected_ids))} จาก 5 ชิ้น | กด 'เริ่มขาย' เพื่อไปยังหน้าการเจรจา")
         
         # Update the message without creating a new view
         await interaction.response.edit_message(embed=embed, view=self.parent_view)
 
-
-        class PawnShopMainView(View):
+class PawnShopMainView(View):
     def __init__(self, user: discord.User):
         super().__init__(timeout=60)
         self.user = user
@@ -3504,7 +3473,7 @@ class MultiItemSelect(Select):
         # Reset selected items
         self.selected_items = []
         
-        # Create a new view for the selection - มีแค่ select และปุ่มดำเนินการต่อ/กลับ
+        # Create a new view for the selection - มีแค่ select และปุ่มเริ่มขาย/กลับ
         selection_view = View(timeout=60)
         select = MultiItemSelect(self.user, items_list, self)
         selection_view.add_item(select)
@@ -4333,11 +4302,12 @@ class PawnShopDealView(View):
             description=(
                 f"{self.customer.avatar} **{self.customer.name}**{items_display}\n\n"
                 f"ราคาปัจจุบัน: **{format_number(self.current_price)}** 🪙\n"
-                f"ความพอใจ: {new_satisfaction}% {emoji}\n
-                f": {self.customer.patience} โอกาสต่อรอง"
+                f"ความพอใจ: {new_satisfaction}% {emoji}\n"
+                f"โอกาสต่อรองเหลือ: {self.customer.patience} ครั้ง"
             ),
             color=0x00AAFF
         )
+        
         embed.add_field(
             name="📊 ราคา",
             value=(
@@ -4396,8 +4366,97 @@ class PawnShopDealView(View):
         )
         
         await interaction.response.edit_message(embed=embed, view=self)
+
+# ==================== LEADERBOARD SYSTEM ====================
+async def show_leaderboard(interaction: discord.Interaction):
+    """แสดง leaderboard ผู้เล่นที่มีเงินมากที่สุด 5 อันดับ"""
+    balances = load_balances()
+    
+    if not balances:
+        embed = discord.Embed(
+            title="🏆 Leaderboard",
+            description="ยังไม่มีผู้เล่นที่มีเงินในระบบ",
+            color=0xFFD700
+        )
+        await interaction.response.edit_message(embed=embed, view=RNGMainView(interaction.user))
+        return
+    
+    # Remove duplicate user entries by keeping the highest balance
+    unique_balances = {}
+    for user_id, balance in balances.items():
+        if user_id not in unique_balances or balance > unique_balances[user_id]:
+            unique_balances[user_id] = balance
+    
+    sorted_balances = sorted(unique_balances.items(), key=lambda x: x[1], reverse=True)
+    top_5 = sorted_balances[:5]
+    
+    embed = discord.Embed(
+        title="🏆 อันดับผู้เล่นที่มีเงินมากที่สุด",
+        description="5 อันดับผู้เล่นที่รวยที่สุดใน RNG Sushi",
+        color=0xFFD700
+    )
+    
+    medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
+    leaderboard_text = ""
+    
+    for idx, (user_id, money) in enumerate(top_5):
+        try:
+            user = await interaction.client.fetch_user(int(user_id))
+            username = user.display_name
+        except:
+            username = f"<@{user_id}>"
         
-# ==============================================================================================
+        medal = medals[idx] if idx < len(medals) else f"{idx+1}."
+        leaderboard_text += f"{medal} **{username}** - {format_number(money)} 🪙\n"
+    
+    embed.add_field(name="💰 อันดับ", value=leaderboard_text, inline=False)
+    
+    caller_id = str(interaction.user.id)
+    caller_balance = unique_balances.get(caller_id, 0)
+    
+    if caller_balance > 0:
+        caller_rank = next((i+1 for i, (uid, _) in enumerate(sorted_balances) if uid == caller_id), None)
+        if caller_rank:
+            embed.add_field(
+                name="📊 อันดับของคุณ",
+                value=f"อันดับที่ {caller_rank} | {format_number(caller_balance)} 🪙",
+                inline=False
+            )
+    
+    embed.set_footer(text=f"ผู้เล่นทั้งหมด: {len(unique_balances)} คน | เรียกดูโดย: {interaction.user.display_name}")
+    
+    view = View(timeout=60)
+    back_btn = Button(label="🔙 กลับ", style=discord.ButtonStyle.secondary, emoji="🔙")
+    
+    async def back_callback(back_interaction):
+        if back_interaction.user != interaction.user:
+            await back_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
+            return
+        
+        main_embed = discord.Embed(
+            title="🎲 RNG Sushi Shop",
+            description="ยินดีต้อนรับสู่เกมสุ่มไอเทม!\n\nเลือกปุ่มด้านล่างเพื่อเริ่มเล่น",
+            color=0x00AAFF
+        )
+        main_embed.add_field(
+            name="📊 อัตราการสุ่ม", 
+            value=(
+                f"{get_rarity_emoji('common')} Common 60%\n"
+                f"{get_rarity_emoji('rare')} Rare 25%\n"
+                f"{get_rarity_emoji('epic')} Epic 10%\n"
+                f"{get_rarity_emoji('legendary')} Legendary 4%\n"
+                f"{get_rarity_emoji('mythic')} Mythic 1%"
+            ), 
+            inline=False
+        )
+        main_embed.set_footer(text=f"ผู้เล่น: {interaction.user.display_name}")
+        
+        await back_interaction.response.edit_message(embed=main_embed, view=RNGMainView(interaction.user))
+    
+    back_btn.callback = back_callback
+    view.add_item(back_btn)
+    
+    await interaction.response.edit_message(embed=embed, view=view)
 
 # Slash commands for leaderboard
 @bot.tree.command(name="leaderboard", description="ดูอันดับผู้เล่นที่มีเงินมากที่สุด 5 อันดับ")
@@ -4548,8 +4607,6 @@ if __name__ == "__main__":
     token = os.getenv("TOKEN")
     if not token:
         print("❌ ไม่พบ TOKEN ใน environment variables")
-        # For testing, you can use a direct token (remove in production)
-        # token = "YOUR_BOT_TOKEN_HERE"  
         exit(1)
     
     try:
