@@ -4071,21 +4071,25 @@ class PawnShopDealView(View):
                     
                     continue_view = View(timeout=60)
                     
-                    # ปุ่ม "ขายไอเทมต่อ"
-                    sell_again_btn = Button(label="ขายไอเทมต่อ", emoji="💰", style=discord.ButtonStyle.success)
-                    
-                    async def sell_again_callback(cont_interaction):
-                        if cont_interaction.user != self.user:
-                            await cont_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
-                            return
-                        
-                        # กลับไปที่หน้าเลือกไอเทมขาย
-                        inventory = get_user_inventory(user_id)
-                        selection_view = ItemSelectionView(self.user, inventory)
-                        await cont_interaction.response.edit_message(embed=selection_view.get_embed(), view=selection_view)
-                    
-                    sell_again_btn.callback = sell_again_callback
-                    continue_view.add_item(sell_again_btn)
+                   # ในส่วนของปุ่ม "ขายไอเทมต่อ" ใน accept_button
+sell_again_btn = Button(label="ขายไอเทมต่อ", emoji="💰", style=discord.ButtonStyle.success)
+
+async def sell_again_callback(cont_interaction: discord.Interaction):
+    if cont_interaction.user != self.user:
+        await cont_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
+        return
+    
+    # กลับไปที่หน้าเลือกไอเทมขาย
+    inventory = get_user_inventory(user_id)
+    
+    # สร้าง ItemSelectionView ใหม่
+    selection_view = ItemSelectionView(self.user, inventory)
+    
+    # ส่ง response กลับ
+    await cont_interaction.response.edit_message(embed=selection_view.get_embed(), view=selection_view)
+
+sell_again_btn.callback = sell_again_callback
+continue_view.add_item(sell_again_btn)
                     
                     back_to_shop_btn = Button(label="กลับ", emoji="🔙", style=discord.ButtonStyle.secondary)
                     
