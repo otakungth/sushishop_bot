@@ -22,9 +22,11 @@ except ImportError:
 def save_json(file, data):
     """Save data to both file and Replit DB (permanent storage)"""
     try:
+        # Save to file
         with open(file, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         
+        # Save to Replit DB
         if REPLIT_DB_AVAILABLE:
             db_key = file.replace('.', '_').replace('.json', '')
             db[db_key] = json.dumps(data)
@@ -38,31 +40,44 @@ def save_json(file, data):
 def load_json(file, default):
     """Load data from Replit DB first (permanent), then file as backup"""
     try:
+        # Try Replit DB first
         if REPLIT_DB_AVAILABLE:
             db_key = file.replace('.', '_').replace('.json', '')
             if db_key in db:
                 data = json.loads(db[db_key])
                 print(f"📂 Loaded {file} from permanent storage")
                 
-                with open(file, 'w', encoding='utf-8') as f:
-                    json.dump(data, f, ensure_ascii=False, indent=2)
+                # Save to file as backup
+                try:
+                    with open(file, 'w', encoding='utf-8') as f:
+                        json.dump(data, f, ensure_ascii=False, indent=2)
+                except:
+                    pass
                 
                 return data
+            else:
+                print(f"⚠️ No data in Replit DB for {file}")
         
+        # If not in DB, load from file
         if os.path.exists(file):
             with open(file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 print(f"📂 Loaded {file} from file")
                 
+                # Save to DB for next time
                 if REPLIT_DB_AVAILABLE:
                     db_key = file.replace('.', '_').replace('.json', '')
                     db[db_key] = json.dumps(data)
+                    print(f"💾 Saved {file} to Replit DB")
                 
                 return data
         
+        # If no data exists, use default
+        print(f"📂 Using default for {file}")
         return default
     except Exception as e:
         print(f"❌ Error loading {file}: {e}")
+        traceback.print_exc()
         return default
 
 print("✅ Persistent storage system initialized!")
@@ -277,6 +292,348 @@ def admin_only():
 
 def format_number(num: int) -> str:
     return f"{num:,}"
+
+# ==================== HELP COMMAND ====================
+@bot.command(name="help")
+async def help_command(ctx, command_name: str = None):
+    """แสดงวิธีการใช้คำสั่งต่างๆ"""
+    if command_name:
+        # แสดงรายละเอียดคำสั่งเฉพาะ
+        await show_command_help(ctx, command_name)
+    else:
+        # แสดงรายการคำสั่งทั้งหมด
+        embed = discord.Embed(
+            title="📚 Sushi Shop Bot Help",
+            description="ยินดีต้อนรับสู่ Sushi Shop Bot! นี่คือคำสั่งทั้งหมดที่คุณสามารถใช้ได้",
+            color=0x00AAFF
+        )
+        
+        # คำสั่งทั่วไป
+        general_commands = (
+            "`!help` - แสดงเมนูช่วยเหลือนี้\n"
+            "`!help [คำสั่ง]` - แสดงรายละเอียดคำสั่งเฉพาะ\n"
+            "`!link` - แสดงลิงก์กลุ่ม Roblox\n"
+            "`!qr` - แสดง QR code สำหรับโอนเงิน\n"
+            "`!love` - ส่งความรักให้บอท 💕\n"
+            "`!say <ข้อความ>` - ให้บอทพูดตาม"
+        )
+        embed.add_field(name="📌 คำสั่งทั่วไป", value=general_commands, inline=False)
+        
+        # คำสั่งคำนวณ
+        calc_commands = (
+            "`!gp <จำนวน>` - คำนวณราคา Gamepass (บาท)\n"
+            "`!g <จำนวน>` - คำนวณราคา Group (บาท)\n"
+            "`!gpb <จำนวน>` - คำนวณ Gamepass จากบาท\n"
+            "`!gb <จำนวน>` - คำนวณ Group จากบาท\n"
+            "`!tax <จำนวน>` - คำนวณภาษี 30%"
+        )
+        embed.add_field(name="🧮 คำสั่งคำนวณ", value=calc_commands, inline=False)
+        
+        # คำสั่ง RNG Game
+        rng_commands = (
+            "`/rng` - เปิดเกม RNG (Slash Command)\n"
+            "`/leaderboard` - ดูอันดับผู้เล่น (Slash Command)"
+        )
+        embed.add_field(name="🎲 คำสั่ง RNG Game", value=rng_commands, inline=False)
+        
+        # คำสั่งแอดมิน (ซ่อน)
+        if ctx.author.guild_permissions.administrator:
+            admin_commands = (
+                "`!open` / `!close` - เปิด/ปิดร้าน\n"
+                "`!shop_open` / `!shop_close` - เปิด/ปิดร้าน\n"
+                "`!stock [gp/group] [จำนวน]` - ดู/ตั้งค่า stock\n"
+                "`!group [on/off]` - เปิด/ปิด Group ticket\n"
+                "`!rate [group/low/high]` - ดู/ตั้งค่าเรท\n"
+                "`!annoymous` / `!annoymous_off` - เปิด/ปิดโหมดไม่ระบุตัวตน\n"
+                "`!tkd` - ลบตั๋ว (ใช้ในห้องตั๋ว)\n"
+                "`!delcoin <userid> <amount>` - ลบ SushiCoin\n"
+                "`!addcoin <userid> <amount>` - เพิ่ม SushiCoin\n"
+                "`!give <item_id> <userid> <amount>` - ให้ไอเทม\n"
+                "`!givelist` - ดูรายการไอเทม\n"
+                "`!ty` / `!vouch` - ปิดตั๋วและส่งของ\n"
+                "`!od` / `!odg` - รับออร์เดอร์ Gamepass/Group\n"
+                "`!saveall` - บันทึกข้อมูลทั้งหมด\n"
+                "`!checkstorage` - ตรวจสอบระบบบันทึกข้อมูล\n"
+                "`!checkdb` - ดูข้อมูลใน Database\n"
+                "`!reloaddb` - โหลดข้อมูลจาก Database\n"
+                "`!backupdb` - สำรองข้อมูลไป Database\n"
+                "`!fixdata` - ซ่อมแซมข้อมูล\n"
+                "`!setup` - ตั้งค่าระบบ\n"
+                "`!restart` - รีสตาร์ทปุ่ม\n"
+                "`!sync` - Sync Slash Commands"
+            )
+            embed.add_field(name="👑 คำสั่งแอดมิน", value=admin_commands, inline=False)
+        
+        embed.set_footer(text="พิมพ์ !help <คำสั่ง> เพื่อดูรายละเอียดเพิ่มเติม")
+        await ctx.send(embed=embed)
+
+async def show_command_help(ctx, command_name: str):
+    """แสดงรายละเอียดของคำสั่งเฉพาะ"""
+    commands_info = {
+        "gp": {
+            "description": "คำนวณราคา Gamepass จากจำนวน Robux",
+            "usage": "!gp <จำนวน>",
+            "example": "!gp 1000",
+            "note": "แสดงราคาเป็นบาทตามเรทปัจจุบัน"
+        },
+        "g": {
+            "description": "คำนวณราคา Group จากจำนวน Robux",
+            "usage": "!g <จำนวน>",
+            "example": "!g 1000",
+            "note": "แสดงราคาเป็นบาทตามเรทปัจจุบัน (500 บาทขึ้นไปได้เรทพิเศษ)"
+        },
+        "gpb": {
+            "description": "คำนวณจำนวน Robux Gamepass จากจำนวนบาท",
+            "usage": "!gpb <จำนวน>",
+            "example": "!gpb 500",
+            "note": "แสดงจำนวน Robux ที่จะได้รับตามเรทปัจจุบัน"
+        },
+        "gb": {
+            "description": "คำนวณจำนวน Robux Group จากจำนวนบาท",
+            "usage": "!gb <จำนวน>",
+            "example": "!gb 500",
+            "note": "แสดงจำนวน Robux ที่จะได้รับตามเรทปัจจุบัน"
+        },
+        "tax": {
+            "description": "คำนวณจำนวน Robux หลังจากหักภาษี",
+            "usage": "!tax <จำนวน> หรือ !tax <จำนวน>-<เปอร์เซ็น>%",
+            "example": "!tax 1000 หรือ !tax 1000-30%",
+            "note": "ถ้าไม่ระบุเปอร์เซ็น จะหัก 30% อัตโนมัติ"
+        },
+        "annoymous": {
+            "description": "เปิดโหมดไม่ระบุตัวตนในตั๋ว",
+            "usage": "!annoymous",
+            "note": "ใช้ในห้องตั๋วเท่านั้น จะซ่อนชื่อผู้ซื้อในใบเสร็จ"
+        },
+        "annoymous_off": {
+            "description": "ปิดโหมดไม่ระบุตัวตนในตั๋ว",
+            "usage": "!annoymous_off",
+            "note": "ใช้ในห้องตั๋วเท่านั้น จะแสดงชื่อผู้ซื้อในใบเสร็จ"
+        },
+        "tkd": {
+            "description": "ลบห้องตั๋ว",
+            "usage": "!tkd",
+            "note": "ใช้ในห้องตั๋วเท่านั้น รูปแบบห้อง: ticket-... หรือ [ddmmyytime-amount-user]"
+        },
+        "give": {
+            "description": "ให้ไอเทมแก่ผู้ใช้ (เฉพาะแอดมิน)",
+            "usage": "!give <item_id> <userid> <amount>",
+            "example": "!give myt_1 123456789 50",
+            "note": "ดูรายการ item_id ได้จาก !givelist"
+        },
+        "stock": {
+            "description": "ดูหรือตั้งค่า stock สินค้า (เฉพาะแอดมิน)",
+            "usage": "!stock หรือ !stock gp <จำนวน> หรือ !stock group <จำนวน>",
+            "example": "!stock gp 1000",
+            "note": "ถ้าไม่ระบุจำนวนจะแสดง stock ปัจจุบัน"
+        },
+        "rate": {
+            "description": "ดูหรือตั้งค่าเรท (เฉพาะแอดมิน)",
+            "usage": "!rate หรือ !rate group <low> <high> หรือ !rate <ค่า>",
+            "example": "!rate group 4 4.5 หรือ !rate 6",
+            "note": "!rate เฉยๆ แสดงเรทปัจจุบัน"
+        }
+    }
+    
+    if command_name in commands_info:
+        info = commands_info[command_name]
+        embed = discord.Embed(
+            title=f"📖 วิธีใช้คำสั่ง !{command_name}",
+            description=info["description"],
+            color=0x00AAFF
+        )
+        embed.add_field(name="วิธีการใช้", value=f"`{info['usage']}`", inline=False)
+        if "example" in info:
+            embed.add_field(name="ตัวอย่าง", value=f"`{info['example']}`", inline=False)
+        if "note" in info:
+            embed.add_field(name="หมายเหตุ", value=info["note"], inline=False)
+        
+        await ctx.send(embed=embed)
+    else:
+        await ctx.send(f"❌ ไม่พบคำสั่ง `{command_name}`")
+
+# ==================== DATABASE MANAGEMENT COMMANDS ====================
+@bot.command()
+@admin_only()
+async def checkstorage(ctx):
+    """ตรวจสอบสถานะการเก็บข้อมูล"""
+    if REPLIT_DB_AVAILABLE:
+        # นับจำนวนไฟล์ที่ถูกบันทึก
+        saved_files = []
+        data_files = [
+            'user_data', 'ticket_transcripts', 'ticket_counter',
+            'ticket_robux_data', 'ticket_customer_data',
+            'rng_inventory', 'rng_balance', 'stock_values'
+        ]
+        
+        for key in db.keys():
+            if any(file in key for file in data_files):
+                saved_files.append(key)
+        
+        embed = discord.Embed(
+            title="💾 สถานะการเก็บข้อมูล",
+            color=0x00FF00
+        )
+        embed.add_field(name="Replit DB", value="✅ เชื่อมต่อแล้ว", inline=True)
+        embed.add_field(name="ไฟล์ที่บันทึก", value=str(len(saved_files)), inline=True)
+        embed.add_field(name="ข้อมูลปลอดภัย", value="✅ ถาวร", inline=True)
+        embed.add_field(name="วิธีการทำงาน", value="ข้อมูลทั้งหมดจะถูกบันทึกถาวร แม้รีสตาร์ทหรืออัปเดตบอท", inline=False)
+        
+        await ctx.send(embed=embed)
+    else:
+        await ctx.send("⚠️ Replit DB ไม่พร้อมใช้งาน - ข้อมูลอาจหายเมื่อรีสตาร์ท!")
+
+@bot.command()
+@admin_only()
+async def checkdb(ctx):
+    """ตรวจสอบข้อมูลใน Replit DB"""
+    if not REPLIT_DB_AVAILABLE:
+        await ctx.send("❌ Replit DB ไม่พร้อมใช้งาน")
+        return
+    
+    try:
+        # แสดงรายการ keys ใน DB
+        keys = list(db.keys())
+        embed = discord.Embed(
+            title="💾 Replit DB Status",
+            color=0x00AAFF
+        )
+        embed.add_field(name="จำนวน keys ทั้งหมด", value=str(len(keys)), inline=True)
+        
+        if keys:
+            # แยกประเภท keys
+            user_keys = [k for k in keys if 'user' in k or 'rng' in k or 'ticket' in k or 'stock' in k]
+            embed.add_field(name="Keys ที่เกี่ยวข้อง", value=str(len(user_keys)), inline=True)
+            
+            # แสดงตัวอย่าง keys
+            if user_keys:
+                sample = "\n".join(user_keys[:10])
+                embed.add_field(name="ตัวอย่าง Keys", value=f"```{sample}```", inline=False)
+        
+        await ctx.send(embed=embed)
+    except Exception as e:
+        await ctx.send(f"❌ Error: {e}")
+
+@bot.command()
+@admin_only()
+async def reloaddb(ctx):
+    """บังคับโหลดข้อมูลทั้งหมดจาก Replit DB"""
+    await ctx.send("🔄 กำลังโหลดข้อมูลจาก Replit DB...")
+    
+    try:
+        # รายการไฟล์ทั้งหมดที่ต้องโหลด
+        files = [
+            (user_data_file, "user_data"),
+            (ticket_transcripts_file, "ticket_transcripts"),
+            (ticket_robux_data_file, "ticket_robux_data"),
+            (ticket_customer_data_file, "ticket_customer_data"),
+            (rng_inventory_file, None),
+            (rng_balance_file, None),
+            (stock_file, None)
+        ]
+        
+        loaded = 0
+        for file, var_name in files:
+            if REPLIT_DB_AVAILABLE:
+                db_key = file.replace('.', '_').replace('.json', '')
+                if db_key in db:
+                    data = json.loads(db[db_key])
+                    
+                    # อัปเดตตัวแปร global
+                    if var_name == "user_data":
+                        global user_data
+                        user_data = data
+                    elif var_name == "ticket_transcripts":
+                        global ticket_transcripts
+                        ticket_transcripts = data
+                    elif var_name == "ticket_robux_data":
+                        global ticket_robux_data
+                        ticket_robux_data = data
+                    elif var_name == "ticket_customer_data":
+                        global ticket_customer_data
+                        ticket_customer_data = data
+                    elif file == rng_inventory_file:
+                        save_inventory(data)
+                    elif file == rng_balance_file:
+                        save_balances(data)
+                    elif file == stock_file:
+                        with open(file, 'w') as f:
+                            json.dump(data, f)
+                        load_stock_values()
+                    
+                    # บันทึกลงไฟล์
+                    with open(file, 'w', encoding='utf-8') as f:
+                        json.dump(data, f, ensure_ascii=False, indent=2)
+                    
+                    loaded += 1
+                    print(f"✅ Loaded {file} from DB")
+        
+        await ctx.send(f"✅ โหลดข้อมูลสำเร็จ {loaded} ไฟล์")
+        
+    except Exception as e:
+        await ctx.send(f"❌ Error: {e}")
+        traceback.print_exc()
+
+@bot.command()
+@admin_only()
+async def backupdb(ctx):
+    """สำรองข้อมูลทั้งหมดไปยัง Replit DB"""
+    await ctx.send("💾 กำลังสำรองข้อมูลไปยัง Replit DB...")
+    
+    try:
+        await save_all_data()
+        
+        # ตรวจสอบจำนวน
+        if REPLIT_DB_AVAILABLE:
+            keys = [k for k in db.keys() if any(x in k for x in ['user', 'ticket', 'rng', 'stock'])]
+            await ctx.send(f"✅ สำรองข้อมูลเรียบร้อย! (พบ {len(keys)} keys ใน DB)")
+        else:
+            await ctx.send("⚠️ Replit DB ไม่พร้อมใช้งาน")
+            
+    except Exception as e:
+        await ctx.send(f"❌ Error: {e}")
+
+@bot.command()
+@admin_only()
+async def fixdata(ctx):
+    """แก้ไขข้อมูลที่หายไป"""
+    await ctx.send("🔧 กำลังซ่อมแซมข้อมูล...")
+    
+    try:
+        # สร้างข้อมูลเริ่มต้นถ้ายังไม่มี
+        if REPLIT_DB_AVAILABLE:
+            files = [
+                user_data_file,
+                ticket_transcripts_file,
+                ticket_counter_file,
+                ticket_robux_data_file,
+                ticket_customer_data_file,
+                rng_inventory_file,
+                rng_balance_file,
+                stock_file
+            ]
+            
+            restored = 0
+            for file in files:
+                db_key = file.replace('.', '_').replace('.json', '')
+                if db_key not in db:
+                    # ถ้าไม่มีใน DB แต่มีในไฟล์
+                    if os.path.exists(file):
+                        with open(file, 'r', encoding='utf-8') as f:
+                            data = json.load(f)
+                            db[db_key] = json.dumps(data)
+                            restored += 1
+                            print(f"✅ Restored {file} to DB")
+            
+            if restored > 0:
+                await ctx.send(f"✅ ซ่อมแซมข้อมูลเสร็จสิ้น! (กู้คืน {restored} ไฟล์) กรุณาใช้ `!reloaddb` เพื่อโหลดข้อมูล")
+            else:
+                await ctx.send("✅ ไม่พบข้อมูลที่ต้องซ่อมแซม")
+        else:
+            await ctx.send("❌ Replit DB ไม่พร้อมใช้งาน")
+            
+    except Exception as e:
+        await ctx.send(f"❌ Error: {e}")
 
 # ==================== CHANNEL NAME UPDATE ====================
 async def update_channel_name():
@@ -1226,6 +1583,7 @@ class DeliveryView(View):
 @bot.command(name="open")
 @admin_only()
 async def open_cmd(ctx):
+    """เปิดร้าน"""
     global shop_open
     shop_open = True
     
@@ -1253,6 +1611,7 @@ async def open_cmd(ctx):
 @bot.command(name="close")
 @admin_only()
 async def close_cmd(ctx):
+    """ปิดร้าน"""
     global shop_open
     shop_open = False
     
@@ -1615,6 +1974,7 @@ async def tkd(ctx):
 @bot.command()
 @admin_only()
 async def delcoin(ctx, user_id: str = None, amount: str = None):
+    """ลบ SushiCoin จากผู้ใช้ !delcoin <userid> <amount>"""
     if not user_id or not amount:
         embed = discord.Embed(
             title="❌ การใช้งานไม่ถูกต้อง",
@@ -1670,6 +2030,7 @@ async def delcoin(ctx, user_id: str = None, amount: str = None):
 @bot.command()
 @admin_only()
 async def addcoin(ctx, user_id: str = None, amount: str = None):
+    """เพิ่ม SushiCoin ให้ผู้ใช้ !addcoin <userid> <amount>"""
     if not user_id or not amount:
         embed = discord.Embed(
             title="❌ การใช้งานไม่ถูกต้อง",
@@ -1800,6 +2161,7 @@ async def give(ctx, item_id: str = None, user_id: str = None, amount: str = None
 @bot.command()
 @admin_only()
 async def givelist(ctx):
+    """แสดงรายการ item_id ที่สามารถใช้ได้"""
     embed = discord.Embed(
         title="📋 รายการไอเทมสำหรับคำสั่ง !give",
         description="ใช้คำสั่ง `!give <item_id> <userid> <amount>`",
@@ -1829,6 +2191,7 @@ async def givelist(ctx):
 @bot.command()
 @admin_only()
 async def ty(ctx):
+    """คำสั่ง !ty เหมือน !vouch แต่ส่ง embed ขอบคุณโดยไม่ส่งใบเสร็จไป sales log"""
     global gamepass_stock, group_stock
     
     try:
@@ -1965,6 +2328,7 @@ async def ty(ctx):
 @bot.command()
 @admin_only()
 async def vouch(ctx):
+    """คำสั่งปิดตั๋วและส่งใบเสร็จ"""
     global gamepass_stock, group_stock
     
     try:
@@ -2137,6 +2501,7 @@ async def vouch(ctx):
 @bot.command()
 @admin_only()
 async def od(ctx, *, expr):
+    """รับออร์เดอร์ Gamepass !od <จำนวน>"""
     global gamepass_stock, gamepass_rate
     
     if not ctx.channel.name.startswith("ticket-"):
@@ -2186,6 +2551,7 @@ async def od(ctx, *, expr):
 @bot.command()
 @admin_only()
 async def odg(ctx, *, expr):
+    """รับออร์เดอร์ Group !odg <จำนวน>"""
     global group_stock, group_rate_low, group_rate_high
     
     if not ctx.channel.name.startswith("ticket-"):
@@ -2236,6 +2602,7 @@ async def odg(ctx, *, expr):
 
 @bot.command()
 async def qr(ctx):
+    """แสดง QR code สำหรับโอนเงิน"""
     try:
         await ctx.message.delete()
     except:
@@ -2270,6 +2637,7 @@ async def qr(ctx):
 
 @bot.command()
 async def gp(ctx, *, expr):
+    """คำนวณราคา Gamepass !gp <จำนวน>"""
     global gamepass_rate
     
     try:
@@ -2281,6 +2649,7 @@ async def gp(ctx, *, expr):
 
 @bot.command()
 async def g(ctx, *, expr):
+    """คำนวณราคา Group !g <จำนวน>"""
     global group_rate_low, group_rate_high
     
     try:
@@ -2294,6 +2663,7 @@ async def g(ctx, *, expr):
 
 @bot.command()
 async def gpb(ctx, *, expr):
+    """คำนวณ Gamepass จากบาท !gpb <จำนวน>"""
     global gamepass_rate
     
     try:
@@ -2304,6 +2674,7 @@ async def gpb(ctx, *, expr):
 
 @bot.command()
 async def gb(ctx, *, expr):
+    """คำนวณ Group จากบาท !gb <จำนวน>"""
     global group_rate_low, group_rate_high
     
     try:
@@ -2316,6 +2687,7 @@ async def gb(ctx, *, expr):
 
 @bot.command()
 async def tax(ctx, *, expr):
+    """คำนวณภาษี !tax <จำนวน> หรือ !tax <จำนวน>-<เปอร์เซ็น>%"""
     try:
         expr = expr.replace(" ", "")
         if re.match(r"^\d+$", expr):
@@ -2335,15 +2707,18 @@ async def tax(ctx, *, expr):
 
 @bot.command()
 async def love(ctx):
+    """ส่งความรักให้บอท"""
     await ctx.send("# LOVE YOU<:sushiheart:1410484970291466300>")
 
 @bot.command()
 async def say(ctx, *, message):
+    """ให้บอทพูดตาม"""
     await ctx.send(f"# {message.upper()} <:sushiheart:1410484970291466300>")
 
 @bot.command()
 @admin_only()
 async def setup(ctx):
+    """ตั้งค่าระบบ"""
     try:
         await ctx.message.delete()
     except:
@@ -2355,6 +2730,7 @@ async def setup(ctx):
 @bot.command()
 @admin_only()
 async def restart(ctx):
+    """รีสตาร์ทระบบปุ่ม"""
     try:
         await ctx.message.delete()
     except:
@@ -2366,6 +2742,7 @@ async def restart(ctx):
 @bot.command()
 @admin_only()
 async def fixcredit(ctx):
+    """ซ่อมแซมช่องเครดิต"""
     await ctx.send("🔍 กำลังตรวจสอบจำนวนข้อความในช่องเครดิต...")
     await verify_credit_channel_count()
     await ctx.send("✅ ตรวจสอบเสร็จสิ้น!")
@@ -2373,6 +2750,7 @@ async def fixcredit(ctx):
 @bot.command()
 @admin_only()
 async def saveall(ctx):
+    """บันทึกข้อมูลทั้งหมดทันที"""
     await ctx.send("💾 กำลังบันทึกข้อมูลทั้งหมด...")
     await save_all_data()
     await ctx.send("✅ บันทึกข้อมูลเรียบร้อย!")
@@ -2380,6 +2758,7 @@ async def saveall(ctx):
 @bot.command()
 @admin_only()
 async def sync(ctx):
+    """Sync slash commands (admin only)"""
     try:
         synced = await bot.tree.sync()
         await ctx.send(f"✅ Synced {len(synced)} commands")
@@ -2389,6 +2768,7 @@ async def sync(ctx):
 @bot.command()
 @admin_only()
 async def checkbalance(ctx, user_id: str = None):
+    """ตรวจสอบยอดเงินของผู้ใช้ (admin only)"""
     if user_id is None:
         user_id = str(ctx.author.id)
     
@@ -2425,6 +2805,7 @@ async def checkbalance(ctx, user_id: str = None):
 @bot.command()
 @admin_only()
 async def resetbalance(ctx, user_id: str = None):
+    """รีเซ็ตยอดเงินผู้ใช้กลับไปที่ 300 (admin only)"""
     if user_id is None:
         user_id = str(ctx.author.id)
     
@@ -3075,7 +3456,7 @@ class RollAgainView(View):
         
         await interaction.response.edit_message(embed=main_embed, view=RNGMainView(self.user))
 
-# ==================== PAWN SHOP SYSTEM (FIXED) ====================
+# ==================== PAWN SHOP SYSTEM ====================
 CUSTOMER_NAMES = [
     "Sunny", "Mawin", "Kirin", "Theo", "Porsche",
     "Praewa", "Milin", "Kana", "Airi", "Nari",
@@ -4459,8 +4840,18 @@ async def update_credit_channel_task():
 async def on_ready():
     print(f"✅ บอทออนไลน์แล้ว: {bot.user} (ID: {bot.user.id})")
     
+    # ตรวจสอบและโหลดข้อมูลจาก DB
+    if REPLIT_DB_AVAILABLE:
+        print("🔍 กำลังตรวจสอบข้อมูลใน Replit DB...")
+        try:
+            # รีโหลดข้อมูลทั้งหมดจาก DB
+            bot.load_all_data()
+            print("✅ โหลดข้อมูลจาก Replit DB สำเร็จ")
+        except Exception as e:
+            print(f"⚠️ ไม่สามารถโหลดข้อมูลจาก DB: {e}")
+    
     await bot.change_presence(
-        activity=discord.Game(name="บอทเครื่องคิดเลขและเกม RNG ของ wforr")
+        activity=discord.Game(name="บอทเครื่องคิดเลขและเกม RNG ของ wforr | !help")
     )
     
     try:
