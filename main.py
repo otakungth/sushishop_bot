@@ -3366,11 +3366,16 @@ class PawnShopMainView(View):
         super().__init__(timeout=60)
         self.user = user
         self.selected_items = []
+        self.in_selection_mode = False  # เพิ่มตัวแปรเพื่อตรวจสอบว่าอยู่ในโหมดเลือกไอเทมหรือไม่
     
     @discord.ui.button(label="💰 ขายไอเทม", style=discord.ButtonStyle.success, emoji="💰", row=0)
     async def sell_button(self, interaction: discord.Interaction, button: Button):
         if interaction.user != self.user:
             await interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
+            return
+        
+        # ถ้ากำลังอยู่ในโหมดเลือกไอเทมอยู่แล้ว ไม่ต้องทำอะไร
+        if self.in_selection_mode:
             return
         
         user_id = str(interaction.user.id)
@@ -3461,6 +3466,9 @@ class PawnShopMainView(View):
             await interaction.response.edit_message(embed=embed, view=no_items_view)
             return
         
+        # เข้าสู่โหมดเลือกไอเทม
+        self.in_selection_mode = True
+        
         # Prepare items list for selection - sorted by value (highest first)
         items_list = []
         for item_id, amount in inventory.items():
@@ -3473,7 +3481,7 @@ class PawnShopMainView(View):
         # Reset selected items
         self.selected_items = []
         
-        # Create a new view for the selection - มีแค่ select และปุ่มเริ่มขาย/กลับ
+        # Create selection view - มีเฉพาะ select และปุ่มเริ่มขาย/กลับ
         selection_view = View(timeout=60)
         select = MultiItemSelect(self.user, items_list, self)
         selection_view.add_item(select)
@@ -3489,6 +3497,9 @@ class PawnShopMainView(View):
             if not self.selected_items:
                 await start_interaction.response.send_message("❌ กรุณาเลือกไอเทมก่อน", ephemeral=True)
                 return
+            
+            # ออกจากโหมดเลือกไอเทม
+            self.in_selection_mode = False
             
             user_id = str(start_interaction.user.id)
             selected_items = self.selected_items
@@ -3612,7 +3623,7 @@ class PawnShopMainView(View):
                     await back_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
                     return
                 
-                # กลับไปที่หน้าเลือกร้านค้า (PawnShopMainView หลัก)
+                # กลับไปที่หน้าเลือกร้านค้า (สร้าง PawnShopMainView ใหม่)
                 embed = discord.Embed(
                     title="🏪 Sushi Shop",
                     description="เลือกประเภทการค้าขายที่ต้องการ",
@@ -3652,6 +3663,9 @@ class PawnShopMainView(View):
                 await back_interaction.response.send_message("❌ ไม่ใช่เกมของคุณ!", ephemeral=True)
                 return
             
+            # ออกจากโหมดเลือกไอเทม
+            self.in_selection_mode = False
+            
             # กลับไปที่หน้าเลือกร้านค้า
             embed = discord.Embed(
                 title="🏪 Sushi Shop",
@@ -3671,6 +3685,7 @@ class PawnShopMainView(View):
             )
             embed.add_field(name="💰 ยอดเงินคุณ", value=f"**{format_number(get_user_balance(user_id))}** 🪙", inline=False)
             
+            # สร้าง PawnShopMainView ใหม่ (ไม่ใช้ self เดิม)
             await back_interaction.response.edit_message(embed=embed, view=PawnShopMainView(self.user))
         
         back_to_shop_btn.callback = back_to_shop_callback
