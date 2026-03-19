@@ -2219,16 +2219,32 @@ async def gp(ctx, *, expr):
 
 @bot.command()
 async def g(ctx, *, expr):
+    """คำนวณราคา Group !g <จำนวน>"""
     global group_rate_low, group_rate_high
     
     try:
         expr_clean = expr.replace(",", "").lower().replace("x", "*").replace("÷", "/")
         robux = int(eval(expr_clean))
-        # ใช้ 500 บาทเป็นเกณฑ์
-        price_baht = robux / group_rate_low
-        rate = group_rate_low if price_baht < 500 else group_rate_high
-        await ctx.send(f"👥 Group {format_number(robux)} Robux = **{format_number(int(robux/rate))} บาท** (เรท {rate})")
-    except:
+        
+        # คำนวณราคาเป็นบาทก่อน
+        price_baht_low = robux / group_rate_low  # ถ้าใช้ rate 4
+        price_baht_high = robux / group_rate_high  # ถ้าใช้ rate 4.5
+        
+        # ตรวจสอบว่าควรใช้ rate อะไร
+        if price_baht_high >= 500:
+            # ถ้าใช้ rate 4.5 แล้วได้ราคาตั้งแต่ 500 บาทขึ้นไป
+            rate = group_rate_high
+            price = price_baht_high
+            rate_text = f"เรท {group_rate_high} (500 บาทขึ้นไป)"
+        else:
+            # ถ้าใช้ rate 4.5 แล้วได้ราคาต่ำกว่า 500 บาท ให้ใช้ rate 4
+            rate = group_rate_low
+            price = price_baht_low
+            rate_text = f"เรท {group_rate_low} (ต่ำกว่า 500 บาท)"
+        
+        await ctx.send(f"👥 Group {format_number(robux)} Robux = **{format_number(int(price))} บาท** ({rate_text})")
+    except Exception as e:
+        print(f"Error in !g: {e}")
         await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง", delete_after=5)
 
 @bot.command()
@@ -2243,16 +2259,24 @@ async def gpb(ctx, *, expr):
 
 @bot.command()
 async def gb(ctx, *, expr):
+    """คำนวณ Group จากบาท !gb <จำนวน>"""
     global group_rate_low, group_rate_high
     
     try:
         baht = float(eval(expr.replace(",", "")))
-        # แปลงบาทกลับเป็น Robux โดยใช้ rate ต่ำสุดก่อน
-        robux_estimate = baht * group_rate_low
-        # ถ้าประมาณการ Robux เกิน 2,250 (ซึ่งเท่ากับ 500 บาทที่ rate 4.5) ให้ใช้ rate สูง
-        rate = group_rate_low if robux_estimate < 2250 else group_rate_high
-        await ctx.send(f"👥 {format_number(int(baht))} บาท = **{format_number(int(baht * rate))} Robux** (Group เรท {rate})")
-    except:
+        
+        # ตรวจสอบว่าใช้ rate อะไร
+        if baht >= 500:
+            rate = group_rate_high
+            rate_text = f"เรท {group_rate_high} (500 บาทขึ้นไป)"
+        else:
+            rate = group_rate_low
+            rate_text = f"เรท {group_rate_low} (ต่ำกว่า 500 บาท)"
+        
+        robux = int(baht * rate)
+        await ctx.send(f"👥 {format_number(int(baht))} บาท = **{format_number(robux)} Robux** ({rate_text})")
+    except Exception as e:
+        print(f"Error in !gb: {e}")
         await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง", delete_after=5)
 
 @bot.command()
