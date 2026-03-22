@@ -44,8 +44,8 @@ group_rate_low = 4
 group_rate_high = 4.5
 shop_open = True
 group_ticket_enabled = True
-gamepass_stock = 5000
-group_stock = 10000
+gamepass_stock = 4999
+group_stock = 8500
 
 # Channel IDs
 MAIN_CHANNEL_ID = 1475342278976606229
@@ -121,9 +121,9 @@ def load_stock_values():
     global gamepass_stock, group_stock, gamepass_rate, group_rate_low, group_rate_high, shop_open, group_ticket_enabled
     stock_data = load_json(stock_file, {})
     if stock_data:
-        gamepass_stock = stock_data.get("gamepass_stock", 50000)
-        group_stock = stock_data.get("group_stock", 0)
-        gamepass_rate = stock_data.get("gamepass_rate", 6.5)
+        gamepass_stock = stock_data.get("gamepass_stock", 4999)
+        group_stock = stock_data.get("group_stock", 8500)
+        gamepass_rate = stock_data.get("gamepass_rate", 6)
         group_rate_low = stock_data.get("group_rate_low", 4)
         group_rate_high = stock_data.get("group_rate_high", 4.5)
         shop_open = stock_data.get("shop_open", True)
@@ -166,6 +166,130 @@ class RateLimiter:
                 return await self.acquire()
             self.calls.append(now)
             return True
+
+# ==================== CALCULATOR VIEW ====================
+class CalculatorView(View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        
+        # Add buttons
+        gamepass_btn = Button(label="คำนวณเกมพาส", style=discord.ButtonStyle.primary, emoji="🎮")
+        group_btn = Button(label="คำนวณโรกลุ่ม", style=discord.ButtonStyle.primary, emoji="👥")
+        
+        gamepass_btn.callback = self.gamepass_callback
+        group_btn.callback = self.group_callback
+        
+        self.add_item(gamepass_btn)
+        self.add_item(group_btn)
+    
+    async def gamepass_callback(self, interaction: discord.Interaction):
+        """Show gamepass calculation form"""
+        modal = GamepassCalculatorModal()
+        await interaction.response.send_modal(modal)
+    
+    async def group_callback(self, interaction: discord.Interaction):
+        """Show group calculation form"""
+        modal = GroupCalculatorModal()
+        await interaction.response.send_modal(modal)
+
+class GamepassCalculatorModal(Modal, title="📊 คำนวณเกมพาส"):
+    robux_amount = TextInput(
+        label="จำนวน Robux",
+        placeholder="พิมพ์เฉพาะตัวเลขเช่น 1000 หรือ 1,000",
+        required=True,
+        max_length=20
+    )
+    
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            # Parse number (handle commas)
+            amount_str = self.robux_amount.value.replace(",", "").strip()
+            robux = int(amount_str)
+            
+            # Calculate price
+            price = robux / 6  # Gamepass rate 6
+            
+            # Create embed
+            embed = discord.Embed(
+                title="🎮 Gamepass 1 Robux = **0 บาท** (เรท 6)",
+                description=f"**{format_number(robux)}** Robux = **{format_number(int(price))}** บาท",
+                color=0x00AAFF
+            )
+            embed.set_image(url="https://media.discordapp.net/attachments/1485285161955360963/1485285565761847417/image.png?ex=69c14f7a&is=69bffdfa&hm=33e4caba94fa708df0babfaf5aaf19437bf3d109012f88c11e226a40077c91f2&=&format=webp&quality=lossless&width=825&height=440")
+            embed.set_footer(text="Sushi Shop 🍣")
+            
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            
+        except ValueError:
+            await interaction.response.send_message("❌ กรุณาพิมพ์เฉพาะตัวเลข เช่น 1000 หรือ 1,000", ephemeral=True)
+        except Exception as e:
+            await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
+
+class GroupCalculatorModal(Modal, title="📊 คำนวณโรกลุ่ม"):
+    robux_amount = TextInput(
+        label="จำนวน Robux",
+        placeholder="พิมพ์เฉพาะตัวเลขเช่น 1000 หรือ 1,000",
+        required=True,
+        max_length=20
+    )
+    
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            # Parse number (handle commas)
+            amount_str = self.robux_amount.value.replace(",", "").strip()
+            robux = int(amount_str)
+            
+            # Calculate price (using rate 4 for under 500 baht)
+            price = robux / 4  # Group rate 4 for under 500 baht
+            price_baht = int(price)
+            
+            # Determine rate message based on price
+            if price_baht >= 500:
+                rate_message = "เรท 4.5 (500 บาทขึ้นไป)"
+            else:
+                rate_message = "เรท 4 (ต่ำกว่า 500 บาท)"
+            
+            # Create embed
+            embed = discord.Embed(
+                title=f"👥 Group {format_number(robux)} Robux = **{format_number(price_baht)} บาท** ({rate_message})",
+                description=f"💵 ราคา: {format_number(price_baht)} บาท\n📊 จำนวน Robux: {format_number(robux)}",
+                color=0x00AAFF
+            )
+            embed.set_footer(text="Sushi Shop 🍣")
+            
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            
+        except ValueError:
+            await interaction.response.send_message("❌ กรุณาพิมพ์เฉพาะตัวเลข เช่น 1000 หรือ 1,000", ephemeral=True)
+        except Exception as e:
+            await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
+
+# ==================== EMBEDSHOP VIEW ====================
+class EmbedShopView(View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        
+        # Add buttons (disabled if needed)
+        gamepass_btn = Button(label="กดเกมพาส", style=discord.ButtonStyle.success, emoji="🎮")
+        group_btn = Button(label="เติมโรกลุ่ม", style=discord.ButtonStyle.success, emoji="👥")
+        notes_btn = Button(label="จดวันที่เข้ากลุ่ม", style=discord.ButtonStyle.secondary, emoji="📝")
+        
+        async def gamepass_cb(i):
+            await handle_open_ticket(i, "🍣Sushi Gamepass 🍣", "gamepass")
+        
+        async def group_cb(i):
+            await handle_open_ticket(i, "💰Robux Group💰", "group")
+        
+        async def notes_cb(i):
+            await i.response.send_modal(PersonalNoteModal())
+        
+        gamepass_btn.callback = gamepass_cb
+        group_btn.callback = group_cb
+        notes_btn.callback = notes_cb
+        
+        self.add_item(gamepass_btn)
+        self.add_item(group_btn)
+        self.add_item(notes_btn)
 
 # ==================== BOT CLASS ====================
 class MyBot(commands.Bot):
@@ -250,7 +374,64 @@ def format_number(num: int) -> str:
     """Format number with commas for thousands"""
     return f"{num:,}"
 
-# ==================== HELP COMMAND ====================
+# ==================== NEW COMMANDS ====================
+
+@bot.command(name="calculator")
+async def calculator_cmd(ctx):
+    """แสดงเครื่องคิดเลขคำนวณเรท (Gamepass และ Group)"""
+    embed = discord.Embed(
+        title="🧮 เครื่องคิดเลข Sushi Shop",
+        description="เลือกปุ่มด้านล่างเพื่อคำนวณราคา",
+        color=0x00AAFF
+    )
+    embed.add_field(
+        name="🎮 เกมพาส",
+        value=f"เรท {gamepass_rate}\n1 Robux = {gamepass_rate} บาท",
+        inline=True
+    )
+    embed.add_field(
+        name="👥 โรกลุ่ม",
+        value=f"เรท {group_rate_low} (ต่ำกว่า 500 บาท)\nเรท {group_rate_high} (500 บาทขึ้นไป)",
+        inline=True
+    )
+    embed.set_footer(text="Sushi Shop 🍣")
+    
+    view = CalculatorView()
+    await ctx.send(embed=embed, view=view)
+
+@bot.command(name="embedshop")
+async def embedshop_cmd(ctx):
+    """แสดง embed ร้านค้า"""
+    embed = discord.Embed(
+        title="🍣 Sushi Shop 🍣 เปิดให้บริการ",
+        color=0xFFA500
+    )
+    embed.add_field(
+        name=f"🎮 กดเกมพาส | 📊 Stock: {format_number(gamepass_stock)} {'🟢' if gamepass_stock > 0 else '🔴'}",
+        value=f"เรท: {gamepass_rate}\nเช็คราคาพิมพ์: !gp <จำนวน>",
+        inline=False
+    )
+    embed.add_field(
+        name=f"👥 โรบัคกลุ่ม | 📊 Stock: {format_number(group_stock)} {'🟢' if group_stock > 0 else '🔴'}",
+        value=f"เรท: {group_rate_low} | 500 บาท+ เรท {group_rate_high}\n⚠️เข้ากลุ่ม 15 วันก่อนซื้อ⚠️",
+        inline=False
+    )
+    embed.add_field(
+        name="🏪 สถานะร้าน",
+        value=f"{'🟢 เปิด' if shop_open else '🔴 ปิดชั่วคราว'}",
+        inline=False
+    )
+    embed.set_image(url="https://media.discordapp.net/attachments/1485285161955360963/1485285565761847417/image.png?ex=69c14f7a&is=69bffdfa&hm=33e4caba94fa708df0babfaf5aaf19437bf3d109012f88c11e226a40077c91f2&=&format=webp&quality=lossless&width=825&height=440")
+    embed.set_footer(
+        text=f"Sushi Shop • รับกดเกมพาสและอื่น ๆ | อัปเดตล่าสุด: {get_thailand_time().strftime('%d/%m/%y %H:%M')}",
+        icon_url="https://media.discordapp.net/attachments/717757556889747657/1403684950770847754/noFilter.png"
+    )
+    embed.set_thumbnail(url="https://media.discordapp.net/attachments/717757556889747657/1403684950770847754/noFilter.png")
+    
+    view = EmbedShopView()
+    await ctx.send(embed=embed, view=view)
+
+# ==================== HELP COMMAND (UPDATED) ====================
 @bot.command(name="help")
 async def help_command(ctx, command_name: str = None):
     """แสดงวิธีการใช้คำสั่งต่างๆ"""
@@ -269,6 +450,8 @@ async def help_command(ctx, command_name: str = None):
         general_commands = (
             "`!help` - แสดงเมนูช่วยเหลือนี้\n"
             "`!help [คำสั่ง]` - แสดงรายละเอียดคำสั่งเฉพาะ\n"
+            "`!calculator` - แสดงเครื่องคิดเลขคำนวณเรท\n"
+            "`!embedshop` - แสดง embed ร้านค้า\n"
             "`!link` - แสดงลิงก์กลุ่ม Roblox\n"
             "`!qr` - แสดง QR code สำหรับโอนเงิน\n"
             "`!love` - ส่งความรักให้บอท 💕\n"
@@ -311,6 +494,18 @@ async def help_command(ctx, command_name: str = None):
 async def show_command_help(ctx, command_name: str):
     """แสดงรายละเอียดของคำสั่งเฉพาะ"""
     commands_info = {
+        "calculator": {
+            "description": "แสดงเครื่องคิดเลขสำหรับคำนวณราคาเกมพาสและโรกลุ่ม",
+            "usage": "!calculator",
+            "example": "!calculator",
+            "note": "มีปุ่มให้เลือกคำนวณเกมพาสและโรกลุ่ม"
+        },
+        "embedshop": {
+            "description": "แสดง embed ร้านค้าพร้อมปุ่มกดเปิดตั๋ว",
+            "usage": "!embedshop",
+            "example": "!embedshop",
+            "note": "แสดง stock และสถานะร้านปัจจุบัน"
+        },
         "gp": {
             "description": "คำนวณราคา Gamepass จากจำนวน Robux",
             "usage": "!gp <จำนวน>",
@@ -429,42 +624,7 @@ async def update_main_channel():
         )
         embed.set_thumbnail(url="https://media.discordapp.net/attachments/717757556889747657/1403684950770847754/noFilter.png")
         
-        view = View(timeout=None)
-        
-        if not shop_open:
-            gamepass_btn = Button(label="ปิดชั่วคราว", style=discord.ButtonStyle.danger, emoji="🎮", disabled=True)
-        elif gamepass_stock <= 0:
-            gamepass_btn = Button(label="สินค้าหมด", style=discord.ButtonStyle.danger, emoji="🎮", disabled=True)
-        else:
-            gamepass_btn = Button(label="กดเกมพาส", style=discord.ButtonStyle.success, emoji="🎮")
-        
-        if not shop_open:
-            group_btn = Button(label="ปิดชั่วคราว", style=discord.ButtonStyle.danger, emoji="👥", disabled=True)
-        elif not group_ticket_enabled:
-            group_btn = Button(label="ปิดชั่วคราว", style=discord.ButtonStyle.danger, emoji="👥", disabled=True)
-        elif group_stock <= 0:
-            group_btn = Button(label="สินค้าหมด", style=discord.ButtonStyle.danger, emoji="👥", disabled=True)
-        else:
-            group_btn = Button(label="เติมโรกลุ่ม", style=discord.ButtonStyle.success, emoji="👥")
-        
-        notes_btn = Button(label="จดวันที่เข้ากลุ่ม", style=discord.ButtonStyle.secondary, emoji="📝")
-        
-        async def gamepass_cb(i):
-            await handle_open_ticket(i, "🍣Sushi Gamepass 🍣", "gamepass")
-        
-        async def group_cb(i):
-            await handle_open_ticket(i, "💰Robux Group💰", "group")
-        
-        async def notes_cb(i):
-            await i.response.send_modal(PersonalNoteModal())
-        
-        gamepass_btn.callback = gamepass_cb
-        group_btn.callback = group_cb
-        notes_btn.callback = notes_cb
-        
-        view.add_item(gamepass_btn)
-        view.add_item(group_btn)
-        view.add_item(notes_btn)
+        view = EmbedShopView()
         
         if bot.main_channel_message:
             try:
@@ -985,7 +1145,7 @@ async def check_credit_channel_changes():
     except Exception as e:
         print(f"❌ Error checking credit channel: {e}")
 
-# ==================== MODALS (FIXED WITH ANONYMOUS OPTION) ====================
+# ==================== MODALS ====================
 class PersonalNoteModal(Modal, title="📝 จดวันที่เข้ากลุ่ม"):
     note = TextInput(
         label="จดวันที่เข้ากลุ่ม ดูจากวันที่ปัจจุบัน", 
@@ -1158,7 +1318,7 @@ class GroupTicketModal(Modal, title="📋 แบบฟอร์มสั่ง�
         except Exception as e:
             await i.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
 
-# ==================== DELIVERY VIEW (FIXED - No sales log, No extra message) ====================
+# ==================== DELIVERY VIEW ====================
 class DeliveryView(View):
     def __init__(self, channel, product_type, robux_amount, price, buyer):
         super().__init__(timeout=None)
@@ -1617,7 +1777,7 @@ async def rate(ctx, rate_type=None, low_rate=None, high_rate=None):
         except ValueError:
             await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง", delete_after=5)
 
-# ==================== FIXED ANONYMOUS COMMANDS ====================
+# ==================== ANONYMOUS COMMANDS ====================
 @bot.command(name="annoymous")
 @admin_only()
 async def annoymous_cmd(ctx):
@@ -1697,7 +1857,7 @@ async def annoymous_off_cmd(ctx):
     except Exception as e:
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
 
-# ==================== FIXED TKD COMMAND ====================
+# ==================== TKD COMMAND ====================
 @bot.command()
 @admin_only()
 async def tkd(ctx):
