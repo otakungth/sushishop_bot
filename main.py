@@ -410,7 +410,7 @@ async def update_main_channel():
         embed = discord.Embed(title="🍣 Sushi Shop 🍣 เปิดให้บริการ", color=0xFFA500)
         embed.add_field(
             name=f"🎮 กดเกมพาส | 📊 Stock: {format_number(gamepass_stock)} {'🟢' if gamepass_stock > 0 else '🔴'}", 
-            value=f"```\nเรท: {gamepass_rate} | โรแท้\nเช็คราคาพิมพ์: !gp <จำนวน>\n```", 
+            value=f"```\nเรท: {gamepass_rate} \nเช็คราคาพิมพ์: !gp <จำนวน>\n```", 
             inline=False
         )
         embed.add_field(
