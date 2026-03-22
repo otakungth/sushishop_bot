@@ -383,7 +383,7 @@ async def calculator_cmd(ctx):
     )
     embed.add_field(
         name="🎮 เกมพาส",
-        value=f"เรท {gamepass_rate}\n1 Robux = {gamepass_rate} บาท",
+        value=f"เรท {gamepass_rate}\n1 บาท = {gamepass_rate} Robux",
         inline=True
     )
     embed.add_field(
