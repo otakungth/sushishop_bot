@@ -2506,7 +2506,7 @@ async def qr(ctx):
     copy_btn = Button(label="คัดลอกเลขบัญชี", style=discord.ButtonStyle.success, emoji="📋")
     
     async def copy_cb(i):
-        await i.response.send_message(f"```SCB | 120-239181-3 ⚠️โน๊ตสลิปว่า: เติมโรบัค Sushi Shop เฟส Arisara Srijitjam```", ephemeral=True)
+        await i.response.send_message(f"``` 1202391813|SCB|⚠️โน๊ตสลิปว่า: เติมโรบัค Sushi Shop เฟส Arisara Srijitjam```", ephemeral=True)
     
     copy_btn.callback = copy_cb
     view.add_item(copy_btn)
@@ -2718,7 +2718,7 @@ async def on_message(message):
     if message.channel.id == CREDIT_CHANNEL_ID:
         if message.author != bot.user:
             await asyncio.sleep(2)
-            for emoji in ["❤️", "🍣"]:
+            for emoji in ["❤️", "🍣","💎"]:
                 try:
                     await message.add_reaction(emoji)
                     await asyncio.sleep(1)
