@@ -121,8 +121,8 @@ def load_stock_values():
     global gamepass_stock, group_stock, gamepass_rate, group_rate_low, group_rate_high, shop_open, group_ticket_enabled
     stock_data = load_json(stock_file, {})
     if stock_data:
-        gamepass_stock = stock_data.get("gamepass_stock", 4999)
-        group_stock = stock_data.get("group_stock", 8500)
+        gamepass_stock = stock_data.get("gamepass_stock", 25000)
+        group_stock = stock_data.get("group_stock", 40000)
         gamepass_rate = stock_data.get("gamepass_rate", 6)
         group_rate_low = stock_data.get("group_rate_low", 4)
         group_rate_high = stock_data.get("group_rate_high", 4.5)
@@ -555,13 +555,14 @@ async def embedshop_cmd(ctx):
         value=f"เรท: {group_rate_low} | 500 บาท+ เรท {group_rate_high}\n⚠️เข้ากลุ่ม 15 วันก่อนซื้อ⚠️",
         inline=False
     )
-    # Updated image URL
+    # Set thumbnail (top right corner)
+    embed.set_thumbnail(url="https://media.discordapp.net/attachments/717757556889747657/1403684950770847754/noFilter.png")
+    # Set large image (bottom of embed)
     embed.set_image(url="https://media.discordapp.net/attachments/1485285161955360963/1485322418582061147/file_000000005b0c71fa89058cca4be5a881_1.jpg?ex=69c171cc&is=69c0204c&hm=133205b35db4466de217aaa99f1431bf3351e06687c4417201d3eeed779e7825&=&format=webp&width=2447&height=1229")
     embed.set_footer(
         text=f"Sushi Shop • รับกดเกมพาสและอื่น ๆ |: {get_thailand_time().strftime('%d/%m/%y %H:%M')}",
         icon_url="https://media.discordapp.net/attachments/717757556889747657/1403684950770847754/noFilter.png"
     )
-    embed.set_thumbnail(url="https://media.discordapp.net/attachments/717757556889747657/1403684950770847754/noFilter.png")
     
     view = EmbedShopView()
     await ctx.send(embed=embed, view=view)
@@ -753,11 +754,12 @@ async def update_main_channel():
             value=f"```\n{'🟢 เปิด' if shop_open else '🔴 ปิดชั่วคราว'}\n```", 
             inline=False
         )
+        embed.set_thumbnail(url="https://media.discordapp.net/attachments/717757556889747657/1403684950770847754/noFilter.png")
+        embed.set_image(url="https://media.discordapp.net/attachments/1485285161955360963/1485322418582061147/file_000000005b0c71fa89058cca4be5a881_1.jpg?ex=69c171cc&is=69c0204c&hm=133205b35db4466de217aaa99f1431bf3351e06687c4417201d3eeed779e7825&=&format=webp&width=2447&height=1229")
         embed.set_footer(
             text=f"Sushi Shop • รับกดเกมพาสและอื่น ๆ |: {get_thailand_time().strftime('%d/%m/%y %H:%M')}", 
             icon_url="https://media.discordapp.net/attachments/717757556889747657/1403684950770847754/noFilter.png"
         )
-        embed.set_thumbnail(url="https://media.discordapp.net/attachments/717757556889747657/1403684950770847754/noFilter.png")
         
         view = EmbedShopView()
         
