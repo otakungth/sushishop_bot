@@ -733,7 +733,7 @@ async def roacc_cmd(ctx):
         description="กดปุ่มด้านล่างเพื่อเปิดตั๋วสำหรับซื้อรหัสโรบัค",
         color=0xFFA500
     )
-    embed.set_image(url="https://media.discordapp.net/attachments/1485285161955360963/1486378560108105758/file_000000006a1c71fa839ed6dee9f204c9_1.jpg?ex=69c54968&is=69c3f7e8&hm=7f12c56003ceaa3711044ec7bceea7c18392f4cd913c12a2ea9d9efb4247896d&=&format=webp&width=2256&height=1139")
+    # Image removed from roacc command
     embed.set_footer(
         text=f"Sushi Shop • รับซื้อรหัสโรบัค |: {get_thailand_time().strftime('%d/%m/%y %H:%M')}",
         icon_url="https://media.discordapp.net/attachments/717757556889747657/1403684950770847754/noFilter.png"
