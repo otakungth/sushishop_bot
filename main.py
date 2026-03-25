@@ -40,13 +40,13 @@ except:
 intents = discord.Intents.all()
 intents.message_content = True
 intents.members = True
-gamepass_rate = 6
+gamepass_rate = 6.5
 group_rate_low = 4
 group_rate_high = 4.5
 shop_open = True
 group_ticket_enabled = True
-gamepass_stock = 4999
-group_stock = 8500
+gamepass_stock = 20000
+group_stock = 33000
 
 # Channel IDs
 MAIN_CHANNEL_ID = 1475342278976606229
