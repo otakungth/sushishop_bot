@@ -621,12 +621,7 @@ async def embedshop_cmd(ctx):
     )
     embed.add_field(
         name=f"👥 โรบัคกลุ่ม | 📦 Stock: {format_number(group_stock)} {'🟢' if group_stock > 0 else '🔴'}",
-        value=f"```\nเรท: {group_rate_low} | 500 บาท+ เรท {group_rate_high}\n⚠️เข้ากลุ่ม 15 วันก่อนซื้อ⚠️\n```", 
-        inline=False
-    )
-    embed.add_field(
-        name=f"✨ เติมพรีเมียม | 📦 Stock: {format_number(premium_stock)} {'🟢' if premium_stock > 0 else '🔴'}",
-        value=f"```\nรับสิทธิ์พิเศษมากมาย\n```",
+        value=f"```\nเรท: {group_rate_low} | 500 บาท+ เรท {group_rate_high}\n⚠️เข้ากลุ่ม 15 วันก่อนซื้อ⚠️\n```",
         inline=False
     )
     embed.set_thumbnail(url="https://media.discordapp.net/attachments/717757556889747657/1403684950770847754/noFilter.png")
@@ -850,10 +845,7 @@ async def update_channel_name():
     try:
         channel = bot.get_channel(MAIN_CHANNEL_ID)
         if channel:
-            if shop_open:
-                new_name = "〔🟢เปิด🟢〕กดสั่งซื้อห้องนี้"
-            else:
-                new_name = "〔🔴ปิดชั่วคราว🔴〕"
+            new_name = "〔🟢เปิด〕กดสั่งซื้อห้องนี้" if shop_open else "〔🔴ปิดชั่วคราว〕"
             if channel.name != new_name:
                 await bot.channel_edit_rate_limiter.acquire()
                 await channel.edit(name=new_name)
@@ -870,18 +862,13 @@ async def update_main_channel():
         
         embed = discord.Embed(title="🍣 Sushi Shop 🍣 เปิดให้บริการ", color=0xFFA500)
         embed.add_field(
-            name=f"🎮 กดเกมพาส | 📦 Stock: {format_number(gamepass_stock)} {'🟢' if gamepass_stock > 0 else '🔴'}", 
-            value=f"```\nเรท: {gamepass_rate}\n```", 
+            name=f"🎮 กดเกมพาส | 📦 Stock: {format_number(gamepass_stock)} {'🟢' if gamepass_stock > 0 else '🔴'}",
+            value=f"```\nเรท: {gamepass_rate}\n```",
             inline=False
         )
         embed.add_field(
-            name=f"👥 โรบัคกลุ่ม | 📦 Stock: {format_number(group_stock)} {'🟢' if group_stock > 0 else '🔴'}", 
-            value=f"```\nเรท: {group_rate_low} | 500 บาท+ เรท {group_rate_high}\n⚠️เข้ากลุ่ม 15 วันก่อนซื้อ⚠️\n```", 
-            inline=False
-        )
-        embed.add_field(
-            name=f"✨ เติมพรีเมียม | 📦 Stock: {format_number(premium_stock)} {'🟢' if premium_stock > 0 else '🔴'}", 
-            value=f"```\nรับสิทธิ์พิเศษมากมาย\n```", 
+            name=f"👥 โรบัคกลุ่ม | 📦 Stock: {format_number(group_stock)} {'🟢' if group_stock > 0 else '🔴'}",
+            value=f"```\nเรท: {group_rate_low} | 500 บาท+ เรท {group_rate_high}\n⚠️เข้ากลุ่ม 15 วันก่อนซื้อ⚠️\n```",
             inline=False
         )
         embed.set_thumbnail(url="https://media.discordapp.net/attachments/717757556889747657/1403684950770847754/noFilter.png")
@@ -2787,7 +2774,6 @@ async def odp(ctx, *, expr):
         return
     
     try:
-        # Get premium type from the command
         premium_type = expr.strip()
         
         buyer = None
@@ -2811,6 +2797,10 @@ async def odp(ctx, *, expr):
             premium_stock = max(0, premium_stock - 1)
         
         save_stock_values()
+        
+        # Store in ticket data
+        ticket_robux_data[str(ctx.channel.id)] = premium_type
+        save_json(ticket_robux_data_file, ticket_robux_data)
         
         embed = discord.Embed(title="🍣คำสั่งซื้อสินค้า🍣", color=0x9B59B6)
         embed.add_field(name="📦 ประเภทสินค้า", value="Premium", inline=False)
