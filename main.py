@@ -616,12 +616,12 @@ async def embedshop_cmd(ctx):
     )
     embed.add_field(
         name=f"🎮 กดเกมพาส | 📦 Stock: {format_number(gamepass_stock)} {'🟢' if gamepass_stock > 0 else '🔴'}",
-        value=f"```\nเรท: {gamepass_rate}\n```",
+        value=f"```เรท: {gamepass_rate}```",
         inline=False
     )
     embed.add_field(
         name=f"👥 โรบัคกลุ่ม | 📦 Stock: {format_number(group_stock)} {'🟢' if group_stock > 0 else '🔴'}",
-        value=f"```\nเรท: {group_rate_low} | 500 บาท+ เรท {group_rate_high}\n⚠️เข้ากลุ่ม 15 วันก่อนซื้อ⚠️\n```",
+        value=f"เรท: {group_rate_low} | 500 บาท+ เรท {group_rate_high}\n⚠️เข้ากลุ่ม 15 วันก่อนซื้อ⚠️",
         inline=False
     )
     embed.set_thumbnail(url="https://media.discordapp.net/attachments/717757556889747657/1403684950770847754/noFilter.png")
@@ -845,7 +845,7 @@ async def update_channel_name():
     try:
         channel = bot.get_channel(MAIN_CHANNEL_ID)
         if channel:
-            new_name = "〔🟢เปิด〕กดสั่งซื้อห้องนี้" if shop_open else "〔🔴ปิดชั่วคราว〕"
+            new_name = "〔🟢เปิด〕กดสั่งซื้อห้องนี้" if shop_open else "〔🔴〕ปิดชั่วคราว"
             if channel.name != new_name:
                 await bot.channel_edit_rate_limiter.acquire()
                 await channel.edit(name=new_name)
@@ -862,13 +862,13 @@ async def update_main_channel():
         
         embed = discord.Embed(title="🍣 Sushi Shop 🍣 เปิดให้บริการ", color=0xFFA500)
         embed.add_field(
-            name=f"🎮 กดเกมพาส | 📦 Stock: {format_number(gamepass_stock)} {'🟢' if gamepass_stock > 0 else '🔴'}",
-            value=f"```\nเรท: {gamepass_rate}\n```",
+            name=f"🎮 กดเกมพาส | 📦 Stock: {format_number(gamepass_stock)} {'🟢' if gamepass_stock > 0 else '🔴'}", 
+            value=f"```เรท: {gamepass_rate}```", 
             inline=False
         )
         embed.add_field(
-            name=f"👥 โรบัคกลุ่ม | 📦 Stock: {format_number(group_stock)} {'🟢' if group_stock > 0 else '🔴'}",
-            value=f"```\nเรท: {group_rate_low} | 500 บาท+ เรท {group_rate_high}\n⚠️เข้ากลุ่ม 15 วันก่อนซื้อ⚠️\n```",
+            name=f"👥 โรบัคกลุ่ม | 📦 Stock: {format_number(group_stock)} {'🟢' if group_stock > 0 else '🔴'}", 
+            value=f"```เรท: {group_rate_low} | 500 บาท+ เรท {group_rate_high}\n⚠️เข้ากลุ่ม 15 วันก่อนซื้อ⚠️```", 
             inline=False
         )
         embed.set_thumbnail(url="https://media.discordapp.net/attachments/717757556889747657/1403684950770847754/noFilter.png")
@@ -1822,10 +1822,11 @@ class DeliveryView(View):
 
 # ==================== PREMIUM DELIVERY VIEW ====================
 class PremiumDeliveryView(View):
-    def __init__(self, channel, premium_type, buyer):
+    def __init__(self, channel, premium_type, amount, buyer):
         super().__init__(timeout=None)
         self.channel = channel
         self.premium_type = premium_type
+        self.amount = amount
         self.buyer = buyer
         self.delivered = False
         
@@ -1893,6 +1894,11 @@ class PremiumDeliveryView(View):
                         value=self.premium_type, 
                         inline=True
                     )
+                    receipt_embed.add_field(
+                        name="💰 ราคา", 
+                        value=f"{format_number(int(self.amount))} บาท" if self.amount > 0 else "ไม่ระบุ", 
+                        inline=True
+                    )
                     
                     if delivery_image:
                         receipt_embed.set_image(url=delivery_image)
@@ -1913,6 +1919,7 @@ class PremiumDeliveryView(View):
                             )
                             dm_embed.add_field(name="📦 สินค้า", value="Premium Membership", inline=True)
                             dm_embed.add_field(name="✨ ประเภท", value=self.premium_type, inline=True)
+                            dm_embed.add_field(name="💰 ราคา", value=f"{format_number(int(self.amount))} บาท", inline=True)
                             
                             if delivery_image:
                                 dm_embed.set_image(url=delivery_image)
@@ -2439,6 +2446,11 @@ async def ty(ctx):
                                     pass
                             elif field.name == "✨ ประเภทพรีเมียม" and is_premium:
                                 premium_type = field.value
+                            elif field.name == "💰 ราคา" and is_premium:
+                                try:
+                                    price = int(float(field.value.replace(" บาท", "").replace(",", "")))
+                                except:
+                                    pass
                         
                         if embed.image.url:
                             delivery_image = embed.image.url
@@ -2481,11 +2493,12 @@ async def ty(ctx):
                 value=f"{format_number(robux_amount) if robux_amount else 0}", 
                 inline=True
             )
-            receipt_embed.add_field(
-                name="💰 ราคาตามเรท", 
-                value=f"{format_number(int(price))} บาท" if price > 0 else "ไม่ระบุ", 
-                inline=True
-            )
+        
+        receipt_embed.add_field(
+            name="💰 ราคาตามเรท", 
+            value=f"{format_number(int(price))} บาท" if price > 0 else "ไม่ระบุ", 
+            inline=True
+        )
         
         if delivery_image:
             receipt_embed.set_image(url=delivery_image)
@@ -2774,7 +2787,9 @@ async def odp(ctx, *, expr):
         return
     
     try:
-        premium_type = expr.strip()
+        # Parse amount (can be like "500" or "1,000")
+        amount_str = expr.replace(",", "").strip()
+        amount = int(amount_str)
         
         buyer = None
         parts = ctx.channel.name.split('-')
@@ -2799,15 +2814,16 @@ async def odp(ctx, *, expr):
         save_stock_values()
         
         # Store in ticket data
-        ticket_robux_data[str(ctx.channel.id)] = premium_type
+        ticket_robux_data[str(ctx.channel.id)] = str(amount)
         save_json(ticket_robux_data_file, ticket_robux_data)
         
         embed = discord.Embed(title="🍣คำสั่งซื้อสินค้า🍣", color=0x9B59B6)
         embed.add_field(name="📦 ประเภทสินค้า", value="Premium", inline=False)
-        embed.add_field(name="✨ ประเภทพรีเมียม", value=premium_type, inline=True)
+        embed.add_field(name="✨ สินค้า", value="Premium Membership", inline=True)
+        embed.add_field(name="💰 ราคา", value=f"{format_number(amount)} บาท", inline=True)
         embed.set_footer(text=f"รับออร์เดอร์แล้ว 🤗 • {get_thailand_time().strftime('%d/%m/%y, %H:%M')}")
         
-        await ctx.send(embed=embed, view=PremiumDeliveryView(ctx.channel, premium_type, buyer))
+        await ctx.send(embed=embed, view=PremiumDeliveryView(ctx.channel, "Premium Membership", amount, buyer))
         
         await update_main_channel()
         
