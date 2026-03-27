@@ -60,6 +60,10 @@ BUYER_ROLE_ID = 1475346221605588992
 WELCOME_CHANNEL_ID = 1475344769679888455
 PREMIUM_CATEGORY_ID = 1486401158900613264
 
+# Category names for moving back
+GAMEPASS_CATEGORY_NAME = "sushi gamepass"
+GROUP_CATEGORY_NAME = "robux group"
+
 # Emoji
 ROBUX_EMOJI = "<:sushirobux:1486314072701141074>"
 
@@ -1230,6 +1234,65 @@ async def move_to_delivered_category(channel):
         
     except Exception as e:
         print(f"❌ Error moving to delivered category: {e}")
+        return False
+
+async def move_to_original_category(channel, product_type):
+    """Move ticket back to original category (gamepass or group)"""
+    try:
+        if not channel:
+            return False
+            
+        guild = channel.guild
+        target_category = None
+        
+        if product_type == "gamepass":
+            target_category = discord.utils.get(guild.categories, name=GAMEPASS_CATEGORY_NAME)
+        elif product_type == "group":
+            target_category = discord.utils.get(guild.categories, name=GROUP_CATEGORY_NAME)
+        elif product_type == "premium":
+            target_category = guild.get_channel(PREMIUM_CATEGORY_ID)
+            if not target_category:
+                target_category = discord.utils.get(guild.categories, id=PREMIUM_CATEGORY_ID)
+        
+        if not target_category:
+            print(f"❌ ไม่พบ category สำหรับ {product_type}")
+            return False
+        
+        await channel.edit(category=target_category)
+        print(f"✅ ย้ายตั๋ว {channel.name} กลับไปยัง category {target_category.name}")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error moving to original category: {e}")
+        return False
+
+async def reset_channel_name(channel, user_id, product_type):
+    """Reset channel name to ticket-user-userid format"""
+    try:
+        # Find the user from the channel's members or history
+        user = None
+        for member in channel.members:
+            if member.id == user_id:
+                user = member
+                break
+        
+        if not user:
+            async for msg in channel.history(limit=50):
+                if not msg.author.bot and msg.author != channel.guild.me:
+                    user = msg.author
+                    break
+        
+        if user:
+            new_name = f"ticket-{user.name}-{user.id}".lower()
+            await channel.edit(name=new_name)
+            print(f"✅ เปลี่ยนชื่อตั๋วเป็น: {new_name}")
+            return True
+        else:
+            print(f"❌ ไม่พบผู้ใช้สำหรับ channel {channel.name}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Error resetting channel name: {e}")
         return False
 
 async def remove_buyer_permission_after_delay(channel, buyer, delay_seconds):
@@ -2581,8 +2644,23 @@ async def ty(ctx):
             # Cancel the removal timer when user clicks order more
             cancel_removal(ctx.channel.id)
             
+            # Determine stock type based on product type
             stock_type = "gamepass" if product_type == "Gamepass" else ("group" if product_type == "Group" else "premium")
             
+            # Reset channel name back to ticket-user-userid format
+            user_id = buyer.id if buyer else None
+            if user_id:
+                await reset_channel_name(ctx.channel, user_id, stock_type)
+            
+            # Move channel back to original category
+            if product_type == "Gamepass":
+                await move_to_original_category(ctx.channel, "gamepass")
+            elif product_type == "Group":
+                await move_to_original_category(ctx.channel, "group")
+            elif product_type == "Premium":
+                await move_to_original_category(ctx.channel, "premium")
+            
+            # Send order form embed
             embed = discord.Embed(
                 title="🍣 Sushi Shop 🍣", 
                 description="แจ้งแอดมินขอไม่ระบุตัวตนชื่อลูกค้าได้\n\nกรอกแบบฟอร์มเพื่อสั่งสินค้า", 
