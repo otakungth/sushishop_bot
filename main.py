@@ -629,7 +629,7 @@ async def update_main_channel():
             inline=False
         )
         embed.set_thumbnail(url="https://media.discordapp.net/attachments/717757556889747657/1403684950770847754/noFilter.png")
-        embed.set_image(url="https://media.discordapp.net/attachments/1485285161955360963/1485322418582061147/file_000000005b0c71fa89058cca4be5a881_1.jpg?ex=69c171cc&is=69c0204c&hm=133205b35db4466de217aaa99f1431bf3351e06687c4417201d3eeed779e7825&=&format=webp&width=2447&height=1229")
+        embed.set_image(url="https://media.discordapp.net/attachments/1417794545848160286/1487319320886247586/image.png?ex=69c8b58f&is=69c7640f&hm=b7c1b7f5b7b845cae19a7640bf393deee793624877fa806eac75796f71123bb1&=&format=webp&quality=lossless&width=825&height=497")
         embed.set_footer(
             text=f"Sushi Shop • รับกดเกมพาสและอื่น ๆ |: {get_thailand_time().strftime('%d/%m/%y %H:%M')}", 
             icon_url="https://media.discordapp.net/attachments/717757556889747657/1403684950770847754/noFilter.png"
