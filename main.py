@@ -199,7 +199,7 @@ class RateLimiter:
 # ==================== UTILITY FUNCTIONS ====================
 def is_user_always_anonymous(user):
     """Check if user should always be anonymous based on role"""
-    if not user:
+    if not user or not user.guild:
         return False
     anonymous_role = user.guild.get_role(ANONYMOUS_USER_ROLE_ID)
     return anonymous_role and anonymous_role in user.roles
@@ -937,7 +937,7 @@ async def save_ticket_transcript(channel, action_by=None, robux_amount=None, cus
         time_str = now.strftime("%H%M")
         
         if robux_amount:
-            robux_str = robux_amount
+            robux_str = str(robux_amount)
         else:
             robux_str = ticket_robux_data.get(str(channel.id), "1099")
         
@@ -2240,6 +2240,8 @@ async def ty(ctx):
         await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
         return
     
+    processing_msg = None
+    
     try:
         processing_msg = await ctx.send("🔄 กำลังดำเนินการ...")
         
@@ -2381,7 +2383,10 @@ async def ty(ctx):
         
         save_stock_values()
         
-        await processing_msg.delete()
+        # Delete the processing message
+        if processing_msg:
+            await processing_msg.delete()
+            processing_msg = None
         
         embed = discord.Embed(
             title="✅ ส่งของเรียบร้อยแล้ว",
@@ -2434,19 +2439,19 @@ async def ty(ctx):
                 await move_to_original_category(ctx.channel, "gamepass")
                 
                 # Send order form embed
-                embed = discord.Embed(
+                order_embed = discord.Embed(
                     title="🍣 Sushi Shop 🍣", 
                     description="แจ้งแอดมินขอไม่ระบุตัวตนชื่อลูกค้าได้\n\nกรอกแบบฟอร์มเพื่อสั่งสินค้า", 
                     color=0x00FF99
                 )
-                embed.add_field(name="👤 ผู้ซื้อ", value=interaction.user.mention, inline=False)
-                embed.add_field(
+                order_embed.add_field(name="👤 ผู้ซื้อ", value=interaction.user.mention, inline=False)
+                order_embed.add_field(
                     name="🎮 บริการกดเกมพาส", 
                     value=f"📦 โรบัคคงเหลือ: **{format_number(gamepass_stock)}**\n💰 เรท: {gamepass_rate}", 
                     inline=False
                 )
-                embed.set_footer(text="Sushi Shop")
-                embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
+                order_embed.set_footer(text="Sushi Shop")
+                order_embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
                 
                 ticket_view = View(timeout=None)
                 form_btn = Button(label="📝 กรอกแบบฟอร์มเกมพาส", style=discord.ButtonStyle.primary, emoji="📝")
@@ -2461,7 +2466,7 @@ async def ty(ctx):
                 form_btn.callback = form_callback
                 ticket_view.add_item(form_btn)
                 
-                await interaction.response.send_message(embed=embed, view=ticket_view)
+                await interaction.response.send_message(embed=order_embed, view=ticket_view)
             
             order_more_btn.callback = order_more_cb
             order_more_view.add_item(order_more_btn)
@@ -2487,6 +2492,12 @@ async def ty(ctx):
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดใน !ty: {e}")
         traceback.print_exc()
+        # Clean up processing message if it exists
+        if processing_msg:
+            try:
+                await processing_msg.delete()
+            except:
+                pass
         try:
             await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
         except:
@@ -2800,6 +2811,37 @@ async def fixcredit(ctx):
     await ctx.send("🔍 กำลังตรวจสอบจำนวนข้อความในช่องเครดิต...")
     await verify_credit_channel_count()
     await ctx.send("✅ ตรวจสอบเสร็จสิ้น!")
+
+# ==================== CALCULATOR COMMAND ====================
+@bot.command(name="calculator")
+async def calculator_cmd(ctx):
+    """แสดงเครื่องคิดเลขคำนวณเรท (Gamepass และ Group)"""
+    try:
+        embed = discord.Embed(
+            title="🍣 เครื่องคิดเลข Sushi Shop",
+            description="เลือกปุ่มด้านล่างเพื่อคำนวณราคา",
+            color=0xFFA500
+        )
+        embed.add_field(
+            name="🎮 เกมพาส",
+            value=f"เรท {gamepass_rate}\n1 บาท = {gamepass_rate} {ROBUX_EMOJI}",
+            inline=True
+        )
+        embed.add_field(
+            name="👥 โรกลุ่ม",
+            value=f"เรท {group_rate_low} (ต่ำกว่า 500 บาท)\nเรท {group_rate_high} (500 บาทขึ้นไป)",
+            inline=True
+        )
+        embed.set_image(url="https://media.discordapp.net/attachments/1485285161955360963/1485285565761847417/image.png?ex=69c14f7a&is=69bffdfa&hm=33e4caba94fa708df0babfaf5aaf19437bf3d109012f88c11e226a40077c91f2&=&format=webp&quality=lossless&width=825&height=440")
+        embed.set_footer(text="Sushi Shop 🍣")
+        
+        view = CalculatorView()
+        await ctx.send(embed=embed, view=view)
+        print(f"✅ Sent calculator embed to {ctx.author.name}")
+    except Exception as e:
+        print(f"❌ Error in calculator command: {e}")
+        traceback.print_exc()
+        await ctx.send("❌ เกิดข้อผิดพลาดในการแสดงเครื่องคิดเลข กรุณาลองใหม่อีกครั้ง")
 
 # ==================== TASKS ====================
 @tasks.loop(minutes=1)
