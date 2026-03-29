@@ -44,7 +44,7 @@ group_rate_high = 4.5
 shop_open = True
 group_ticket_enabled = True
 premium_ticket_enabled = True
-gamepass_stock = 20000
+gamepass_stock = 100000
 group_stock = 25000
 premium_stock = 9999
 
@@ -78,11 +78,13 @@ ticket_counter_file = "ticket_counter.json"
 ticket_robux_data_file = "ticket_robux_data.json"
 ticket_customer_data_file = "ticket_customer_data.json"
 stock_file = "stock_values.json"
+ticket_buyer_data_file = "ticket_buyer_data.json"
 
 user_data = {}
 ticket_transcripts = {}
 ticket_robux_data = {}
 ticket_customer_data = {}
+ticket_buyer_data = {}
 user_notes = {}
 ticket_activity = {}
 ticket_removal_tasks = {}
@@ -149,6 +151,7 @@ async def save_all_data():
     save_json(ticket_transcripts_file, ticket_transcripts)
     save_json(ticket_robux_data_file, ticket_robux_data)
     save_json(ticket_customer_data_file, ticket_customer_data)
+    save_json(ticket_buyer_data_file, ticket_buyer_data)
     save_stock_values()
     print(f"✅ All data saved at {get_thailand_time().strftime('%H:%M:%S')}")
 
@@ -157,6 +160,7 @@ def save_all_data_sync():
     save_json(ticket_transcripts_file, ticket_transcripts)
     save_json(ticket_robux_data_file, ticket_robux_data)
     save_json(ticket_customer_data_file, ticket_customer_data)
+    save_json(ticket_buyer_data_file, ticket_buyer_data)
     save_stock_values()
     print("✅ All data saved (sync)")
 
@@ -464,23 +468,25 @@ class MyBot(commands.Bot):
         self.load_all_data()
     
     def load_all_data(self):
-        global user_data, ticket_transcripts, ticket_robux_data, ticket_customer_data
+        global user_data, ticket_transcripts, ticket_robux_data, ticket_customer_data, ticket_buyer_data
         
         user_data = load_json(user_data_file, {})
         ticket_transcripts = load_json(ticket_transcripts_file, {})
         ticket_robux_data = load_json(ticket_robux_data_file, {})
         ticket_customer_data = load_json(ticket_customer_data_file, {})
+        ticket_buyer_data = load_json(ticket_buyer_data_file, {})
         
         load_stock_values()
         
         print(f"✅ Loaded all data:")
         print(f"   - {len(user_data)} users")
         print(f"   - {len(ticket_transcripts)} tickets")
+        print(f"   - {len(ticket_buyer_data)} buyer records")
         print(f"   - Stock: GP={gamepass_stock}, Group={group_stock}, Premium={premium_stock}")
         print(f"   - Rates: GP={gamepass_rate}, Group={group_rate_low}-{group_rate_high}")
     
     async def setup_hook(self):
-        global user_data, ticket_transcripts, ticket_robux_data, ticket_customer_data
+        global user_data, ticket_transcripts, ticket_robux_data, ticket_customer_data, ticket_buyer_data
         print(f"✅ Setup hook completed")
     
     async def close(self):
@@ -680,8 +686,18 @@ async def handle_open_ticket(interaction, category_name, stock_type):
         
         ticket_activity[channel.id] = {
             'last_activity': get_thailand_time(), 
-            'ty_used': False
+            'ty_used': False,
+            'buyer_id': interaction.user.id
         }
+        
+        # Store buyer data
+        ticket_buyer_data[str(channel.id)] = {
+            "user_id": interaction.user.id,
+            "user_name": interaction.user.name,
+            "user_display": interaction.user.display_name,
+            "created_at": get_thailand_time().isoformat()
+        }
+        save_json(ticket_buyer_data_file, ticket_buyer_data)
         
         if is_user_always_anonymous(interaction.user):
             ticket_anonymous_mode[str(channel.id)] = True
@@ -953,16 +969,23 @@ async def move_to_original_category(channel, product_type):
 async def reset_channel_name(channel, user_id, product_type):
     try:
         user = None
-        for member in channel.members:
+        # Try to find user by ID
+        for member in channel.guild.members:
             if member.id == user_id:
                 user = member
                 break
         
+        # If not found by ID, try to find from channel name
         if not user:
-            async for msg in channel.history(limit=50):
-                if not msg.author.bot and msg.author != channel.guild.me:
-                    user = msg.author
-                    break
+            channel_name = channel.name
+            if '-' in channel_name:
+                parts = channel_name.split('-')
+                if len(parts) >= 2:
+                    potential_name = parts[-1].lower()
+                    for member in channel.guild.members:
+                        if member.name.lower() == potential_name or member.display_name.lower() == potential_name:
+                            user = member
+                            break
         
         if user:
             new_name = f"ticket-{user.name}-{user.id}".lower()
@@ -1979,7 +2002,7 @@ async def rate(ctx, rate_type=None, low_rate=None, high_rate=None):
 @bot.command(name="annoymous")
 @admin_only()
 async def annoymous_cmd(ctx):
-    if not ctx.channel.name.startswith("ticket-"):
+    if not ctx.channel.name.startswith("ticket-") and not re.match(r'^\d{10}-\d+-[\w\u0E00-\u0E7F]+$', ctx.channel.name):
         await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
         return
     
@@ -2001,22 +2024,32 @@ async def annoymous_cmd(ctx):
 @bot.command(name="annoymous_off")
 @admin_only()
 async def annoymous_off_cmd(ctx):
-    if not ctx.channel.name.startswith("ticket-"):
+    if not ctx.channel.name.startswith("ticket-") and not re.match(r'^\d{10}-\d+-[\w\u0E00-\u0E7F]+$', ctx.channel.name):
         await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
         return
     
     try:
         buyer = None
-        channel_name = ctx.channel.name
-        if channel_name.startswith("ticket-"):
-            parts = channel_name.split('-')
-            if len(parts) >= 3:
-                try:
-                    user_id = int(parts[-1])
-                    buyer = ctx.guild.get_member(user_id)
-                except ValueError:
-                    pass
         
+        # Try to get buyer from stored data first
+        if str(ctx.channel.id) in ticket_buyer_data:
+            buyer_id = ticket_buyer_data[str(ctx.channel.id)].get("user_id")
+            if buyer_id:
+                buyer = ctx.guild.get_member(buyer_id)
+        
+        # If not found, try from channel name
+        if not buyer:
+            channel_name = ctx.channel.name
+            if channel_name.startswith("ticket-"):
+                parts = channel_name.split('-')
+                if len(parts) >= 3:
+                    try:
+                        user_id = int(parts[-1])
+                        buyer = ctx.guild.get_member(user_id)
+                    except ValueError:
+                        pass
+        
+        # If still not found, try from message history
         if not buyer:
             async for msg in ctx.channel.history(limit=20):
                 if not msg.author.bot and msg.author != ctx.guild.me:
@@ -2083,7 +2116,8 @@ async def ty(ctx):
     except:
         pass
     
-    if not ctx.channel.name.startswith("ticket-"):
+    # Check if in ticket channel (supports both ticket- and filename formats)
+    if not ctx.channel.name.startswith("ticket-") and not re.match(r'^\d{10}-\d+-[\w\u0E00-\u0E7F]+$', ctx.channel.name):
         await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
         return
     
@@ -2092,28 +2126,82 @@ async def ty(ctx):
     try:
         processing_msg = await ctx.send("🔄 กำลังดำเนินการ...")
         
+        # Try to find the buyer from multiple sources
         buyer = None
         channel_name = ctx.channel.name
-        if channel_name.startswith("ticket-"):
+        
+        # Method 1: Check stored buyer data first (most reliable)
+        if str(ctx.channel.id) in ticket_buyer_data:
+            buyer_id = ticket_buyer_data[str(ctx.channel.id)].get("user_id")
+            if buyer_id:
+                buyer = ctx.guild.get_member(buyer_id)
+                if buyer:
+                    print(f"✅ Found buyer from stored data: {buyer.name}")
+        
+        # Method 2: Try to extract from channel name (ticket-username-userid format)
+        if not buyer and channel_name.startswith("ticket-"):
             parts = channel_name.split('-')
             if len(parts) >= 3:
                 try:
                     user_id = int(parts[-1])
                     buyer = ctx.guild.get_member(user_id)
+                    if buyer:
+                        print(f"✅ Found buyer from ticket- format: {buyer.name}")
                 except ValueError:
                     pass
         
+        # Method 3: Try to extract from filename format (ddmmyytime-amount-username)
+        if not buyer and re.match(r'^\d{10}-\d+-[\w\u0E00-\u0E7F]+$', channel_name):
+            parts = channel_name.split('-')
+            if len(parts) >= 3:
+                username_part = parts[-1].lower()
+                for member in ctx.guild.members:
+                    if member.name.lower() == username_part or member.display_name.lower() == username_part:
+                        buyer = member
+                        if buyer:
+                            print(f"✅ Found buyer from filename format: {buyer.name}")
+                            break
+        
+        # Method 4: Check stored customer data
+        if not buyer and str(ctx.channel.id) in ticket_customer_data:
+            customer_name = ticket_customer_data[str(ctx.channel.id)]
+            if customer_name != "ไม่ระบุตัวตน":
+                for member in ctx.guild.members:
+                    if member.name == customer_name or member.display_name == customer_name:
+                        buyer = member
+                        if buyer:
+                            print(f"✅ Found buyer from customer data: {buyer.name}")
+                            break
+        
+        # Method 5: Check ticket activity
+        if not buyer and ctx.channel.id in ticket_activity:
+            buyer_id = ticket_activity[ctx.channel.id].get('buyer_id')
+            if buyer_id:
+                buyer = ctx.guild.get_member(buyer_id)
+                if buyer:
+                    print(f"✅ Found buyer from activity data: {buyer.name}")
+        
+        # Method 6: Try to find from message history
         if not buyer:
             async for msg in ctx.channel.history(limit=50):
                 if not msg.author.bot and msg.author != ctx.guild.me:
                     buyer = msg.author
-                    break
+                    if buyer:
+                        print(f"✅ Found buyer from message history: {buyer.name}")
+                        break
         
-        await add_buyer_role(buyer, ctx.guild)
+        # Add buyer role if found
+        if buyer:
+            await add_buyer_role(buyer, ctx.guild)
+            print(f"✅ Found buyer: {buyer.name} (ID: {buyer.id})")
+        else:
+            print(f"⚠️ Could not find buyer for channel {ctx.channel.name}")
         
+        # Get stored data
         robux_amount = ticket_robux_data.get(str(ctx.channel.id))
         customer_name = ticket_customer_data.get(str(ctx.channel.id))
         
+        # Determine product type
         product_type = "Gamepass"
         price = 0
         delivery_image = None
@@ -2124,6 +2212,7 @@ async def ty(ctx):
             is_premium = True
             product_type = "Premium"
         
+        # Try to extract from existing receipt in chat
         async for msg in ctx.channel.history(limit=50):
             if msg.author == bot.user and msg.embeds:
                 for embed in msg.embeds:
@@ -2161,6 +2250,7 @@ async def ty(ctx):
                 if product_type:
                     break
         
+        # Create receipt embed
         receipt_color = 0xFFA500 if product_type == "Gamepass" else (0x00FFFF if product_type == "Group" else 0x9B59B6)
         
         anonymous_mode = ticket_anonymous_mode.get(str(ctx.channel.id), False)
@@ -2203,11 +2293,13 @@ async def ty(ctx):
             text=f"จัดส่งสินค้าสำเร็จ 🤗 • {get_thailand_time().strftime('%d/%m/%y, %H:%M')}"
         )
         
+        # Send to log channel
         log_channel = bot.get_channel(SALES_LOG_CHANNEL_ID)
         if log_channel:
             await log_channel.send(embed=receipt_embed)
             print(f"✅ ส่งใบเสร็จไปยัง sales log channel เรียบร้อย")
         
+        # Save transcript
         save_success, filename = await save_ticket_transcript(ctx.channel, buyer, robux_amount if not is_premium else price, customer_name)
         
         if save_success:
@@ -2216,6 +2308,7 @@ async def ty(ctx):
             except:
                 pass
         
+        # Update stock
         if ctx.channel.category:
             category_name = ctx.channel.category.name.lower()
             if "gamepass" in category_name:
@@ -2230,10 +2323,12 @@ async def ty(ctx):
         
         save_stock_values()
         
+        # Delete processing message
         if processing_msg:
             await processing_msg.delete()
             processing_msg = None
         
+        # Send success message
         embed = discord.Embed(
             title="✅ ส่งของเรียบร้อยแล้ว",
             description=(
@@ -2247,19 +2342,18 @@ async def ty(ctx):
         embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
         
         view = View(timeout=None)
-        
         credit_button = Button(
             label="ให้เครดิต⭐", 
             style=discord.ButtonStyle.link,
             url=f"https://discord.com/channels/{ctx.guild.id}/{CREDIT_CHANNEL_ID}",
             emoji="☑️"
         )
-        
         view.add_item(credit_button)
         
         await ctx.send(embed=embed, view=view)
         
-        if product_type == "Gamepass":
+        # Offer to order more (only for gamepass)
+        if product_type == "Gamepass" and buyer:
             order_more_view = View(timeout=None)
             order_more_btn = Button(label="สั่งของต่อ 📝", style=discord.ButtonStyle.secondary, emoji="🔄")
             
@@ -2272,9 +2366,8 @@ async def ty(ctx):
                 
                 stock_type = "gamepass"
                 
-                user_id = buyer.id if buyer else None
-                if user_id:
-                    await reset_channel_name(ctx.channel, user_id, stock_type)
+                if buyer:
+                    await reset_channel_name(ctx.channel, buyer.id, stock_type)
                 
                 await move_to_original_category(ctx.channel, "gamepass")
                 
@@ -2311,6 +2404,7 @@ async def ty(ctx):
             order_more_view.add_item(order_more_btn)
             await ctx.send("📝 ต้องการสั่งสินค้าเพิ่ม?", view=order_more_view)
         
+        # Clean up stored data
         if str(ctx.channel.id) in ticket_robux_data:
             del ticket_robux_data[str(ctx.channel.id)]
             save_json(ticket_robux_data_file, ticket_robux_data)
@@ -2319,10 +2413,9 @@ async def ty(ctx):
             del ticket_customer_data[str(ctx.channel.id)]
             save_json(ticket_customer_data_file, ticket_customer_data)
         
+        # Move to delivered category and schedule removal
         await move_to_delivered_category(ctx.channel)
-        
         await schedule_removal(ctx.channel, buyer, 600)
-        
         await update_main_channel()
         
         print(f"✅ คำสั่ง !ty ดำเนินการสำเร็จสำหรับห้อง {ctx.channel.name}")
@@ -2345,7 +2438,7 @@ async def ty(ctx):
 async def od(ctx, *, expr):
     global gamepass_stock, gamepass_rate
     
-    if not ctx.channel.name.startswith("ticket-"):
+    if not ctx.channel.name.startswith("ticket-") and not re.match(r'^\d{10}-\d+-[\w\u0E00-\u0E7F]+$', ctx.channel.name):
         await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
         return
     
@@ -2356,13 +2449,23 @@ async def od(ctx, *, expr):
         price_int = round_price(price)
         
         buyer = None
-        parts = ctx.channel.name.split('-')
-        if len(parts) >= 3:
-            try:
-                buyer = ctx.guild.get_member(int(parts[-1]))
-            except:
-                pass
         
+        # Try to get buyer from stored data first
+        if str(ctx.channel.id) in ticket_buyer_data:
+            buyer_id = ticket_buyer_data[str(ctx.channel.id)].get("user_id")
+            if buyer_id:
+                buyer = ctx.guild.get_member(buyer_id)
+        
+        # If not found, try from channel name
+        if not buyer:
+            parts = ctx.channel.name.split('-')
+            if len(parts) >= 3:
+                try:
+                    buyer = ctx.guild.get_member(int(parts[-1]))
+                except:
+                    pass
+        
+        # If still not found, try from message history
         if not buyer:
             async for msg in ctx.channel.history(limit=20):
                 if not msg.author.bot and msg.author != ctx.guild.me:
@@ -2399,7 +2502,7 @@ async def od(ctx, *, expr):
 async def odg(ctx, *, expr):
     global group_stock, group_rate_low, group_rate_high
     
-    if not ctx.channel.name.startswith("ticket-"):
+    if not ctx.channel.name.startswith("ticket-") and not re.match(r'^\d{10}-\d+-[\w\u0E00-\u0E7F]+$', ctx.channel.name):
         await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
         return
     
@@ -2412,13 +2515,23 @@ async def odg(ctx, *, expr):
         price_int = round_price(price)
         
         buyer = None
-        parts = ctx.channel.name.split('-')
-        if len(parts) >= 3:
-            try:
-                buyer = ctx.guild.get_member(int(parts[-1]))
-            except:
-                pass
         
+        # Try to get buyer from stored data first
+        if str(ctx.channel.id) in ticket_buyer_data:
+            buyer_id = ticket_buyer_data[str(ctx.channel.id)].get("user_id")
+            if buyer_id:
+                buyer = ctx.guild.get_member(buyer_id)
+        
+        # If not found, try from channel name
+        if not buyer:
+            parts = ctx.channel.name.split('-')
+            if len(parts) >= 3:
+                try:
+                    buyer = ctx.guild.get_member(int(parts[-1]))
+                except:
+                    pass
+        
+        # If still not found, try from message history
         if not buyer:
             async for msg in ctx.channel.history(limit=20):
                 if not msg.author.bot and msg.author != ctx.guild.me:
@@ -2455,7 +2568,7 @@ async def odg(ctx, *, expr):
 async def odp(ctx, *, expr):
     global premium_stock
     
-    if not ctx.channel.name.startswith("ticket-"):
+    if not ctx.channel.name.startswith("ticket-") and not re.match(r'^\d{10}-\d+-[\w\u0E00-\u0E7F]+$', ctx.channel.name):
         await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
         return
     
@@ -2464,13 +2577,23 @@ async def odp(ctx, *, expr):
         amount = int(amount_str)
         
         buyer = None
-        parts = ctx.channel.name.split('-')
-        if len(parts) >= 3:
-            try:
-                buyer = ctx.guild.get_member(int(parts[-1]))
-            except:
-                pass
         
+        # Try to get buyer from stored data first
+        if str(ctx.channel.id) in ticket_buyer_data:
+            buyer_id = ticket_buyer_data[str(ctx.channel.id)].get("user_id")
+            if buyer_id:
+                buyer = ctx.guild.get_member(buyer_id)
+        
+        # If not found, try from channel name
+        if not buyer:
+            parts = ctx.channel.name.split('-')
+            if len(parts) >= 3:
+                try:
+                    buyer = ctx.guild.get_member(int(parts[-1]))
+                except:
+                    pass
+        
+        # If still not found, try from message history
         if not buyer:
             async for msg in ctx.channel.history(limit=20):
                 if not msg.author.bot and msg.author != ctx.guild.me:
