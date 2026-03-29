@@ -2510,7 +2510,7 @@ async def qr(ctx):
         pass
     
     embed = discord.Embed(
-        title="⚠️โน๊ตสลิปว่า: เติมโรบัคกับ Sushi Shop⚠️ ช่องทางการโอนเงิน", 
+        title="⚠️โน๊ตสลิป: เติมโรบัค Sushi Shop เฟส Arisara Srijitjam", 
         color=0x00CCFF
     )
     embed.add_field(
@@ -2544,7 +2544,7 @@ async def qr2(ctx):
         pass
     
     embed = discord.Embed(
-        title="⚠️โน๊ตสลิปว่า: เติมโรบัค Sushi Shop เฟส Can pattarapol", 
+        title="⚠️โน๊ตสลิป: เติมโรบัค Sushi Shop เฟส Can pattarapol", 
         color=0x00CCFF
     )
     embed.add_field(
