@@ -2544,17 +2544,12 @@ async def qr2(ctx):
         pass
     
     embed = discord.Embed(
-        title="⚠️โน๊ตสลิปว่า: เติมโรบัคกับ Sushi Shop⚠️ ช่องทางการโอนเงิน", 
+        title="⚠️โน๊ตสลิปว่า: เติมโรบัค Sushi Shop เฟส Can pattarapol", 
         color=0x00CCFF
     )
     embed.add_field(
-        name="1. ชื่อบัญชี (ไทยพานิชย์ SCB)", 
-        value="**หจก. วอเตอร์ เทค เซลล์ แอนด์ เซอร์วิส**", 
-        inline=False
-    )
-    embed.add_field(
-        name="2. เลขบัญชี", 
-        value="**120-239181-3**", 
+        name="1. ชื่อบัญชี (กรุงศรี)", 
+        value="**สุทัตตา เถลิงสุข**", 
         inline=False
     )
     embed.set_image(url="https://media.discordapp.net/attachments/1485285161955360963/1487457449416982568/Can_Can-1.png?ex=69c93633&is=69c7e4b3&hm=f2a8a36c5299e6c174ae73f79638631c55085a4accf345dd6934a8f3f3424c35&=&format=webp&quality=lossless&width=839&height=1235")
