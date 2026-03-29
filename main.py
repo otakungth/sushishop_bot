@@ -38,7 +38,7 @@ except:
 intents = discord.Intents.all()
 intents.message_content = True
 intents.members = True
-gamepass_rate = 6.2
+gamepass_rate = 6.5
 group_rate_low = 4
 group_rate_high = 4.5
 shop_open = True
@@ -575,7 +575,7 @@ async def update_main_channel():
             inline=False
         )
         embed.set_thumbnail(url="https://media.discordapp.net/attachments/717757556889747657/1403684950770847754/noFilter.png")
-        embed.set_image(url="https://media.discordapp.net/attachments/1485285161955360963/1487652965883056208/file_00000000c28871faadcbedfaf4a441e6.png?ex=69c9ec4a&is=69c89aca&hm=c2076ffd04820c55638feb8ab8b68b3ff4c019dfa83cb7b69c7be426795ac401&=&format=webp&quality=lossless&width=788&height=525")
+        embed.set_image(url="https://media.discordapp.net/attachments/1485285161955360963/1487653032563965962/image-241.png?ex=69c9ec5a&is=69c89ada&hm=22a471f61c340e1c1cdcf504d2884068207e78c7c44632943bafba0debe1c713&=&format=webp&quality=lossless&width=1892&height=1139")
         embed.set_footer(
             text=f"Sushi Shop • รับกดเกมพาสและอื่น ๆ |: {get_thailand_time().strftime('%d/%m/%y %H:%M')}", 
             icon_url="https://media.discordapp.net/attachments/717757556889747657/1403684950770847754/noFilter.png"
