@@ -62,13 +62,13 @@ ANONYMOUS_USER_ROLE_ID = 1486352633290821673
 
 # Level roles
 LEVEL_ROLES = {
-    0: 1475346221605588992,      # 1 exp
-    5000: 1488073523946717356,   # 5,000 exp
-    10000: 1488073560030445569,  # 10,000 exp
-    25000: 1488073771662315614,  # 25,000 exp
-    50000: 1488073590162329640,  # 50,000 exp
-    100000: 1488073619543294153, # 100,000 exp
-    777777: 1488075865337106563  # 777,777 exp
+    0: 1475346221605588992,      # 1 sp
+    5000: 1488073523946717356,   # 5,000 sp
+    10000: 1488073560030445569,  # 10,000 sp
+    25000: 1488073771662315614,  # 25,000 sp
+    50000: 1488073590162329640,  # 50,000 sp
+    100000: 1488073619543294153, # 100,000 sp
+    777777: 1488075865337106563  # 777,777 sp
 }
 
 # Level names
@@ -190,18 +190,18 @@ def save_all_data_sync():
     save_stock_values()
     print("✅ All data saved (sync)")
 
-async def add_exp(user_id, amount):
-    """Add experience points to a user and update roles"""
+async def add_sp(user_id, amount):
+    """Add skill points to a user and update roles"""
     if not user_id:
         return
     
     user_id_str = str(user_id)
     if user_id_str not in user_levels:
-        user_levels[user_id_str] = {"exp": 0, "total_robux": 0}
+        user_levels[user_id_str] = {"sp": 0, "total_robux": 0}
     
-    user_levels[user_id_str]["exp"] += amount
+    user_levels[user_id_str]["sp"] += amount
     user_levels[user_id_str]["total_robux"] += amount
-    current_exp = user_levels[user_id_str]["exp"]
+    current_sp = user_levels[user_id_str]["sp"]
     
     save_json(user_levels_file, user_levels)
     
@@ -214,12 +214,44 @@ async def add_exp(user_id, amount):
     if guild:
         member = guild.get_member(user_id)
         if member:
-            await update_member_roles(member, current_exp)
+            await update_member_roles(member, current_sp)
     
-    return current_exp
+    return current_sp
 
-async def update_member_roles(member, exp):
-    """Update member roles based on their experience level"""
+async def remove_sp(user_id, amount):
+    """Remove skill points from a user and update roles"""
+    if not user_id:
+        return False
+    
+    user_id_str = str(user_id)
+    if user_id_str not in user_levels:
+        return False
+    
+    current_sp = user_levels[user_id_str]["sp"]
+    if current_sp < amount:
+        return False
+    
+    user_levels[user_id_str]["sp"] -= amount
+    user_levels[user_id_str]["total_robux"] -= amount
+    new_sp = user_levels[user_id_str]["sp"]
+    
+    save_json(user_levels_file, user_levels)
+    
+    # Get guild to update roles
+    guild = None
+    for g in bot.guilds:
+        guild = g
+        break
+    
+    if guild:
+        member = guild.get_member(user_id)
+        if member:
+            await update_member_roles(member, new_sp)
+    
+    return True
+
+async def update_member_roles(member, sp):
+    """Update member roles based on their skill points"""
     if not member:
         return
     
@@ -229,7 +261,7 @@ async def update_member_roles(member, exp):
     # Find the highest level the user qualifies for
     target_role_id = None
     for threshold in sorted_levels:
-        if exp >= threshold:
+        if sp >= threshold:
             target_role_id = LEVEL_ROLES[threshold]
             break
     
@@ -246,42 +278,42 @@ async def update_member_roles(member, exp):
     
     if target_role:
         await member.add_roles(target_role)
-        print(f"✅ Updated roles for {member.name} (Exp: {exp}) to role {target_role.name}")
+        print(f"✅ Updated roles for {member.name} (SP: {sp}) to role {target_role.name}")
 
-def get_level_info(exp):
-    """Get level information based on experience"""
+def get_level_info(sp):
+    """Get level information based on skill points"""
     sorted_levels = sorted(LEVEL_ROLES.keys())
     
     current_level = 0
     current_level_name = LEVEL_NAMES.get(0, "🍣 | Sushi Lover")
     next_level = None
     next_level_name = None
-    exp_needed = 0
+    sp_needed = 0
     
     for i, threshold in enumerate(sorted_levels):
-        if exp >= threshold:
+        if sp >= threshold:
             current_level = threshold
             current_level_name = LEVEL_NAMES.get(threshold, f"Level {i+1}")
             if i + 1 < len(sorted_levels):
                 next_level = sorted_levels[i + 1]
                 next_level_name = LEVEL_NAMES.get(next_level, f"Level {i+2}")
-                exp_needed = next_level - exp
+                sp_needed = next_level - sp
             else:
-                exp_needed = 0
+                sp_needed = 0
                 next_level_name = "ระดับสูงสุด"
         else:
             if next_level is None:
                 next_level = threshold
                 next_level_name = LEVEL_NAMES.get(next_level, f"Level {i+1}")
-                exp_needed = next_level - exp
+                sp_needed = next_level - sp
             break
     
     if next_level is None:
         next_level = sorted_levels[-1]
         next_level_name = LEVEL_NAMES.get(next_level, "ระดับสูงสุด")
-        exp_needed = 0
+        sp_needed = 0
     
-    return current_level, current_level_name, next_level, next_level_name, exp_needed
+    return current_level, current_level_name, next_level, next_level_name, sp_needed
 
 class LevelCheckView(View):
     def __init__(self, user_id):
@@ -302,13 +334,13 @@ class LevelCheckView(View):
         user_id_str = str(user_id)
         
         if user_id_str not in user_levels:
-            exp = 0
+            sp = 0
             total_robux = 0
         else:
-            exp = user_levels[user_id_str]["exp"]
+            sp = user_levels[user_id_str]["sp"]
             total_robux = user_levels[user_id_str]["total_robux"]
         
-        current_level, current_level_name, next_level, next_level_name, exp_needed = get_level_info(exp)
+        current_level, current_level_name, next_level, next_level_name, sp_needed = get_level_info(sp)
         
         embed = discord.Embed(
             title="📊 ระดับของคุณ",
@@ -316,26 +348,35 @@ class LevelCheckView(View):
             color=0x00FF99
         )
         embed.add_field(name="💰 โรบัคที่ซื้อทั้งหมด", value=f"**{format_number(total_robux)}** {ROBUX_EMOJI}", inline=True)
-        embed.add_field(name="🏅 ระดับปัจจุบัน", value=f"{current_level_name}", inline=True)
         
-        if exp_needed > 0:
-            progress = (exp - current_level) / (next_level - current_level)
+        # Get current level role for mention
+        current_role_id = None
+        for threshold, role_id in LEVEL_ROLES.items():
+            if sp >= threshold:
+                current_role_id = role_id
+                break
+        
+        if current_role_id:
+            embed.add_field(name="🏅 ระดับปัจจุบัน", value=f"<@&{current_role_id}>", inline=True)
+        
+        if sp_needed > 0:
+            progress = (sp - current_level) / (next_level - current_level)
             progress_bar = "█" * int(progress * 10) + "░" * (10 - int(progress * 10))
             embed.add_field(
                 name="📈 ความคืบหน้า", 
-                value=f"`{progress_bar}` {format_number(exp - current_level)}/{format_number(next_level - current_level)} EXP\nเหลืออีก **{format_number(exp_needed)}** EXP สู่{next_level_name}",
+                value=f"`{progress_bar}` {format_number(sp - current_level)}/{format_number(next_level - current_level)} SP\nเหลืออีก **{format_number(sp_needed)}** SP สู่{next_level_name}",
                 inline=False
             )
         else:
             embed.add_field(name="🏆 สถานะ", value=f"คุณถึง{current_level_name}สูงสุดแล้ว! 🎉", inline=False)
         
-        embed.set_footer(text="Sushi Shop • 1 โรบัคที่ซื้อ = 1 EXP")
+        embed.set_footer(text="Sushi Shop • 1 โรบัคที่ซื้อ = 1 SP")
         
         await interaction.response.send_message(embed=embed, ephemeral=True)
     
     async def rank_callback(self, interaction: discord.Interaction):
-        # Get top 10 users by EXP
-        sorted_users = sorted(user_levels.items(), key=lambda x: x[1]["exp"], reverse=True)[:10]
+        # Get top 10 users by SP
+        sorted_users = sorted(user_levels.items(), key=lambda x: x[1]["sp"], reverse=True)[:10]
         
         embed = discord.Embed(
             title="🏆 อันดับเลเวลสูงสุด",
@@ -353,16 +394,26 @@ class LevelCheckView(View):
                 else:
                     name = f"ผู้ใช้ #{user_id_str}"
                 
-                exp = data["exp"]
-                current_level, current_level_name, _, _, _ = get_level_info(exp)
+                sp = data["sp"]
+                current_level, current_level_name, _, _, _ = get_level_info(sp)
+                
+                # Get role mention
+                current_role_id = None
+                for threshold, role_id in LEVEL_ROLES.items():
+                    if sp >= threshold:
+                        current_role_id = role_id
+                        break
                 
                 medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else "📊"
                 rank_text += f"{medal} **#{i}** {name}\n"
-                rank_text += f"   ✨ **{format_number(exp)}** EXP | {current_level_name}\n\n"
+                if current_role_id:
+                    rank_text += f"   ✨ **{format_number(sp)}** SP | <@&{current_role_id}>\n\n"
+                else:
+                    rank_text += f"   ✨ **{format_number(sp)}** SP | {current_level_name}\n\n"
             
             embed.description = rank_text
         
-        embed.set_footer(text="Sushi Shop • 1 โรบัคที่ซื้อ = 1 EXP")
+        embed.set_footer(text="Sushi Shop • 1 โรบัคที่ซื้อ = 1 SP")
         
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
@@ -1608,10 +1659,10 @@ class DeliveryView(View):
                         ticket_customer_data[str(self.channel.id)] = self.buyer.name
                         save_json(ticket_customer_data_file, ticket_customer_data)
                         
-                        # Add EXP for the buyer (1 robux = 1 exp)
+                        # Add SP for the buyer (1 robux = 1 sp)
                         if self.robux_amount:
-                            await add_exp(self.buyer.id, self.robux_amount)
-                            print(f"✅ Added {self.robux_amount} EXP to {self.buyer.name}")
+                            await add_sp(self.buyer.id, self.robux_amount)
+                            print(f"✅ Added {self.robux_amount} SP to {self.buyer.name}")
                     
                     receipt_color = 0xFFA500 if self.product_type == "Gamepass" else 0x00FFFF
                     
@@ -1777,10 +1828,10 @@ class PremiumDeliveryView(View):
                         ticket_customer_data[str(self.channel.id)] = self.buyer.name
                         save_json(ticket_customer_data_file, ticket_customer_data)
                         
-                        # Add EXP for premium purchase (amount is in Baht)
+                        # Add SP for premium purchase (amount is in Baht)
                         if self.amount > 0:
-                            await add_exp(self.buyer.id, self.amount)
-                            print(f"✅ Added {self.amount} EXP to {self.buyer.name} (Premium)")
+                            await add_sp(self.buyer.id, self.amount)
+                            print(f"✅ Added {self.amount} SP to {self.buyer.name} (Premium)")
                     
                     receipt_color = 0x9B59B6
                     
@@ -3023,7 +3074,6 @@ async def level_cmd(ctx):
     for threshold in sorted_levels:
         role_id = LEVEL_ROLES[threshold]
         role_mention = f"<@&{role_id}>"
-        level_name = LEVEL_NAMES.get(threshold, f"Level {threshold}")
         
         if threshold == 0:
             level_list.append(f"1 SP - {role_mention}")
@@ -3039,27 +3089,56 @@ async def level_cmd(ctx):
     
     await ctx.send(embed=embed, view=view)
 
-@bot.command(name="setexp")
+@bot.command(name="setsp")
 @admin_only()
-async def set_exp_cmd(ctx, user: discord.Member, amount: int):
-    """Admin command to set a user's EXP"""
+async def set_sp_cmd(ctx, user: discord.Member, amount: int):
+    """Admin command to set a user's SP"""
     user_id_str = str(user.id)
     
     if user_id_str not in user_levels:
-        user_levels[user_id_str] = {"exp": 0, "total_robux": 0}
+        user_levels[user_id_str] = {"sp": 0, "total_robux": 0}
     
-    old_exp = user_levels[user_id_str]["exp"]
-    user_levels[user_id_str]["exp"] = amount
+    old_sp = user_levels[user_id_str]["sp"]
+    user_levels[user_id_str]["sp"] = amount
+    user_levels[user_id_str]["total_robux"] = amount
     save_json(user_levels_file, user_levels)
     
     await update_member_roles(user, amount)
     
     embed = discord.Embed(
-        title="✅ ตั้งค่า EXP สำเร็จ",
-        description=f"ตั้งค่า EXP ของ {user.mention} จาก **{format_number(old_exp)}** เป็น **{format_number(amount)}**",
+        title="✅ ตั้งค่า SP สำเร็จ",
+        description=f"ตั้งค่า SP ของ {user.mention} จาก **{format_number(old_sp)}** เป็น **{format_number(amount)}**",
         color=0x00FF00
     )
     await ctx.send(embed=embed)
+
+@bot.command(name="delsp")
+@admin_only()
+async def del_sp_cmd(ctx, user: discord.Member, amount: int):
+    """Admin command to remove SP from a user"""
+    user_id_str = str(user.id)
+    
+    if user_id_str not in user_levels:
+        await ctx.send(f"❌ {user.mention} ยังไม่มีข้อมูล SP", delete_after=5)
+        return
+    
+    current_sp = user_levels[user_id_str]["sp"]
+    
+    if current_sp < amount:
+        await ctx.send(f"❌ {user.mention} มี SP เพียง {format_number(current_sp)} SP ไม่สามารถลบได้ {format_number(amount)} SP", delete_after=5)
+        return
+    
+    success = await remove_sp(user.id, amount)
+    
+    if success:
+        embed = discord.Embed(
+            title="✅ ลบ SP สำเร็จ",
+            description=f"ลบ **{format_number(amount)}** SP จาก {user.mention}\nเหลือ SP **{format_number(current_sp - amount)}**",
+            color=0x00FF00
+        )
+        await ctx.send(embed=embed)
+    else:
+        await ctx.send(f"❌ เกิดข้อผิดพลาดในการลบ SP", delete_after=5)
 
 @tasks.loop(minutes=1)
 async def update_presence():
@@ -3153,7 +3232,7 @@ async def on_member_join(member):
             
             # Initialize level data for new member if not exists
             if str(member.id) not in user_levels:
-                user_levels[str(member.id)] = {"exp": 0, "total_robux": 0}
+                user_levels[str(member.id)] = {"sp": 0, "total_robux": 0}
                 save_json(user_levels_file, user_levels)
     except Exception as e:
         print(f"❌ Error sending welcome message: {e}")
