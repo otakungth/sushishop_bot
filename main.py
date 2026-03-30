@@ -310,21 +310,13 @@ class LevelCheckView(View):
         
         current_level, current_level_name, next_level, next_level_name, exp_needed = get_level_info(exp)
         
-        # Get current level role
-        current_role = None
-        for threshold, role_id in LEVEL_ROLES.items():
-            if exp >= threshold:
-                current_role = interaction.guild.get_role(role_id)
-        
         embed = discord.Embed(
             title="📊 ระดับของคุณ",
             description=f"**{interaction.user.display_name}**",
             color=0x00FF99
         )
         embed.add_field(name="💰 โรบัคที่ซื้อทั้งหมด", value=f"**{format_number(total_robux)}** {ROBUX_EMOJI}", inline=True)
-        
-        if current_role:
-            embed.add_field(name="🏅 ระดับปัจจุบัน", value=f"{current_level_name} {current_role.mention}", inline=True)
+        embed.add_field(name="🏅 ระดับปัจจุบัน", value=f"{current_level_name}", inline=True)
         
         if exp_needed > 0:
             progress = (exp - current_level) / (next_level - current_level)
@@ -357,24 +349,16 @@ class LevelCheckView(View):
             for i, (user_id_str, data) in enumerate(sorted_users, 1):
                 user = interaction.guild.get_member(int(user_id_str))
                 if user:
-                    name = user.display_name
+                    name = user.mention
                 else:
                     name = f"ผู้ใช้ #{user_id_str}"
                 
                 exp = data["exp"]
                 current_level, current_level_name, _, _, _ = get_level_info(exp)
                 
-                current_role = None
-                for threshold, role_id in LEVEL_ROLES.items():
-                    if exp >= threshold:
-                        current_role = interaction.guild.get_role(role_id)
-                
                 medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else "📊"
                 rank_text += f"{medal} **#{i}** {name}\n"
-                rank_text += f"   ✨ **{format_number(exp)}** EXP | {current_level_name}"
-                if current_role:
-                    rank_text += f" {current_role.name}"
-                rank_text += "\n\n"
+                rank_text += f"   ✨ **{format_number(exp)}** EXP | {current_level_name}\n\n"
             
             embed.description = rank_text
         
