@@ -3007,28 +3007,32 @@ async def level_cmd(ctx):
     """Check your level and rank"""
     view = LevelCheckView(ctx.author.id)
     embed = discord.Embed(
-        title="📊 ระบบเลเวล Sushi Shop",
+        title="🍣 ระบบเลเวล Sushi Shop",
         description="กดปุ่มด้านล่างเพื่อเช็คเลเวลของคุณหรือดูอันดับ",
         color=0x00FF99
     )
     embed.add_field(
-        name="✨ วิธีการได้ EXP",
-        value="ซื้อโรบัค 1 โรบัค = 1 EXP\n(บันทึกเมื่อแอดมินกดส่งสินค้า)",
+        name="✨ วิธีการได้ SP",
+        value=f"ซื้อ 1 {ROBUX_EMOJI} = 1 SP\n(บันทึกเมื่อแอดมินกดส่งสินค้า)",
         inline=False
     )
     
-    # Build level list with custom names
+    # Build level list with role mentions
     level_list = []
-    sorted_levels = sorted(LEVEL_NAMES.keys())
+    sorted_levels = sorted(LEVEL_ROLES.keys())
     for threshold in sorted_levels:
+        role_id = LEVEL_ROLES[threshold]
+        role_mention = f"<@&{role_id}>"
+        level_name = LEVEL_NAMES.get(threshold, f"Level {threshold}")
+        
         if threshold == 0:
-            level_list.append(f"1 EXP - {LEVEL_NAMES[threshold]}")
+            level_list.append(f"1 SP - {role_mention}")
         else:
-            level_list.append(f"{format_number(threshold)} EXP - {LEVEL_NAMES[threshold]}")
+            level_list.append(f"{format_number(threshold)} SP - {role_mention}")
     
     embed.add_field(
         name="🏆 ระดับ",
-        value="```\n" + "\n".join(level_list) + "```",
+        value="\n".join(level_list),
         inline=False
     )
     embed.set_footer(text="Sushi Shop 🍣")
