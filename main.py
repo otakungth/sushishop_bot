@@ -70,15 +70,16 @@ LEVEL_ROLES = {
     100000: 1488073619543294153, # 100,000 exp
     777777: 1488075865337106563  # 777,777 exp
 }
-# Add level names dictionary
+
+# Level names
 LEVEL_NAMES = {
-    0: "🍣 | Sushi Lover",           # Level 1 name
-    5000: "🐠 | Sushi Pass",        # Level 2 name
-    10000: "🐡 | Sushi Silver",        # Level 3 name
-    25000: "🦈 | Sushi Platinum",      # Level 4 name
-    50000: "🐙 | Sushi Emerald",        # Level 5 name
-    100000: "🐋 | Sushi Supreme",  # Level 6 name
-    777777: "👑 | Superior"   # Level 7 name
+    0: "🍣 | Sushi Lover",
+    5000: "🐠 | Sushi Pass",
+    10000: "🐡 | Sushi Silver",
+    25000: "🦈 | Sushi Platinum",
+    50000: "🐙 | Sushi Emerald",
+    100000: "🐋 | Sushi Supreme",
+    777777: "👑 | Superior"
 }
 
 GAMEPASS_CATEGORY_NAME = "sushi gamepass"
@@ -88,8 +89,9 @@ ROBUX_EMOJI = "<:sushirobux:1486314072701141074>"
 
 WELCOME_MESSAGES = [
     "ยินดีต้อนรับ {} สู่ร้าน Sushi Shop 🍣",
-    "สวัสดีค่ะ ยินดีต้อนรับ {} ค่า 🍣",
-    "welcome {} to Sushi Shop 🍣"
+    "สวัสดีครับ {} ยินดีต้อนรับนะครับ 🍣",
+    "ยินดีต้อนรับนะครับ {} 🍣",
+    "สวัสดีค่ะ ยินดีต้อนรับ {} ค่า 🍣"
 ]
 
 user_data_file = "user_data.json"
@@ -251,28 +253,35 @@ def get_level_info(exp):
     sorted_levels = sorted(LEVEL_ROLES.keys())
     
     current_level = 0
+    current_level_name = LEVEL_NAMES.get(0, "🍣 | Sushi Lover")
     next_level = None
+    next_level_name = None
     exp_needed = 0
     
     for i, threshold in enumerate(sorted_levels):
         if exp >= threshold:
             current_level = threshold
+            current_level_name = LEVEL_NAMES.get(threshold, f"Level {i+1}")
             if i + 1 < len(sorted_levels):
                 next_level = sorted_levels[i + 1]
+                next_level_name = LEVEL_NAMES.get(next_level, f"Level {i+2}")
                 exp_needed = next_level - exp
             else:
                 exp_needed = 0
+                next_level_name = "ระดับสูงสุด"
         else:
             if next_level is None:
                 next_level = threshold
+                next_level_name = LEVEL_NAMES.get(next_level, f"Level {i+1}")
                 exp_needed = next_level - exp
             break
     
     if next_level is None:
         next_level = sorted_levels[-1]
+        next_level_name = LEVEL_NAMES.get(next_level, "ระดับสูงสุด")
         exp_needed = 0
     
-    return current_level, next_level, exp_needed
+    return current_level, current_level_name, next_level, next_level_name, exp_needed
 
 class LevelCheckView(View):
     def __init__(self, user_id):
@@ -299,7 +308,7 @@ class LevelCheckView(View):
             exp = user_levels[user_id_str]["exp"]
             total_robux = user_levels[user_id_str]["total_robux"]
         
-        current_level, next_level, exp_needed = get_level_info(exp)
+        current_level, current_level_name, next_level, next_level_name, exp_needed = get_level_info(exp)
         
         # Get current level role
         current_role = None
@@ -312,22 +321,21 @@ class LevelCheckView(View):
             description=f"**{interaction.user.display_name}**",
             color=0x00FF99
         )
-        embed.add_field(name="✨ EXP ทั้งหมด", value=f"**{format_number(exp)}**", inline=True)
         embed.add_field(name="💰 โรบัคที่ซื้อทั้งหมด", value=f"**{format_number(total_robux)}** {ROBUX_EMOJI}", inline=True)
         
         if current_role:
-            embed.add_field(name="🏅 ระดับปัจจุบัน", value=f"{current_role.mention}", inline=True)
+            embed.add_field(name="🏅 ระดับปัจจุบัน", value=f"{current_level_name} {current_role.mention}", inline=True)
         
         if exp_needed > 0:
             progress = (exp - current_level) / (next_level - current_level)
             progress_bar = "█" * int(progress * 10) + "░" * (10 - int(progress * 10))
             embed.add_field(
                 name="📈 ความคืบหน้า", 
-                value=f"`{progress_bar}` {format_number(exp - current_level)}/{format_number(next_level - current_level)} EXP\nเหลืออีก **{format_number(exp_needed)}** EXP สู่ระดับถัดไป",
+                value=f"`{progress_bar}` {format_number(exp - current_level)}/{format_number(next_level - current_level)} EXP\nเหลืออีก **{format_number(exp_needed)}** EXP สู่{next_level_name}",
                 inline=False
             )
         else:
-            embed.add_field(name="🏆 สถานะ", value="คุณถึงระดับสูงสุดแล้ว! 🎉", inline=False)
+            embed.add_field(name="🏆 สถานะ", value=f"คุณถึง{current_level_name}สูงสุดแล้ว! 🎉", inline=False)
         
         embed.set_footer(text="Sushi Shop • 1 โรบัคที่ซื้อ = 1 EXP")
         
@@ -354,7 +362,7 @@ class LevelCheckView(View):
                     name = f"ผู้ใช้ #{user_id_str}"
                 
                 exp = data["exp"]
-                current_level, _, _ = get_level_info(exp)
+                current_level, current_level_name, _, _, _ = get_level_info(exp)
                 
                 current_role = None
                 for threshold, role_id in LEVEL_ROLES.items():
@@ -363,9 +371,9 @@ class LevelCheckView(View):
                 
                 medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else "📊"
                 rank_text += f"{medal} **#{i}** {name}\n"
-                rank_text += f"   ✨ **{format_number(exp)}** EXP"
+                rank_text += f"   ✨ **{format_number(exp)}** EXP | {current_level_name}"
                 if current_role:
-                    rank_text += f" | {current_role.name}"
+                    rank_text += f" {current_role.name}"
                 rank_text += "\n\n"
             
             embed.description = rank_text
@@ -437,7 +445,7 @@ class CalculatorView(View):
 
 class GamepassCalculatorModal(Modal, title="🍣 คำนวณเกมพาส"):
     robux_amount = TextInput(
-        label=f"จำนวน {ROBUX_EMOJI}",
+        label="จำนวนโรบัค",
         placeholder="พิมพ์เฉพาะตัวเลขเช่น 1000 หรือ 1,000",
         required=True,
         max_length=20
@@ -492,7 +500,7 @@ class GamepassBahtCalculatorModal(Modal, title="🍣 คำนวณเงิน
 
 class GroupCalculatorModal(Modal, title="🍣 คำนวณโรกลุ่ม"):
     robux_amount = TextInput(
-        label=f"จำนวน {ROBUX_EMOJI}",
+        label="จำนวนโรบัค",
         placeholder="พิมพ์เฉพาะตัวเลขเช่น 1000 หรือ 1,000",
         required=True,
         max_length=20
@@ -1785,8 +1793,7 @@ class PremiumDeliveryView(View):
                         ticket_customer_data[str(self.channel.id)] = self.buyer.name
                         save_json(ticket_customer_data_file, ticket_customer_data)
                         
-                        # Add EXP for premium purchase (amount is in Baht, convert to EXP based on Robux equivalent)
-                        # For premium, we'll use the amount as EXP (1 baht = 1 exp)
+                        # Add EXP for premium purchase (amount is in Baht)
                         if self.amount > 0:
                             await add_exp(self.buyer.id, self.amount)
                             print(f"✅ Added {self.amount} EXP to {self.buyer.name} (Premium)")
@@ -3025,9 +3032,19 @@ async def level_cmd(ctx):
         value="ซื้อโรบัค 1 โรบัค = 1 EXP\n(บันทึกเมื่อแอดมินกดส่งสินค้า)",
         inline=False
     )
+    
+    # Build level list with custom names
+    level_list = []
+    sorted_levels = sorted(LEVEL_NAMES.keys())
+    for threshold in sorted_levels:
+        if threshold == 0:
+            level_list.append(f"1 EXP - {LEVEL_NAMES[threshold]}")
+        else:
+            level_list.append(f"{format_number(threshold)} EXP - {LEVEL_NAMES[threshold]}")
+    
     embed.add_field(
         name="🏆 ระดับ",
-        value="```\n1 EXP - ระดับ 1\n5,000 EXP - ระดับ 2\n10,000 EXP - ระดับ 3\n25,000 EXP - ระดับ 4\n50,000 EXP - ระดับ 5\n100,000 EXP - ระดับ 6\n777,777 EXP - ระดับ 7 (สูงสุด)```",
+        value="```\n" + "\n".join(level_list) + "```",
         inline=False
     )
     embed.set_footer(text="Sushi Shop 🍣")
