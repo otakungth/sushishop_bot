@@ -62,7 +62,7 @@ SUSHI_GAMEPASS_CATEGORY_ID = 1475342278976606228
 
 ANONYMOUS_USER_ROLE_ID = 1486352633290821673
 
-# Level roles - IMPORTANT: Thresholds must be in ascending order for proper role selection
+# Level roles - IMPORTANT: Thresholds in ascending order
 LEVEL_ROLES = {
     0: 1475346221605588992,      # 0-4999 SP
     5000: 1488073523946717356,   # 5,000-9,999 SP
@@ -343,13 +343,13 @@ async def update_member_roles(member, sp):
         print(f"✅ Updated roles for {member.name} (SP: {sp}) to role {target_role.name}")
 
 def get_role_for_sp(sp):
-    """Get the role ID and mention for a given SP amount"""
+    """Get the role ID for a given SP amount"""
     # Sort thresholds in descending order to find the highest matching level
-    sorted_levels = sorted(LEVEL_ROLES.keys(), reverse=True)
-    for threshold in sorted_levels:
+    sorted_thresholds = sorted(LEVEL_ROLES.keys(), reverse=True)
+    for threshold in sorted_thresholds:
         if sp >= threshold:
             return LEVEL_ROLES[threshold]
-    return LEVEL_ROLES[0]
+    return LEVEL_ROLES[0]  # Default to level 0 role
 
 def get_level_info(sp):
     """Get level information based on skill points"""
@@ -420,7 +420,7 @@ class LevelCheckView(View):
         )
         embed.add_field(name="💰 โรบัคที่ซื้อทั้งหมด", value=f"**{format_number(total_robux)}** {ROBUX_EMOJI}", inline=True)
         
-        # Get current level role for mention - THIS IS THE KEY FIX
+        # Get current level role for mention - FIXED: uses correct role based on SP
         current_role_id = get_role_for_sp(sp)
         if current_role_id:
             embed.add_field(name="🏅 ระดับปัจจุบัน", value=f"<@&{current_role_id}>", inline=True)
@@ -462,7 +462,7 @@ class LevelCheckView(View):
                 
                 sp = data["sp"]
                 
-                # Get the correct role based on SP - THIS IS THE KEY FIX
+                # Get the correct role based on SP - FIXED: uses correct role based on SP
                 role_id = get_role_for_sp(sp)
                 role_mention = f"<@&{role_id}>"
                 
