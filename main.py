@@ -63,12 +63,22 @@ ANONYMOUS_USER_ROLE_ID = 1486352633290821673
 # Level roles
 LEVEL_ROLES = {
     0: 1475346221605588992,      # 1 exp
-    5000: 1488073523946717356,   # 5,000 exp
+    Gourmet: 1488073523946717356,   # 5,000 exp
     10000: 1488073560030445569,  # 10,000 exp
     25000: 1488073771662315614,  # 25,000 exp
     50000: 1488073590162329640,  # 50,000 exp
     100000: 1488073619543294153, # 100,000 exp
     777777: 1488075865337106563  # 777,777 exp
+}
+# Add level names dictionary
+LEVEL_NAMES = {
+    0: "🐟 Sushi Gourmet",           # Level 1 name
+    5000: "🐠 Sushi Silver",        # Level 2 name
+    10000: "🐡 Sushi Gold",        # Level 3 name
+    25000: "🦈 Sushi Platinum",      # Level 4 name
+    50000: "🐙 Sushi Diamond",        # Level 5 name
+    100000: "🐋 Supreme",  # Level 6 name
+    777777: "👑 Superior"   # Level 7 name
 }
 
 GAMEPASS_CATEGORY_NAME = "sushi gamepass"
@@ -78,9 +88,8 @@ ROBUX_EMOJI = "<:sushirobux:1486314072701141074>"
 
 WELCOME_MESSAGES = [
     "ยินดีต้อนรับ {} สู่ร้าน Sushi Shop 🍣",
-    "สวัสดีครับ {} ยินดีต้อนรับนะครับ 🍣",
-    "ยินดีต้อนรับนะครับ {} 🍣",
-    "สวัสดีค่ะ ยินดีต้อนรับ {} ค่า 🍣"
+    "สวัสดีค่ะ ยินดีต้อนรับ {} ค่า 🍣",
+    "welcome {} to Sushi Shop 🍣"
 ]
 
 user_data_file = "user_data.json"
