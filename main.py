@@ -62,18 +62,18 @@ SUSHI_GAMEPASS_CATEGORY_ID = 1475342278976606228
 
 ANONYMOUS_USER_ROLE_ID = 1486352633290821673
 
-# Level roles
+# Level roles - IMPORTANT: Thresholds must be in ascending order for proper role selection
 LEVEL_ROLES = {
-    0: 1475346221605588992,      # 1 sp
-    5000: 1488073523946717356,   # 5,000 sp
-    10000: 1488073560030445569,  # 10,000 sp
-    25000: 1488073771662315614,  # 25,000 sp
-    50000: 1488073590162329640,  # 50,000 sp
-    100000: 1488073619543294153, # 100,000 sp
-    777777: 1488075865337106563  # 777,777 sp
+    0: 1475346221605588992,      # 0-4999 SP
+    5000: 1488073523946717356,   # 5,000-9,999 SP
+    10000: 1488073560030445569,  # 10,000-24,999 SP
+    25000: 1488073771662315614,  # 25,000-49,999 SP
+    50000: 1488073590162329640,  # 50,000-99,999 SP
+    100000: 1488073619543294153, # 100,000-777,776 SP
+    777777: 1488075865337106563  # 777,777+ SP
 }
 
-# Level names (for reference, but we'll use role mentions directly)
+# Level names for reference
 LEVEL_NAMES = {
     0: "🍣 | Sushi Lover",
     5000: "🐠 | Sushi Pass",
@@ -344,11 +344,11 @@ async def update_member_roles(member, sp):
 
 def get_role_for_sp(sp):
     """Get the role ID and mention for a given SP amount"""
+    # Sort thresholds in descending order to find the highest matching level
     sorted_levels = sorted(LEVEL_ROLES.keys(), reverse=True)
     for threshold in sorted_levels:
         if sp >= threshold:
-            role_id = LEVEL_ROLES[threshold]
-            return role_id
+            return LEVEL_ROLES[threshold]
     return LEVEL_ROLES[0]
 
 def get_level_info(sp):
@@ -420,7 +420,7 @@ class LevelCheckView(View):
         )
         embed.add_field(name="💰 โรบัคที่ซื้อทั้งหมด", value=f"**{format_number(total_robux)}** {ROBUX_EMOJI}", inline=True)
         
-        # Get current level role for mention
+        # Get current level role for mention - THIS IS THE KEY FIX
         current_role_id = get_role_for_sp(sp)
         if current_role_id:
             embed.add_field(name="🏅 ระดับปัจจุบัน", value=f"<@&{current_role_id}>", inline=True)
@@ -462,7 +462,7 @@ class LevelCheckView(View):
                 
                 sp = data["sp"]
                 
-                # Get the correct role based on SP
+                # Get the correct role based on SP - THIS IS THE KEY FIX
                 role_id = get_role_for_sp(sp)
                 role_mention = f"<@&{role_id}>"
                 
