@@ -73,7 +73,7 @@ LEVEL_ROLES = {
     777777: 1488075865337106563  # 777,777 sp
 }
 
-# Level names
+# Level names (for reference, but we'll use role mentions directly)
 LEVEL_NAMES = {
     0: "🍣 | Sushi Lover",
     5000: "🐠 | Sushi Pass",
@@ -342,6 +342,15 @@ async def update_member_roles(member, sp):
         await member.add_roles(target_role)
         print(f"✅ Updated roles for {member.name} (SP: {sp}) to role {target_role.name}")
 
+def get_role_for_sp(sp):
+    """Get the role ID and mention for a given SP amount"""
+    sorted_levels = sorted(LEVEL_ROLES.keys(), reverse=True)
+    for threshold in sorted_levels:
+        if sp >= threshold:
+            role_id = LEVEL_ROLES[threshold]
+            return role_id
+    return LEVEL_ROLES[0]
+
 def get_level_info(sp):
     """Get level information based on skill points"""
     sorted_levels = sorted(LEVEL_ROLES.keys())
@@ -412,12 +421,7 @@ class LevelCheckView(View):
         embed.add_field(name="💰 โรบัคที่ซื้อทั้งหมด", value=f"**{format_number(total_robux)}** {ROBUX_EMOJI}", inline=True)
         
         # Get current level role for mention
-        current_role_id = None
-        for threshold, role_id in LEVEL_ROLES.items():
-            if sp >= threshold:
-                current_role_id = role_id
-                break
-        
+        current_role_id = get_role_for_sp(sp)
         if current_role_id:
             embed.add_field(name="🏅 ระดับปัจจุบัน", value=f"<@&{current_role_id}>", inline=True)
         
@@ -457,21 +461,14 @@ class LevelCheckView(View):
                     name = f"ผู้ใช้ #{user_id_str}"
                 
                 sp = data["sp"]
-                current_level, current_level_name, _, _, _ = get_level_info(sp)
                 
-                # Get role mention
-                current_role_id = None
-                for threshold, role_id in LEVEL_ROLES.items():
-                    if sp >= threshold:
-                        current_role_id = role_id
-                        break
+                # Get the correct role based on SP
+                role_id = get_role_for_sp(sp)
+                role_mention = f"<@&{role_id}>"
                 
                 medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else "📊"
                 rank_text += f"{medal} **#{i}** {name}\n"
-                if current_role_id:
-                    rank_text += f"   ✨ **{format_number(sp)}** SP | <@&{current_role_id}>\n\n"
-                else:
-                    rank_text += f"   ✨ **{format_number(sp)}** SP | {current_level_name}\n\n"
+                rank_text += f"   ✨ **{format_number(sp)}** SP | {role_mention}\n\n"
             
             embed.description = rank_text
         
