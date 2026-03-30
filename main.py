@@ -72,13 +72,13 @@ LEVEL_ROLES = {
 }
 # Add level names dictionary
 LEVEL_NAMES = {
-    0: "🐟 Sushi Gourmet",           # Level 1 name
-    5000: "🐠 Sushi Silver",        # Level 2 name
-    10000: "🐡 Sushi Gold",        # Level 3 name
-    25000: "🦈 Sushi Platinum",      # Level 4 name
-    50000: "🐙 Sushi Diamond",        # Level 5 name
-    100000: "🐋 Supreme",  # Level 6 name
-    777777: "👑 Superior"   # Level 7 name
+    0: "🍣 | Sushi Lover",           # Level 1 name
+    5000: "🐠 | Sushi Pass",        # Level 2 name
+    10000: "🐡 | Sushi Silver",        # Level 3 name
+    25000: "🦈 | Sushi Platinum",      # Level 4 name
+    50000: "🐙 | Sushi Emerald",        # Level 5 name
+    100000: "🐋 | Sushi Supreme",  # Level 6 name
+    777777: "👑 | Superior"   # Level 7 name
 }
 
 GAMEPASS_CATEGORY_NAME = "sushi gamepass"
