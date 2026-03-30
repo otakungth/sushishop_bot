@@ -3,12 +3,14 @@ import random
 import math
 import signal
 import sys
+import shutil
 from discord.ext import commands, tasks
 from discord.ui import View, Button, Modal, TextInput, Select
 from discord import app_commands
 from flask import Flask, jsonify
 from threading import Thread
 from typing import Dict, List, Optional, Tuple
+from datetime import datetime
 
 app = Flask(__name__)
 start_time = time.time()
@@ -121,6 +123,62 @@ credit_channel_update_task_running = False
 credit_channel_last_update = 0
 credit_channel_update_lock = asyncio.Lock()
 
+def backup_user_levels():
+    """Create backup of user_levels.json"""
+    if os.path.exists(user_levels_file):
+        backup_file = f"user_levels_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        try:
+            shutil.copy2(user_levels_file, backup_file)
+            print(f"✅ Backup created: {backup_file}")
+            
+            # Delete backups older than 7 days
+            for file in os.listdir('.'):
+                if file.startswith('user_levels_backup_') and file.endswith('.json'):
+                    file_path = os.path.join('.', file)
+                    if os.path.getmtime(file_path) < time.time() - 7 * 86400:
+                        os.remove(file_path)
+                        print(f"🗑️ Removed old backup: {file}")
+        except Exception as e:
+            print(f"❌ Error creating backup: {e}")
+
+def load_user_levels():
+    """Load user levels with validation"""
+    try:
+        if os.path.exists(user_levels_file):
+            with open(user_levels_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                # Validate data structure
+                if isinstance(data, dict):
+                    for user_id, user_data in data.items():
+                        if not isinstance(user_data, dict):
+                            data[user_id] = {"sp": 0, "total_robux": 0}
+                        elif "sp" not in user_data:
+                            user_data["sp"] = 0
+                        elif "total_robux" not in user_data:
+                            user_data["total_robux"] = user_data.get("sp", 0)
+                    return data
+                else:
+                    print(f"⚠️ Invalid data format in {user_levels_file}, creating new")
+                    return {}
+        else:
+            print(f"⚠️ {user_levels_file} not found, creating new")
+            return {}
+    except Exception as e:
+        print(f"❌ Error loading {user_levels_file}: {e}")
+        # Try to load from backup
+        backups = [f for f in os.listdir('.') if f.startswith('user_levels_backup_') and f.endswith('.json')]
+        if backups:
+            latest_backup = max(backups, key=lambda x: os.path.getmtime(x))
+            print(f"⚠️ Attempting to load from backup: {latest_backup}")
+            try:
+                with open(latest_backup, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    print(f"✅ Successfully loaded from backup: {latest_backup}")
+                    return data
+            except Exception as backup_error:
+                print(f"❌ Failed to load from backup: {backup_error}")
+        return {}
+
 def load_json(file, default): 
     try:
         if os.path.exists(file):
@@ -203,7 +261,9 @@ async def add_sp(user_id, amount):
     user_levels[user_id_str]["total_robux"] += amount
     current_sp = user_levels[user_id_str]["sp"]
     
+    # Save immediately on every change
     save_json(user_levels_file, user_levels)
+    print(f"✅ Saved SP immediately: {user_id} +{amount} SP = {current_sp} SP")
     
     # Get guild to update roles
     guild = None
@@ -235,7 +295,9 @@ async def remove_sp(user_id, amount):
     user_levels[user_id_str]["total_robux"] -= amount
     new_sp = user_levels[user_id_str]["sp"]
     
+    # Save immediately on every change
     save_json(user_levels_file, user_levels)
+    print(f"✅ Saved SP immediately: {user_id} -{amount} SP = {new_sp} SP")
     
     # Get guild to update roles
     guild = None
@@ -360,7 +422,7 @@ class LevelCheckView(View):
             embed.add_field(name="🏅 ระดับปัจจุบัน", value=f"<@&{current_role_id}>", inline=True)
         
         if sp_needed > 0:
-            progress = (sp - current_level) / (next_level - current_level)
+            progress = (sp - current_level) / (next_level - current_level) if next_level > current_level else 0
             progress_bar = "█" * int(progress * 10) + "░" * (10 - int(progress * 10))
             embed.add_field(
                 name="📈 ความคืบหน้า", 
@@ -682,8 +744,12 @@ class MyBot(commands.Bot):
         self.stock_message = None
         self.main_channel_message = None
         self._shutdown_flag = False
+        self._shutdown_event = asyncio.Event()
         
         self.load_all_data()
+        
+        # Create backup on startup
+        backup_user_levels()
     
     def load_all_data(self):
         global user_data, ticket_transcripts, ticket_robux_data, ticket_customer_data, ticket_buyer_data, user_levels
@@ -693,7 +759,7 @@ class MyBot(commands.Bot):
         ticket_robux_data = load_json(ticket_robux_data_file, {})
         ticket_customer_data = load_json(ticket_customer_data_file, {})
         ticket_buyer_data = load_json(ticket_buyer_data_file, {})
-        user_levels = load_json(user_levels_file, {})
+        user_levels = load_user_levels()
         
         load_stock_values()
         
@@ -701,7 +767,7 @@ class MyBot(commands.Bot):
         print(f"   - {len(user_data)} users")
         print(f"   - {len(ticket_transcripts)} tickets")
         print(f"   - {len(ticket_buyer_data)} buyer records")
-        print(f"   - {len(user_levels)} users with levels")
+        print(f"   - {len(user_levels)} users with SP")
         print(f"   - Stock: GP={gamepass_stock}, Group={group_stock}, Premium={premium_stock}")
         print(f"   - Rates: GP={gamepass_rate}, Group={group_rate_low}-{group_rate_high}")
     
@@ -713,7 +779,14 @@ class MyBot(commands.Bot):
         print("\n⚠️ กำลังปิดระบบอย่างปลอดภัย...")
         print("💾 กำลังบันทึกข้อมูลทั้งหมด...")
         
+        # Save multiple times to ensure data is written
         save_all_data_sync()
+        await asyncio.sleep(1)
+        save_all_data_sync()
+        await asyncio.sleep(1)
+        
+        # Create final backup
+        backup_user_levels()
         
         print("✅ บันทึกข้อมูลเรียบร้อย!")
         print("👋 ลาก่อน!")
@@ -3140,6 +3213,35 @@ async def del_sp_cmd(ctx, user: discord.Member, amount: int):
     else:
         await ctx.send(f"❌ เกิดข้อผิดพลาดในการลบ SP", delete_after=5)
 
+@bot.command(name="checkdata")
+@admin_only()
+async def check_data_cmd(ctx):
+    """Check SP data status"""
+    total_users = len(user_levels)
+    total_sp = sum(data["sp"] for data in user_levels.values())
+    
+    embed = discord.Embed(
+        title="📊 สถานะข้อมูล SP",
+        color=0x00FF99
+    )
+    embed.add_field(name="👥 จำนวนผู้ใช้", value=f"{total_users}", inline=True)
+    embed.add_field(name="✨ SP รวมทั้งหมด", value=f"{format_number(total_sp)}", inline=True)
+    embed.add_field(name="💾 ไฟล์ข้อมูล", value=user_levels_file, inline=True)
+    
+    if os.path.exists(user_levels_file):
+        file_size = os.path.getsize(user_levels_file)
+        embed.add_field(name="📁 ขนาดไฟล์", value=f"{file_size} bytes", inline=True)
+        embed.add_field(name="🕐 แก้ไขล่าสุด", value=datetime.fromtimestamp(os.path.getmtime(user_levels_file)).strftime('%Y-%m-%d %H:%M:%S'), inline=True)
+    
+    await ctx.send(embed=embed)
+
+@bot.command(name="backupdata")
+@admin_only()
+async def backup_data_cmd(ctx):
+    """Create backup of SP data"""
+    backup_user_levels()
+    await ctx.send("✅ สร้าง backup ข้อมูล SP เรียบร้อยแล้ว")
+
 @tasks.loop(minutes=1)
 async def update_presence():
     await bot.change_presence(
@@ -3150,9 +3252,28 @@ async def update_presence():
 async def save_data():
     await save_all_data()
 
+@tasks.loop(seconds=30)
+async def save_data_frequent():
+    """Save data every 30 seconds"""
+    await save_all_data()
+    print(f"✅ Auto-save at {get_thailand_time().strftime('%H:%M:%S')}")
+
 @tasks.loop(minutes=10)
 async def update_credit_channel_task():
     await check_credit_channel_changes()
+
+# Signal handler for graceful shutdown
+def signal_handler(signum, frame):
+    """Handle shutdown signals"""
+    print(f"\n⚠️ Received signal {signum}, saving data...")
+    save_all_data_sync()
+    backup_user_levels()
+    print("✅ Data saved! Exiting...")
+    sys.exit(0)
+
+# Register signal handlers
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
 
 @bot.event
 async def on_ready():
@@ -3177,6 +3298,7 @@ async def on_ready():
     
     update_presence.start()
     save_data.start()
+    save_data_frequent.start()
     update_credit_channel_task.start()
     
     if not credit_channel_update_task_running:
@@ -3186,6 +3308,10 @@ async def on_ready():
     await update_channel_name()
     await update_main_channel()
     await update_credit_channel_name()
+    
+    # Display loaded SP data info
+    total_sp = sum(data["sp"] for data in user_levels.values())
+    print(f"📊 Loaded SP data: {len(user_levels)} users, total {format_number(total_sp)} SP")
     
     print("🎯 บอทพร้อมใช้งาน!")
 
