@@ -14,7 +14,6 @@ from datetime import datetime as dt
 
 # MongoDB imports
 import motor.motor_asyncio
-from pymongo import MongoClient
 from pymongo.errors import DuplicateKeyError, ConnectionFailure
 import certifi
 
@@ -38,9 +37,8 @@ def keep_alive():
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
 # MongoDB Configuration
-# IMPORTANT: Replace <password> with your actual password or set MONGODB_URI environment variable
-MONGODB_URI = os.getenv("mongodb+srv://renipew_db_user:dUlJdI1wAVcG3snk@eatsushi.iipqsth.mongodb.net/")
-MONGODB_DB_NAME = os.getenv("MONGODB_DB_NAME", "sushi_shop_bot")
+MONGODB_URI = os.getenv("MONGODB_URI", "mongodb+srv://renipew_db_user:dUlJdI1wAVcG3snk@eatsushi.iipqsth.mongodb.net/?appName=eatsushi")
+MONGODB_DB_NAME = os.getenv("MONGODB_DB_NAME", "eatsushi")
 
 # Use persistent data directory for JSON fallback
 DATA_DIR = os.getenv("DATA_DIR", ".")
@@ -79,17 +77,18 @@ PREMIUM_CATEGORY_ID = 1486401158900613264
 SUSHI_GAMEPASS_CATEGORY_ID = 1475342278976606228
 ANONYMOUS_USER_ROLE_ID = 1486352633290821673
 
-# Level roles
+# Level roles - IMPORTANT: Thresholds in ascending order
 LEVEL_ROLES = {
-    0: 1475346221605588992,
-    5000: 1488073523946717356,
-    10000: 1488073560030445569,
-    25000: 1488073771662315614,
-    50000: 1488073590162329640,
-    100000: 1488073619543294153,
-    777777: 1488075865337106563
+    0: 1475346221605588992,      # 0-4999 SP - 🍣 | Sushi Lover
+    5000: 1488073523946717356,   # 5,000-9,999 SP - 🐠 | Sushi Pass
+    10000: 1488073560030445569,  # 10,000-24,999 SP - 🐡 | Sushi Silver
+    25000: 1488073771662315614,  # 25,000-49,999 SP - 🦈 | Sushi Platinum
+    50000: 1488073590162329640,  # 50,000-99,999 SP - 🐙 | Sushi Emerald
+    100000: 1488073619543294153, # 100,000-777,776 SP - 🐋 | Sushi Supreme
+    777777: 1488075865337106563  # 777,777+ SP - 👑 | Superior
 }
 
+# Level names for display
 LEVEL_NAMES = {
     0: "🍣 | Sushi Lover",
     5000: "🐠 | Sushi Pass",
@@ -147,13 +146,10 @@ class MongoDBManager:
     async def connect(self):
         """Connect to MongoDB"""
         try:
-            # Your correct connection string
-            mongodb_uri = os.getenv("MONGODB_URI", "mongodb+srv://renipew_db_user:dUlJdI1wAVcG3snk@eatsushi.iipqsth.mongodb.net/?appName=eatsushi")
+            mongodb_uri = os.getenv("MONGODB_URI", MONGODB_URI)
             
             print("🔍 Attempting to connect to MongoDB...")
-            print(f"📝 Using database: eatsushi")
             
-            # Create client with proper settings
             self.client = motor.motor_asyncio.AsyncIOMotorClient(
                 mongodb_uri,
                 tls=True,
@@ -161,63 +157,30 @@ class MongoDBManager:
                 serverSelectionTimeoutMS=10000
             )
             
-            # Test connection
-            print("🔄 Testing connection...")
             await self.client.admin.command('ping')
             print("✅ Ping successful!")
             
-            # Use eatsushi database
-            self.db = self.client["eatsushi"]
+            self.db = self.client[MONGODB_DB_NAME]
             self.connected = True
             print(f"✅ Connected to MongoDB Atlas!")
-            print(f"   Database: eatsushi")
+            print(f"   Database: {MONGODB_DB_NAME}")
             
-            # Create indexes
             await self.create_indexes()
-            
             return True
         except Exception as e:
             print(f"❌ Failed to connect to MongoDB: {e}")
-            traceback.print_exc()
             self.connected = False
             return False
     
     async def create_indexes(self):
         """Create necessary indexes for better performance"""
         try:
-            # Check if collection exists and create indexes
-            collections = await self.db.list_collection_names()
-            
-            # User levels collection
-            if "user_levels" not in collections:
-                await self.db.create_collection("user_levels")
             await self.db.user_levels.create_index("user_id", unique=True)
-            
-            # User data collection
-            if "user_data" not in collections:
-                await self.db.create_collection("user_data")
             await self.db.user_data.create_index("user_id", unique=True)
-            
-            # Ticket transcripts collection
-            if "ticket_transcripts" not in collections:
-                await self.db.create_collection("ticket_transcripts")
             await self.db.ticket_transcripts.create_index("channel_id")
             await self.db.ticket_transcripts.create_index("created_at")
-            
-            # Ticket buyer data
-            if "ticket_buyer_data" not in collections:
-                await self.db.create_collection("ticket_buyer_data")
             await self.db.ticket_buyer_data.create_index("channel_id", unique=True)
-            
-            # Stock data collection
-            if "stock_data" not in collections:
-                await self.db.create_collection("stock_data")
-            
-            # Ticket counter collection
-            if "ticket_counter" not in collections:
-                await self.db.create_collection("ticket_counter")
-            
-            print("✅ MongoDB indexes created/verified")
+            print("✅ MongoDB indexes created")
         except Exception as e:
             print(f"⚠️ Error creating indexes: {e}")
     
@@ -228,7 +191,6 @@ class MongoDBManager:
             self.connected = False
             print("✅ Disconnected from MongoDB")
     
-    # User Levels Collection
     async def get_user_level(self, user_id: int):
         """Get user level data"""
         try:
@@ -240,56 +202,22 @@ class MongoDBManager:
             print(f"Error getting user level: {e}")
             return {"sp": 0, "total_robux": 0}
     
-    async def update_user_level(self, user_id: int, data: dict):
-        """Update user level data"""
-        try:
-            result = await self.db.user_levels.update_one(
-                {"user_id": str(user_id)},
-                {"$set": data},
-                upsert=True
-            )
-            return result.modified_count > 0
-        except Exception as e:
-            print(f"Error updating user level: {e}")
-            return False
-    
     async def add_sp(self, user_id: int, amount: int):
-        """Add SP to user"""
+        """Add SP to user and return new SP amount"""
         try:
-            result = await self.db.user_levels.update_one(
+            result = await self.db.user_levels.find_one_and_update(
                 {"user_id": str(user_id)},
                 {
                     "$inc": {"sp": amount, "total_robux": amount},
                     "$setOnInsert": {"user_id": str(user_id)}
                 },
-                upsert=True
+                upsert=True,
+                return_document=True
             )
-            
-            # Get updated data
-            updated = await self.get_user_level(user_id)
-            return updated.get("sp", 0)
+            return result.get("sp", 0) if result else amount
         except Exception as e:
             print(f"Error adding SP: {e}")
             return 0
-    
-    async def remove_sp(self, user_id: int, amount: int):
-        """Remove SP from user"""
-        try:
-            # Check if user has enough SP
-            user = await self.get_user_level(user_id)
-            if user.get("sp", 0) < amount:
-                return False
-            
-            result = await self.db.user_levels.update_one(
-                {"user_id": str(user_id), "sp": {"$gte": amount}},
-                {
-                    "$inc": {"sp": -amount, "total_robux": -amount}
-                }
-            )
-            return result.modified_count > 0
-        except Exception as e:
-            print(f"Error removing SP: {e}")
-            return False
     
     async def get_top_users(self, limit=10):
         """Get top users by SP"""
@@ -304,7 +232,7 @@ class MongoDBManager:
             return []
     
     async def get_all_user_levels(self):
-        """Get all user levels (for migration)"""
+        """Get all user levels"""
         try:
             cursor = self.db.user_levels.find()
             results = {}
@@ -313,28 +241,6 @@ class MongoDBManager:
             return results
         except Exception as e:
             print(f"Error getting all user levels: {e}")
-            return {}
-    
-    # Stock Data
-    async def get_stock_data(self):
-        """Get stock data"""
-        try:
-            result = await self.db.stock_data.find_one({"_id": "stock_values"})
-            if result:
-                return result
-            return {
-                "gamepass_stock": 20000,
-                "group_stock": 25000,
-                "premium_stock": 9999,
-                "gamepass_rate": 6.5,
-                "group_rate_low": 4,
-                "group_rate_high": 4.5,
-                "shop_open": True,
-                "group_ticket_enabled": True,
-                "premium_ticket_enabled": True
-            }
-        except Exception as e:
-            print(f"Error getting stock data: {e}")
             return {}
     
     async def update_stock_data(self, data: dict):
@@ -350,84 +256,16 @@ class MongoDBManager:
             print(f"Error updating stock data: {e}")
             return False
     
-    # Ticket Counter
-    async def get_ticket_counter(self, date: str):
-        """Get ticket counter for date"""
+    async def get_stock_data(self):
+        """Get stock data"""
         try:
-            result = await self.db.ticket_counter.find_one({"_id": f"counter_{date}"})
+            result = await self.db.stock_data.find_one({"_id": "stock_values"})
             if result:
-                return result.get("counter", 1)
-            return 1
+                return result
+            return {}
         except Exception as e:
-            print(f"Error getting ticket counter: {e}")
-            return 1
-    
-    async def increment_ticket_counter(self, date: str):
-        """Increment ticket counter for date"""
-        try:
-            result = await self.db.ticket_counter.find_one_and_update(
-                {"_id": f"counter_{date}"},
-                {"$inc": {"counter": 1}},
-                upsert=True,
-                return_document=True
-            )
-            return result.get("counter", 1)
-        except Exception as e:
-            print(f"Error incrementing ticket counter: {e}")
-            return 1
-    
-    # Ticket Data
-    async def save_ticket_data(self, channel_id: str, data: dict):
-        """Save ticket data"""
-        try:
-            await self.db.ticket_data.update_one(
-                {"channel_id": channel_id},
-                {"$set": data},
-                upsert=True
-            )
-            return True
-        except Exception as e:
-            print(f"Error saving ticket data: {e}")
-            return False
-    
-    async def get_ticket_data(self, channel_id: str):
-        """Get ticket data"""
-        try:
-            return await self.db.ticket_data.find_one({"channel_id": channel_id})
-        except Exception as e:
-            print(f"Error getting ticket data: {e}")
-            return None
-    
-    async def delete_ticket_data(self, channel_id: str):
-        """Delete ticket data"""
-        try:
-            await self.db.ticket_data.delete_one({"channel_id": channel_id})
-            return True
-        except Exception as e:
-            print(f"Error deleting ticket data: {e}")
-            return False
-    
-    # Transcripts
-    async def save_transcript(self, channel_id: str, data: dict):
-        """Save ticket transcript"""
-        try:
-            await self.db.ticket_transcripts.update_one(
-                {"channel_id": channel_id},
-                {"$set": data},
-                upsert=True
-            )
-            return True
-        except Exception as e:
-            print(f"Error saving transcript: {e}")
-            return False
-    
-    async def get_transcript(self, channel_id: str):
-        """Get ticket transcript"""
-        try:
-            return await self.db.ticket_transcripts.find_one({"channel_id": channel_id})
-        except Exception as e:
-            print(f"Error getting transcript: {e}")
-            return None
+            print(f"Error getting stock data: {e}")
+            return {}
 
 # Initialize MongoDB manager
 mongodb = MongoDBManager()
@@ -467,13 +305,11 @@ def backup_user_levels():
             shutil.copy2(user_levels_file, backup_file)
             print(f"✅ Backup created: {backup_file}")
             
-            # Delete backups older than 7 days
             for file in os.listdir(DATA_DIR):
                 if file.startswith('user_levels_backup_') and file.endswith('.json'):
                     file_path = os.path.join(DATA_DIR, file)
                     if os.path.getmtime(file_path) < time.time() - 7 * 86400:
                         os.remove(file_path)
-                        print(f"🗑️ Removed old backup: {file}")
         except Exception as e:
             print(f"❌ Error creating backup: {e}")
 
@@ -484,21 +320,13 @@ def load_user_levels():
             with open(user_levels_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 if isinstance(data, dict):
-                    repaired = False
                     for user_id, user_data in data.items():
                         if not isinstance(user_data, dict):
                             data[user_id] = {"sp": 0, "total_robux": 0}
-                            repaired = True
                         elif "sp" not in user_data:
                             user_data["sp"] = 0
-                            repaired = True
                         elif "total_robux" not in user_data:
                             user_data["total_robux"] = user_data.get("sp", 0)
-                            repaired = True
-                    
-                    if repaired:
-                        save_json(user_levels_file, data)
-                    
                     return data
         return {}
     except Exception as e:
@@ -506,7 +334,6 @@ def load_user_levels():
         return {}
 
 def load_stock_values():
-    """Load stock values from JSON (fallback)"""
     global gamepass_stock, group_stock, premium_stock, gamepass_rate, group_rate_low, group_rate_high, shop_open, group_ticket_enabled, premium_ticket_enabled
     stock_data = load_json(stock_file, {})
     if stock_data:
@@ -521,7 +348,6 @@ def load_stock_values():
         premium_ticket_enabled = stock_data.get("premium_ticket_enabled", True)
 
 def save_stock_values():
-    """Save stock values to JSON and MongoDB"""
     stock_data = {
         "gamepass_stock": gamepass_stock,
         "group_stock": group_stock,
@@ -533,18 +359,12 @@ def save_stock_values():
         "group_ticket_enabled": group_ticket_enabled,
         "premium_ticket_enabled": premium_ticket_enabled
     }
-    
-    # Save to JSON
     save_json(stock_file, stock_data)
-    
-    # Save to MongoDB if connected
     if mongodb.connected:
         asyncio.create_task(mongodb.update_stock_data(stock_data))
-    
     print(f"✅ Stock values saved")
 
 def save_all_data_sync():
-    """Synchronous save of all data to JSON"""
     save_json(user_data_file, user_data)
     save_json(ticket_transcripts_file, ticket_transcripts)
     save_json(ticket_robux_data_file, ticket_robux_data)
@@ -555,7 +375,6 @@ def save_all_data_sync():
     print("✅ All data saved (sync)")
 
 async def save_all_data():
-    """Save all data to JSON"""
     save_json(user_data_file, user_data)
     save_json(ticket_transcripts_file, ticket_transcripts)
     save_json(ticket_robux_data_file, ticket_robux_data)
@@ -566,124 +385,7 @@ async def save_all_data():
     print(f"✅ All data saved at {get_thailand_time().strftime('%H:%M:%S')}")
     return True
 
-# Modified SP functions that use MongoDB
-async def add_sp(user_id, amount):
-    """Add skill points to a user and update roles"""
-    if not user_id:
-        return
-    
-    if mongodb.connected:
-        # Use MongoDB
-        current_sp = await mongodb.add_sp(user_id, amount)
-    else:
-        # Fallback to JSON
-        user_id_str = str(user_id)
-        if user_id_str not in user_levels:
-            user_levels[user_id_str] = {"sp": 0, "total_robux": 0}
-        
-        user_levels[user_id_str]["sp"] += amount
-        user_levels[user_id_str]["total_robux"] += amount
-        current_sp = user_levels[user_id_str]["sp"]
-        
-        # Save immediately
-        save_json(user_levels_file, user_levels)
-    
-    print(f"✅ Added {amount} SP to {user_id}, now {current_sp} SP")
-    
-    # Get guild to update roles
-    guild = None
-    for g in bot.guilds:
-        guild = g
-        break
-    
-    if guild:
-        member = guild.get_member(user_id)
-        if member:
-            await update_member_roles(member, current_sp)
-    
-    return current_sp
-
-async def remove_sp(user_id, amount):
-    """Remove skill points from a user and update roles"""
-    if not user_id:
-        return False
-    
-    if mongodb.connected:
-        # Use MongoDB
-        success = await mongodb.remove_sp(user_id, amount)
-        if success:
-            user_data = await mongodb.get_user_level(user_id)
-            new_sp = user_data.get("sp", 0)
-        else:
-            return False
-    else:
-        # Fallback to JSON
-        user_id_str = str(user_id)
-        if user_id_str not in user_levels:
-            return False
-        
-        current_sp = user_levels[user_id_str]["sp"]
-        if current_sp < amount:
-            return False
-        
-        user_levels[user_id_str]["sp"] -= amount
-        user_levels[user_id_str]["total_robux"] -= amount
-        new_sp = user_levels[user_id_str]["sp"]
-        
-        # Save immediately
-        save_json(user_levels_file, user_levels)
-    
-    print(f"✅ Removed {amount} SP from {user_id}, now {new_sp} SP")
-    
-    # Get guild to update roles
-    guild = None
-    for g in bot.guilds:
-        guild = g
-        break
-    
-    if guild:
-        member = guild.get_member(user_id)
-        if member:
-            await update_member_roles(member, new_sp)
-    
-    return True
-
-async def update_member_roles(member, sp):
-    """Update member roles based on their skill points"""
-    if not member:
-        return
-    
-    sorted_levels = sorted(LEVEL_ROLES.keys(), reverse=True)
-    
-    target_role_id = None
-    for threshold in sorted_levels:
-        if sp >= threshold:
-            target_role_id = LEVEL_ROLES[threshold]
-            break
-    
-    if not target_role_id:
-        target_role_id = LEVEL_ROLES[0]
-    
-    target_role = member.guild.get_role(target_role_id)
-    
-    # Remove all level roles and add the appropriate one
-    for role_id in LEVEL_ROLES.values():
-        role = member.guild.get_role(role_id)
-        if role and role in member.roles:
-            await member.remove_roles(role)
-    
-    if target_role:
-        await member.add_roles(target_role)
-        print(f"✅ Updated roles for {member.name} (SP: {sp}) to role {target_role.name}")
-
-def get_next_level_sp(sp):
-    """Get SP needed for next level"""
-    sorted_levels = sorted(LEVEL_ROLES.keys())
-    for threshold in sorted_levels:
-        if sp < threshold:
-            return threshold - sp
-    return 0
-
+# Helper functions for level system
 def get_role_for_sp(sp):
     """Get the role ID for a given SP amount"""
     sorted_thresholds = sorted(LEVEL_ROLES.keys(), reverse=True)
@@ -727,18 +429,180 @@ def get_level_info(sp):
     
     return current_level, current_level_name, next_level, next_level_name, sp_needed
 
-def format_number(num: int) -> str:
-    return f"{num:,}"
+def get_next_level_sp(sp):
+    """Get SP needed for next level"""
+    sorted_levels = sorted(LEVEL_ROLES.keys())
+    for threshold in sorted_levels:
+        if sp < threshold:
+            return threshold - sp
+    return 0
 
-def round_price(value):
-    return int(value + 0.5001)
+async def send_level_up_dm(member, new_sp, old_level_id, new_level_id):
+    """Send level up DM to user"""
+    try:
+        new_level_name = LEVEL_NAMES.get(new_level_id, "Unknown Level")
+        old_level_name = LEVEL_NAMES.get(old_level_id, "Unknown Level")
+        
+        # Get next level info
+        next_sp_needed = get_next_level_sp(new_sp)
+        next_level_id = None
+        next_level_name = None
+        
+        sorted_levels = sorted(LEVEL_ROLES.keys())
+        for threshold in sorted_levels:
+            if new_sp < threshold:
+                next_level_id = threshold
+                next_level_name = LEVEL_NAMES.get(next_level_id, "Unknown Level")
+                break
+        
+        embed = discord.Embed(
+            title="🎉 LEVEL UP! 🎉",
+            description=f"**ยินดีด้วย {member.display_name}!**\nคุณได้เลื่อนระดับแล้ว!",
+            color=0xFFD700
+        )
+        
+        embed.add_field(
+            name="📈 ระดับเดิม",
+            value=f"{old_level_name}",
+            inline=True
+        )
+        
+        embed.add_field(
+            name="➡️ ระดับใหม่",
+            value=f"**{new_level_name}**",
+            inline=True
+        )
+        
+        embed.add_field(
+            name="✨ SP ทั้งหมด",
+            value=f"**{format_number(new_sp)}** SP",
+            inline=False
+        )
+        
+        if next_sp_needed > 0 and next_level_name:
+            embed.add_field(
+                name="🎯 ระดับถัดไป",
+                value=f"{next_level_name}\nต้องการอีก **{format_number(next_sp_needed)}** SP",
+                inline=False
+            )
+        else:
+            embed.add_field(
+                name="🏆 สถานะ",
+                value="คุณถึงระดับสูงสุดแล้ว! 🎉",
+                inline=False
+            )
+        
+        embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
+        embed.set_footer(text="Sushi Shop • ขอบคุณที่ใช้บริการ 💖")
+        
+        await member.send(embed=embed)
+        print(f"✅ Sent level up DM to {member.name} - {old_level_name} → {new_level_name}")
+        
+    except Exception as e:
+        print(f"⚠️ Could not send DM to {member.name}: {e}")
 
-def is_user_always_anonymous(user):
-    if not user or not user.guild:
+async def update_member_roles(member, new_sp, old_sp=None):
+    """Update member roles based on their skill points"""
+    if not member:
         return False
-    anonymous_role = user.guild.get_role(ANONYMOUS_USER_ROLE_ID)
-    return anonymous_role and anonymous_role in user.roles
+    
+    guild = member.guild
+    bot_member = guild.me
+    
+    # Check bot permissions
+    if not bot_member.guild_permissions.manage_roles:
+        print(f"❌ Bot doesn't have Manage Roles permission in {guild.name}")
+        return False
+    
+    # Get old role ID if not provided
+    if old_sp is None:
+        old_sp = new_sp
+    
+    old_role_id = get_role_for_sp(old_sp)
+    new_role_id = get_role_for_sp(new_sp)
+    
+    # If role hasn't changed, no need to update
+    if old_role_id == new_role_id:
+        print(f"ℹ️ Role unchanged for {member.name} (SP: {new_sp})")
+        return True
+    
+    old_role = guild.get_role(old_role_id) if old_role_id else None
+    new_role = guild.get_role(new_role_id) if new_role_id else None
+    
+    if not new_role:
+        print(f"❌ Cannot find new role with ID {new_role_id}")
+        return False
+    
+    # Check if bot can manage the new role
+    if new_role.position >= bot_member.top_role.position:
+        print(f"⚠️ Bot cannot manage role {new_role.name} - role is higher than bot's highest role")
+        return False
+    
+    try:
+        # Remove old role if user has it
+        if old_role and old_role in member.roles:
+            await member.remove_roles(old_role, reason=f"Level up from {old_sp} to {new_sp} SP")
+            print(f"✅ Removed role {old_role.name} from {member.name}")
+        
+        # Add new role
+        if new_role not in member.roles:
+            await member.add_roles(new_role, reason=f"Reached {new_sp} SP")
+            print(f"✅ Added role {new_role.name} to {member.name} (SP: {new_sp})")
+            
+            # Send level up DM
+            await send_level_up_dm(member, new_sp, old_role_id, new_role_id)
+            
+            return True
+        else:
+            print(f"ℹ️ {member.name} already has role {new_role.name}")
+            return True
+            
+    except Exception as e:
+        print(f"❌ Failed to update roles for {member.name}: {e}")
+        return False
 
+async def add_sp(user_id, amount):
+    """Add skill points to a user and update roles"""
+    if not user_id:
+        return 0
+    
+    try:
+        # Get current SP before adding
+        if mongodb.connected:
+            user_data = await mongodb.get_user_level(user_id)
+            old_sp = user_data.get("sp", 0)
+            new_sp = await mongodb.add_sp(user_id, amount)
+        else:
+            user_id_str = str(user_id)
+            if user_id_str not in user_levels:
+                user_levels[user_id_str] = {"sp": 0, "total_robux": 0}
+            old_sp = user_levels[user_id_str]["sp"]
+            user_levels[user_id_str]["sp"] += amount
+            user_levels[user_id_str]["total_robux"] += amount
+            new_sp = user_levels[user_id_str]["sp"]
+            save_json(user_levels_file, user_levels)
+        
+        print(f"✅ Added {amount} SP to {user_id}: {old_sp} → {new_sp} SP")
+        
+        # Get guild and member
+        guild = None
+        for g in bot.guilds:
+            guild = g
+            break
+        
+        if guild:
+            member = guild.get_member(user_id)
+            if member:
+                # Update roles (will send DM if level up)
+                await update_member_roles(member, new_sp, old_sp)
+        
+        return new_sp
+        
+    except Exception as e:
+        print(f"❌ Error adding SP: {e}")
+        return 0
+
+# Rate Limiter class
 class RateLimiter:
     def __init__(self, max_calls=1, period=1.0):
         self.max_calls = max_calls
@@ -756,6 +620,18 @@ class RateLimiter:
             self.calls.append(now)
             return True
 
+def format_number(num: int) -> str:
+    return f"{num:,}"
+
+def round_price(value):
+    return int(value + 0.5001)
+
+def is_user_always_anonymous(user):
+    if not user or not user.guild:
+        return False
+    anonymous_role = user.guild.get_role(ANONYMOUS_USER_ROLE_ID)
+    return anonymous_role and anonymous_role in user.roles
+
 class LevelCheckView(View):
     def __init__(self, user_id):
         super().__init__(timeout=None)
@@ -772,15 +648,13 @@ class LevelCheckView(View):
     
     async def check_callback(self, interaction: discord.Interaction):
         user_id = interaction.user.id
-        user_id_str = str(user_id)
         
         if mongodb.connected:
-            # Get from MongoDB
             user_data = await mongodb.get_user_level(user_id)
             sp = user_data.get("sp", 0)
             total_robux = user_data.get("total_robux", 0)
         else:
-            # Fallback to JSON
+            user_id_str = str(user_id)
             if user_id_str not in user_levels:
                 sp = 0
                 total_robux = 0
@@ -789,6 +663,7 @@ class LevelCheckView(View):
                 total_robux = user_levels[user_id_str]["total_robux"]
         
         current_level, current_level_name, next_level, next_level_name, sp_needed = get_level_info(sp)
+        current_role_id = get_role_for_sp(sp)
         
         embed = discord.Embed(
             title="🍣 ระดับของคุณ",
@@ -797,9 +672,8 @@ class LevelCheckView(View):
         )
         embed.add_field(name="💰 โรบัคที่ซื้อทั้งหมด", value=f"**{format_number(total_robux)}** {ROBUX_EMOJI}", inline=True)
         
-        current_role_id = get_role_for_sp(sp)
         if current_role_id:
-            embed.add_field(name="🏅 ระดับปัจจุบัน", value=f"<@&{current_role_id}>", inline=True)
+            embed.add_field(name="🏅 ระดับปัจจุบัน", value=f"{current_level_name}", inline=True)
         
         if sp_needed > 0:
             progress = (sp - current_level) / (next_level - current_level) if next_level > current_level else 0
@@ -818,16 +692,10 @@ class LevelCheckView(View):
     
     async def rank_callback(self, interaction: discord.Interaction):
         if mongodb.connected:
-            # Get from MongoDB
             sorted_users = await mongodb.get_top_users(10)
-            # Convert to format expected by the embed
-            formatted_users = []
-            for doc in sorted_users:
-                formatted_users.append((doc["user_id"], {"sp": doc.get("sp", 0)}))
+            formatted_users = [(doc["user_id"], {"sp": doc.get("sp", 0)}) for doc in sorted_users]
         else:
-            # Fallback to JSON
-            sorted_users = sorted(user_levels.items(), key=lambda x: x[1]["sp"], reverse=True)[:10]
-            formatted_users = sorted_users
+            formatted_users = sorted(user_levels.items(), key=lambda x: x[1]["sp"], reverse=True)[:10]
         
         embed = discord.Embed(
             title="🏆 อันดับเลเวลสูงสุด",
@@ -847,11 +715,11 @@ class LevelCheckView(View):
                 
                 sp = data["sp"]
                 role_id = get_role_for_sp(sp)
-                role_mention = f"<@&{role_id}>"
+                role_name = LEVEL_NAMES.get(role_id, "Unknown")
                 
                 medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else "📊"
                 rank_text += f"{medal} **#{i}** {name}\n"
-                rank_text += f"   ✨ **{format_number(sp)}** SP | {role_mention}\n\n"
+                rank_text += f"   ✨ **{format_number(sp)}** SP | {role_name}\n\n"
             
             embed.description = rank_text
         
@@ -1620,11 +1488,9 @@ class MyBot(commands.Bot):
         self._shutdown_event = asyncio.Event()
         self.mongodb_connected = False
         
-        # Load initial data from JSON as fallback
         self.load_json_data()
     
     def load_json_data(self):
-        """Load data from JSON files as fallback"""
         global user_data, ticket_transcripts, ticket_robux_data, ticket_customer_data, ticket_buyer_data, user_levels
         
         user_data = load_json(user_data_file, {})
@@ -1642,25 +1508,20 @@ class MyBot(commands.Bot):
         print(f"   - {len(user_levels)} users with SP")
     
     async def setup_hook(self):
-        """Setup hook for async initialization"""
-        # Connect to MongoDB
         self.mongodb_connected = await mongodb.connect()
         
         if self.mongodb_connected:
             print("✅ Using MongoDB for data storage")
-            # Load data from MongoDB
             await self.load_data_from_mongodb()
         else:
-            print("⚠️ MongoDB connection failed, using JSON files for data storage")
+            print("⚠️ MongoDB connection failed, using JSON files")
         
         print(f"✅ Setup hook completed")
     
     async def load_data_from_mongodb(self):
-        """Load all data from MongoDB"""
         global gamepass_stock, group_stock, premium_stock, gamepass_rate, group_rate_low, group_rate_high, shop_open, group_ticket_enabled, premium_ticket_enabled, user_levels
         
         try:
-            # Load stock data
             stock_data = await mongodb.get_stock_data()
             if stock_data:
                 gamepass_stock = stock_data.get("gamepass_stock", 20000)
@@ -1673,27 +1534,38 @@ class MyBot(commands.Bot):
                 group_ticket_enabled = stock_data.get("group_ticket_enabled", True)
                 premium_ticket_enabled = stock_data.get("premium_ticket_enabled", True)
             
-            # Load user levels into memory for quick access (for commands that expect global variable)
             mongo_user_levels = await mongodb.get_all_user_levels()
             if mongo_user_levels:
                 user_levels.update(mongo_user_levels)
-            
-            # Load ticket counter
-            current_date = get_thailand_time().strftime("%d%m%y")
-            counter = await mongodb.get_ticket_counter(current_date)
-            self.ticket_counter = {"counter": counter, "date": current_date}
             
             print("✅ Loaded all data from MongoDB")
             print(f"   - {len(user_levels)} users with SP loaded")
         except Exception as e:
             print(f"❌ Error loading from MongoDB: {e}")
     
+    async def close(self):
+        print("\n⚠️ กำลังปิดระบบอย่างปลอดภัย...")
+        print("💾 กำลังบันทึกข้อมูลทั้งหมด...")
+        
+        if self.mongodb_connected:
+            await self.save_all_data_to_mongodb()
+        
+        save_all_data_sync()
+        await asyncio.sleep(1)
+        save_all_data_sync()
+        
+        backup_user_levels()
+        await mongodb.disconnect()
+        
+        print("✅ บันทึกข้อมูลเรียบร้อย!")
+        print("👋 ลาก่อน!")
+        
+        await super().close()
+    
     async def save_all_data_to_mongodb(self):
-        """Save all data to MongoDB"""
         global gamepass_stock, group_stock, premium_stock, gamepass_rate, group_rate_low, group_rate_high, shop_open, group_ticket_enabled, premium_ticket_enabled, user_levels
         
         try:
-            # Save stock data
             stock_data = {
                 "gamepass_stock": gamepass_stock,
                 "group_stock": group_stock,
@@ -1707,45 +1579,12 @@ class MyBot(commands.Bot):
             }
             await mongodb.update_stock_data(stock_data)
             
-            # Save user levels
-            for user_id, data in user_levels.items():
-                await mongodb.update_user_level(int(user_id), data)
-            
-            # Save ticket counter
-            await mongodb.increment_ticket_counter(self.ticket_counter["date"])
-            
             print("✅ All data saved to MongoDB")
             return True
         except Exception as e:
             print(f"❌ Error saving to MongoDB: {e}")
             return False
-    
-    async def close(self):
-        """Graceful shutdown"""
-        print("\n⚠️ กำลังปิดระบบอย่างปลอดภัย...")
-        print("💾 กำลังบันทึกข้อมูลทั้งหมด...")
-        
-        # Save to MongoDB if connected
-        if self.mongodb_connected:
-            await self.save_all_data_to_mongodb()
-        
-        # Also save to JSON as backup
-        save_all_data_sync()
-        await asyncio.sleep(1)
-        save_all_data_sync()
-        
-        # Create backup
-        backup_user_levels()
-        
-        # Disconnect from MongoDB
-        await mongodb.disconnect()
-        
-        print("✅ บันทึกข้อมูลเรียบร้อย!")
-        print("👋 ลาก่อน!")
-        
-        await super().close()
 
-# Create bot instance
 bot = MyBot()
 
 # Helper functions for ticket management
@@ -1934,7 +1773,6 @@ async def handle_open_ticket(interaction, category_name, stock_type):
             'buyer_id': interaction.user.id
         }
         
-        # Store buyer data
         ticket_buyer_data[str(channel.id)] = {
             "user_id": interaction.user.id,
             "user_name": interaction.user.name,
@@ -2178,13 +2016,11 @@ async def move_to_original_category(channel, product_type):
 async def reset_channel_name(channel, user_id, product_type):
     try:
         user = None
-        # Try to find user by ID
         for member in channel.guild.members:
             if member.id == user_id:
                 user = member
                 break
         
-        # If not found by ID, try to find from channel name
         if not user:
             channel_name = channel.name
             if '-' in channel_name:
@@ -3528,13 +3364,12 @@ async def level_cmd(ctx):
     level_list = []
     sorted_levels = sorted(LEVEL_ROLES.keys())
     for threshold in sorted_levels:
-        role_id = LEVEL_ROLES[threshold]
-        role_mention = f"<@&{role_id}>"
+        role_name = LEVEL_NAMES.get(threshold, f"Level {threshold}")
         
         if threshold == 0:
-            level_list.append(f"1 SP - {role_mention}")
+            level_list.append(f"1 SP - {role_name}")
         else:
-            level_list.append(f"{format_number(threshold)} SP - {role_mention}")
+            level_list.append(f"{format_number(threshold)} SP - {role_name}")
     
     embed.add_field(
         name="🏆 ระดับ",
@@ -3555,14 +3390,13 @@ async def set_sp_cmd(ctx, user: discord.Member, amount: int):
         user_levels[user_id_str] = {"sp": 0, "total_robux": 0}
     
     old_sp = user_levels[user_id_str]["sp"]
-    old_role_id = get_role_for_sp(old_sp)
-    new_role_id = get_role_for_sp(amount)
     
     user_levels[user_id_str]["sp"] = amount
     user_levels[user_id_str]["total_robux"] = amount
     save_json(user_levels_file, user_levels)
     
-    await update_member_roles(user, amount)
+    # Update roles (will send DM if level changed)
+    await update_member_roles(user, amount, old_sp)
     
     embed = discord.Embed(
         title="✅ ตั้งค่า SP สำเร็จ",
@@ -3644,98 +3478,36 @@ async def save_data_cmd(ctx):
     else:
         await ctx.send("❌ เกิดข้อผิดพลาดในการบันทึกข้อมูล")
 
-@bot.command(name="testmongo")
+@bot.command(name="fixroles")
 @admin_only()
-async def test_mongo_cmd(ctx):
-    """Test MongoDB connection"""
-    if mongodb.connected:
-        embed = discord.Embed(
-            title="✅ MongoDB Connected",
-            description=f"Database: {MONGODB_DB_NAME}",
-            color=0x00FF00
-        )
+async def fix_roles_cmd(ctx, user: discord.Member = None):
+    """Fix roles for a user or all users"""
+    if user:
+        await ctx.send(f"🔄 กำลังซ่อมแซมบทบาทให้ {user.mention}...")
         
-        try:
-            await mongodb.update_stock_data({"test": "connection"})
-            embed.add_field(name="Write Test", value="✅ Successful", inline=True)
-        except Exception as e:
-            embed.add_field(name="Write Test", value=f"❌ Failed: {e}", inline=True)
-        
-        user_count = len(user_levels)
-        embed.add_field(name="Users in Memory", value=f"{user_count}", inline=True)
-        
-        await ctx.send(embed=embed)
+        user_id_str = str(user.id)
+        if user_id_str in user_levels:
+            sp = user_levels[user_id_str]["sp"]
+            await update_member_roles(user, sp)
+            await ctx.send(f"✅ ซ่อมแซมบทบาทให้ {user.mention} เรียบร้อย (SP: {sp})")
+        else:
+            await ctx.send(f"❌ ไม่พบข้อมูล SP ของ {user.mention}")
     else:
-        embed = discord.Embed(
-            title="❌ MongoDB Not Connected",
-            description="Check your connection string and credentials",
-            color=0xFF0000
-        )
-        await ctx.send(embed=embed)
-
-@bot.command(name="migratetomongo")
-@admin_only()
-async def migrate_to_mongo_cmd(ctx):
-    """Migrate data from JSON to MongoDB"""
-    await ctx.send("🔄 กำลังย้ายข้อมูลจาก JSON ไปยัง MongoDB...")
-    
-    if not mongodb.connected:
-        await ctx.send("❌ MongoDB ไม่ได้เชื่อมต่อ กรุณาตรวจสอบการเชื่อมต่อก่อน")
-        return
-    
-    try:
-        count = 0
-        for user_id, data in user_levels.items():
-            await mongodb.update_user_level(int(user_id), data)
-            count += 1
+        await ctx.send("🔄 กำลังซ่อมแซมบทบาทให้สมาชิกทั้งหมด...")
         
-        await ctx.send(f"✅ ย้ายข้อมูลสำเร็จ! ย้ายผู้ใช้ {count} คน")
-    except Exception as e:
-        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
-
-@bot.command(name="syncdb")
-@admin_only()
-async def sync_db_cmd(ctx):
-    """Sync data between MongoDB and JSON"""
-    await ctx.send("🔄 กำลังซิงค์ข้อมูล...")
-    
-    if mongodb.connected:
-        await bot.load_data_from_mongodb()
-        await ctx.send("✅ ซิงค์ข้อมูลจาก MongoDB ไปยังหน่วยความจำเรียบร้อย")
-    else:
-        await ctx.send("❌ MongoDB ไม่ได้เชื่อมต่อ")
-
-@bot.command(name="checkintegrity")
-@admin_only()
-async def check_integrity_cmd(ctx):
-    """Check data integrity"""
-    issues = []
-    
-    if os.path.exists(user_levels_file):
-        try:
-            with open(user_levels_file, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-                if not isinstance(data, dict):
-                    issues.append("user_levels.json is not a valid dictionary")
-                else:
-                    for user_id, user_data in data.items():
-                        if not isinstance(user_data, dict):
-                            issues.append(f"User {user_id} data is not a dictionary")
-                        elif "sp" not in user_data:
-                            issues.append(f"User {user_id} missing 'sp' field")
-        except Exception as e:
-            issues.append(f"Cannot read user_levels.json: {e}")
-    
-    if issues:
-        embed = discord.Embed(title="⚠️ Data Integrity Issues", color=0xFF0000)
-        embed.add_field(name="Problems Found", value="\n".join(issues[:10]), inline=False)
-        await ctx.send(embed=embed)
-    else:
-        embed = discord.Embed(title="✅ Data Integrity Check", color=0x00FF00)
-        embed.add_field(name="Status", value="All data files are valid!", inline=False)
-        embed.add_field(name="Total Users", value=f"{len(user_levels)}", inline=True)
-        embed.add_field(name="Total SP", value=f"{format_number(sum(data['sp'] for data in user_levels.values()))}", inline=True)
-        await ctx.send(embed=embed)
+        fixed_count = 0
+        for user_id_str, data in user_levels.items():
+            try:
+                member = ctx.guild.get_member(int(user_id_str))
+                if member:
+                    sp = data["sp"]
+                    await update_member_roles(member, sp)
+                    fixed_count += 1
+                    await asyncio.sleep(0.5)  # Rate limit prevention
+            except Exception as e:
+                print(f"Error fixing roles for {user_id_str}: {e}")
+        
+        await ctx.send(f"✅ ซ่อมแซมบทบาทให้สมาชิก {fixed_count} คน เรียบร้อย")
 
 # Background tasks
 @tasks.loop(minutes=1)
@@ -3750,13 +3522,11 @@ async def save_data():
 
 @tasks.loop(seconds=15)
 async def save_data_frequent():
-    """Save data every 15 seconds"""
     await save_all_data()
     print(f"✅ Auto-save at {get_thailand_time().strftime('%H:%M:%S')}")
 
 @tasks.loop(hours=1)
 async def hourly_backup():
-    """Create a backup every hour"""
     backup_user_levels()
     print(f"✅ Hourly backup created at {get_thailand_time().strftime('%H:%M:%S')}")
 
@@ -3766,14 +3536,12 @@ async def update_credit_channel_task():
 
 # Signal handler for graceful shutdown
 def signal_handler(signum, frame):
-    """Handle shutdown signals"""
     print(f"\n⚠️ Received signal {signum}, saving data...")
     save_all_data_sync()
     backup_user_levels()
     print("✅ Data saved! Exiting...")
     sys.exit(0)
 
-# Register signal handlers
 signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
@@ -3785,7 +3553,6 @@ async def on_ready():
         activity=discord.Game(name="บอทเครื่องคิดเลขของ wforr | !help")
     )
     
-    # Ensure MongoDB connection
     if not mongodb.connected:
         print("🔄 Attempting to reconnect to MongoDB...")
         await mongodb.connect()
@@ -3801,7 +3568,6 @@ async def on_ready():
             
     except Exception as e:
         print(f"❌ Error syncing commands: {e}")
-        print("⚠️ กรุณาใช้คำสั่ง !sync เพื่อลอง sync อีกครั้ง")
     
     update_presence.start()
     save_data.start()
