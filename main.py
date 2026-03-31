@@ -147,11 +147,11 @@ class MongoDBManager:
     async def connect(self):
         """Connect to MongoDB"""
         try:
-            # Use your new connection string
-            mongodb_uri = os.getenv("MONGODB_URI", "mongodb+srv://renipew_db_user:dUlJdI1wAVcG3snk@eatsushi.iipqsth.mongodb.net/")
+            # Your correct connection string
+            mongodb_uri = os.getenv("MONGODB_URI", "mongodb+srv://renipew_db_user:dUlJdI1wAVcG3snk@eatsushi.iipqsth.mongodb.net/?appName=eatsushi")
             
-            print(f"🔍 Attempting to connect to MongoDB...")
-            print(f"📝 Database: eatsushi")
+            print("🔍 Attempting to connect to MongoDB...")
+            print(f"📝 Using database: eatsushi")
             
             # Create client with proper settings
             self.client = motor.motor_asyncio.AsyncIOMotorClient(
@@ -166,8 +166,8 @@ class MongoDBManager:
             await self.client.admin.command('ping')
             print("✅ Ping successful!")
             
-            # Use the database name from the connection string or specify one
-            self.db = self.client["eatsushi"]  # Using 'eatsushi' as database name
+            # Use eatsushi database
+            self.db = self.client["eatsushi"]
             self.connected = True
             print(f"✅ Connected to MongoDB Atlas!")
             print(f"   Database: eatsushi")
@@ -185,20 +185,39 @@ class MongoDBManager:
     async def create_indexes(self):
         """Create necessary indexes for better performance"""
         try:
+            # Check if collection exists and create indexes
+            collections = await self.db.list_collection_names()
+            
             # User levels collection
+            if "user_levels" not in collections:
+                await self.db.create_collection("user_levels")
             await self.db.user_levels.create_index("user_id", unique=True)
             
             # User data collection
+            if "user_data" not in collections:
+                await self.db.create_collection("user_data")
             await self.db.user_data.create_index("user_id", unique=True)
             
             # Ticket transcripts collection
+            if "ticket_transcripts" not in collections:
+                await self.db.create_collection("ticket_transcripts")
             await self.db.ticket_transcripts.create_index("channel_id")
             await self.db.ticket_transcripts.create_index("created_at")
             
             # Ticket buyer data
+            if "ticket_buyer_data" not in collections:
+                await self.db.create_collection("ticket_buyer_data")
             await self.db.ticket_buyer_data.create_index("channel_id", unique=True)
             
-            print("✅ MongoDB indexes created")
+            # Stock data collection
+            if "stock_data" not in collections:
+                await self.db.create_collection("stock_data")
+            
+            # Ticket counter collection
+            if "ticket_counter" not in collections:
+                await self.db.create_collection("ticket_counter")
+            
+            print("✅ MongoDB indexes created/verified")
         except Exception as e:
             print(f"⚠️ Error creating indexes: {e}")
     
