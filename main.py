@@ -31,6 +31,10 @@ def keep_alive():
 
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
+# Use persistent data directory if specified
+DATA_DIR = os.getenv("DATA_DIR", ".")
+os.makedirs(DATA_DIR, exist_ok=True)
+
 try:
     import pytz
     def get_thailand_time(): return dt.now(pytz.timezone('Asia/Bangkok'))
@@ -96,14 +100,15 @@ WELCOME_MESSAGES = [
     "สวัสดีค่ะ ยินดีต้อนรับ {} ค่า 🍣"
 ]
 
-user_data_file = "user_data.json"
-ticket_transcripts_file = "ticket_transcripts.json"
-ticket_counter_file = "ticket_counter.json"
-ticket_robux_data_file = "ticket_robux_data.json"
-ticket_customer_data_file = "ticket_customer_data.json"
-stock_file = "stock_values.json"
-ticket_buyer_data_file = "ticket_buyer_data.json"
-user_levels_file = "user_levels.json"
+# File paths with DATA_DIR
+user_data_file = os.path.join(DATA_DIR, "user_data.json")
+ticket_transcripts_file = os.path.join(DATA_DIR, "ticket_transcripts.json")
+ticket_counter_file = os.path.join(DATA_DIR, "ticket_counter.json")
+ticket_robux_data_file = os.path.join(DATA_DIR, "ticket_robux_data.json")
+ticket_customer_data_file = os.path.join(DATA_DIR, "ticket_customer_data.json")
+stock_file = os.path.join(DATA_DIR, "stock_values.json")
+ticket_buyer_data_file = os.path.join(DATA_DIR, "ticket_buyer_data.json")
+user_levels_file = os.path.join(DATA_DIR, "user_levels.json")
 
 user_data = {}
 ticket_transcripts = {}
@@ -126,15 +131,15 @@ credit_channel_update_lock = asyncio.Lock()
 def backup_user_levels():
     """Create backup of user_levels.json"""
     if os.path.exists(user_levels_file):
-        backup_file = f"user_levels_backup_{dt.now().strftime('%Y%m%d_%H%M%S')}.json"
+        backup_file = os.path.join(DATA_DIR, f"user_levels_backup_{dt.now().strftime('%Y%m%d_%H%M%S')}.json")
         try:
             shutil.copy2(user_levels_file, backup_file)
             print(f"✅ Backup created: {backup_file}")
             
             # Delete backups older than 7 days
-            for file in os.listdir('.'):
+            for file in os.listdir(DATA_DIR):
                 if file.startswith('user_levels_backup_') and file.endswith('.json'):
-                    file_path = os.path.join('.', file)
+                    file_path = os.path.join(DATA_DIR, file)
                     if os.path.getmtime(file_path) < time.time() - 7 * 86400:
                         os.remove(file_path)
                         print(f"🗑️ Removed old backup: {file}")
@@ -142,20 +147,29 @@ def backup_user_levels():
             print(f"❌ Error creating backup: {e}")
 
 def load_user_levels():
-    """Load user levels with validation"""
+    """Load user levels with validation and repair"""
     try:
         if os.path.exists(user_levels_file):
             with open(user_levels_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 # Validate data structure
                 if isinstance(data, dict):
+                    repaired = False
                     for user_id, user_data in data.items():
                         if not isinstance(user_data, dict):
                             data[user_id] = {"sp": 0, "total_robux": 0}
+                            repaired = True
                         elif "sp" not in user_data:
                             user_data["sp"] = 0
+                            repaired = True
                         elif "total_robux" not in user_data:
                             user_data["total_robux"] = user_data.get("sp", 0)
+                            repaired = True
+                    
+                    if repaired:
+                        save_json(user_levels_file, data)
+                        print(f"✅ Repaired {user_levels_file}")
+                    
                     return data
                 else:
                     print(f"⚠️ Invalid data format in {user_levels_file}, creating new")
@@ -166,12 +180,12 @@ def load_user_levels():
     except Exception as e:
         print(f"❌ Error loading {user_levels_file}: {e}")
         # Try to load from backup
-        backups = [f for f in os.listdir('.') if f.startswith('user_levels_backup_') and f.endswith('.json')]
+        backups = [f for f in os.listdir(DATA_DIR) if f.startswith('user_levels_backup_') and f.endswith('.json')]
         if backups:
-            latest_backup = max(backups, key=lambda x: os.path.getmtime(x))
+            latest_backup = max(backups, key=lambda x: os.path.getmtime(os.path.join(DATA_DIR, x)))
             print(f"⚠️ Attempting to load from backup: {latest_backup}")
             try:
-                with open(latest_backup, 'r', encoding='utf-8') as f:
+                with open(os.path.join(DATA_DIR, latest_backup), 'r', encoding='utf-8') as f:
                     data = json.load(f)
                     print(f"✅ Successfully loaded from backup: {latest_backup}")
                     return data
@@ -191,6 +205,14 @@ def load_json(file, default):
 
 def save_json(file, data): 
     try:
+        # Create backup before saving
+        if os.path.exists(file):
+            backup_file = f"{file}.backup"
+            try:
+                shutil.copy2(file, backup_file)
+            except:
+                pass
+        
         with open(file, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         return True
@@ -229,24 +251,35 @@ def load_stock_values():
         print(f"✅ Loaded stock values from {stock_file}")
 
 async def save_all_data():
-    save_json(user_data_file, user_data)
-    save_json(ticket_transcripts_file, ticket_transcripts)
-    save_json(ticket_robux_data_file, ticket_robux_data)
-    save_json(ticket_customer_data_file, ticket_customer_data)
-    save_json(ticket_buyer_data_file, ticket_buyer_data)
-    save_json(user_levels_file, user_levels)
-    save_stock_values()
-    print(f"✅ All data saved at {get_thailand_time().strftime('%H:%M:%S')}")
+    """Save all data to disk with verification"""
+    success = True
+    success &= save_json(user_data_file, user_data)
+    success &= save_json(ticket_transcripts_file, ticket_transcripts)
+    success &= save_json(ticket_robux_data_file, ticket_robux_data)
+    success &= save_json(ticket_customer_data_file, ticket_customer_data)
+    success &= save_json(ticket_buyer_data_file, ticket_buyer_data)
+    success &= save_json(user_levels_file, user_levels)
+    success &= save_stock_values()
+    
+    if success:
+        print(f"✅ All data saved at {get_thailand_time().strftime('%H:%M:%S')}")
+    else:
+        print(f"⚠️ Some data files failed to save at {get_thailand_time().strftime('%H:%M:%S')}")
+    
+    return success
 
 def save_all_data_sync():
-    save_json(user_data_file, user_data)
-    save_json(ticket_transcripts_file, ticket_transcripts)
-    save_json(ticket_robux_data_file, ticket_robux_data)
-    save_json(ticket_customer_data_file, ticket_customer_data)
-    save_json(ticket_buyer_data_file, ticket_buyer_data)
-    save_json(user_levels_file, user_levels)
-    save_stock_values()
+    """Synchronous save of all data"""
+    success = True
+    success &= save_json(user_data_file, user_data)
+    success &= save_json(ticket_transcripts_file, ticket_transcripts)
+    success &= save_json(ticket_robux_data_file, ticket_robux_data)
+    success &= save_json(ticket_customer_data_file, ticket_customer_data)
+    success &= save_json(ticket_buyer_data_file, ticket_buyer_data)
+    success &= save_json(user_levels_file, user_levels)
+    success &= save_stock_values()
     print("✅ All data saved (sync)")
+    return success
 
 async def add_sp(user_id, amount):
     """Add skill points to a user and update roles"""
@@ -264,6 +297,10 @@ async def add_sp(user_id, amount):
     # Save immediately on every change
     save_json(user_levels_file, user_levels)
     print(f"✅ Saved SP immediately: {user_id} +{amount} SP = {current_sp} SP")
+    
+    # Create backup for significant changes
+    if amount > 1000:
+        backup_user_levels()
     
     # Get guild to update roles
     guild = None
@@ -818,6 +855,7 @@ class MyBot(commands.Bot):
         print(f"   - {len(ticket_transcripts)} tickets")
         print(f"   - {len(ticket_buyer_data)} buyer records")
         print(f"   - {len(user_levels)} users with SP")
+        print(f"   - Total SP: {sum(data['sp'] for data in user_levels.values())}")
         print(f"   - Stock: GP={gamepass_stock}, Group={group_stock}, Premium={premium_stock}")
         print(f"   - Rates: GP={gamepass_rate}, Group={group_rate_low}-{group_rate_high}")
     
@@ -830,13 +868,24 @@ class MyBot(commands.Bot):
         print("💾 กำลังบันทึกข้อมูลทั้งหมด...")
         
         # Save multiple times to ensure data is written
-        save_all_data_sync()
-        await asyncio.sleep(1)
-        save_all_data_sync()
-        await asyncio.sleep(1)
+        for i in range(3):
+            save_all_data_sync()
+            await asyncio.sleep(0.5)
         
         # Create final backup
         backup_user_levels()
+        
+        # Create emergency backup of all critical files
+        emergency_backup_dir = os.path.join(DATA_DIR, f"emergency_backup_{get_thailand_time().strftime('%Y%m%d_%H%M%S')}")
+        try:
+            os.makedirs(emergency_backup_dir, exist_ok=True)
+            critical_files = [user_levels_file, user_data_file, ticket_transcripts_file, stock_file]
+            for file in critical_files:
+                if os.path.exists(file):
+                    shutil.copy2(file, emergency_backup_dir)
+                    print(f"✅ Emergency backup created: {emergency_backup_dir}")
+        except Exception as e:
+            print(f"⚠️ Could not create emergency backup: {e}")
         
         print("✅ บันทึกข้อมูลเรียบร้อย!")
         print("👋 ลาก่อน!")
@@ -1429,7 +1478,7 @@ async def credit_channel_update_worker():
                             await channel.edit(name=new_name)
                             print(f"✅ อัพเดทชื่อเป็น: {new_name}")
                             
-                            with open("credit_message_count.txt", "w") as f:
+                            with open(os.path.join(DATA_DIR, "credit_message_count.txt"), "w") as f:
                                 f.write(str(new_count))
                         else:
                             print(f"ℹ️ ชื่อยังคงเดิม: {new_name}")
@@ -1486,7 +1535,7 @@ async def verify_credit_channel_count():
                             await channel.edit(name=new_name)
                             print(f"✅ แก้ไขชื่อเป็น: {new_name}")
                             
-                            with open("credit_message_count.txt", "w") as f:
+                            with open(os.path.join(DATA_DIR, "credit_message_count.txt"), "w") as f:
                                 f.write(str(real_count))
                     else:
                         print(f"✅ ตัวเลขตรงกัน: {current_count}")
@@ -1556,7 +1605,7 @@ async def update_credit_channel_name():
                     await credit_channel.edit(name=new_name)
                     print(f"✅ เปลี่ยนชื่อช่องเครดิตเป็น: {new_name}")
                     
-                    with open("credit_message_count.txt", "w") as f:
+                    with open(os.path.join(DATA_DIR, "credit_message_count.txt"), "w") as f:
                         f.write(str(message_count))
                 except Exception as e:
                     print(f"❌ ไม่สามารถเปลี่ยนชื่อได้: {e}")
@@ -1570,8 +1619,9 @@ async def check_credit_channel_changes():
         
         last_count = 0
         try:
-            if os.path.exists("credit_message_count.txt"):
-                with open("credit_message_count.txt", "r") as f:
+            count_file = os.path.join(DATA_DIR, "credit_message_count.txt")
+            if os.path.exists(count_file):
+                with open(count_file, "r") as f:
                     last_count = int(f.read().strip())
         except:
             pass
@@ -3301,6 +3351,58 @@ async def backup_data_cmd(ctx):
     backup_user_levels()
     await ctx.send("✅ สร้าง backup ข้อมูล SP เรียบร้อยแล้ว")
 
+@bot.command(name="savedata")
+@admin_only()
+async def save_data_cmd(ctx):
+    """Manually save all data to disk"""
+    await ctx.send("💾 กำลังบันทึกข้อมูล...")
+    
+    # Save all data
+    success = save_all_data_sync()
+    
+    # Also create a backup
+    backup_user_levels()
+    
+    # Verify save
+    if success and os.path.exists(user_levels_file):
+        file_size = os.path.getsize(user_levels_file)
+        await ctx.send(f"✅ บันทึกข้อมูลเรียบร้อย! (ขนาดไฟล์: {file_size} bytes)")
+    else:
+        await ctx.send("❌ เกิดข้อผิดพลาดในการบันทึกข้อมูล")
+
+@bot.command(name="checkintegrity")
+@admin_only()
+async def check_integrity_cmd(ctx):
+    """Check data integrity"""
+    issues = []
+    
+    # Check user_levels
+    if os.path.exists(user_levels_file):
+        try:
+            with open(user_levels_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                if not isinstance(data, dict):
+                    issues.append("user_levels.json is not a valid dictionary")
+                else:
+                    for user_id, user_data in data.items():
+                        if not isinstance(user_data, dict):
+                            issues.append(f"User {user_id} data is not a dictionary")
+                        elif "sp" not in user_data:
+                            issues.append(f"User {user_id} missing 'sp' field")
+        except Exception as e:
+            issues.append(f"Cannot read user_levels.json: {e}")
+    
+    if issues:
+        embed = discord.Embed(title="⚠️ Data Integrity Issues", color=0xFF0000)
+        embed.add_field(name="Problems Found", value="\n".join(issues[:10]), inline=False)
+        await ctx.send(embed=embed)
+    else:
+        embed = discord.Embed(title="✅ Data Integrity Check", color=0x00FF00)
+        embed.add_field(name="Status", value="All data files are valid!", inline=False)
+        embed.add_field(name="Total Users", value=f"{len(user_levels)}", inline=True)
+        embed.add_field(name="Total SP", value=f"{format_number(sum(data['sp'] for data in user_levels.values()))}", inline=True)
+        await ctx.send(embed=embed)
+
 @tasks.loop(minutes=1)
 async def update_presence():
     await bot.change_presence(
@@ -3311,15 +3413,84 @@ async def update_presence():
 async def save_data():
     await save_all_data()
 
-@tasks.loop(seconds=30)
+@tasks.loop(seconds=15)  # Changed from 30 to 15 seconds
 async def save_data_frequent():
-    """Save data every 30 seconds"""
+    """Save data every 15 seconds"""
     await save_all_data()
     print(f"✅ Auto-save at {get_thailand_time().strftime('%H:%M:%S')}")
+
+@tasks.loop(hours=1)
+async def hourly_backup():
+    """Create a backup every hour"""
+    backup_user_levels()
+    print(f"✅ Hourly backup created at {get_thailand_time().strftime('%H:%M:%S')}")
 
 @tasks.loop(minutes=10)
 async def update_credit_channel_task():
     await check_credit_channel_changes()
+
+async def send_level_up_dm(user, role_id, sp):
+    """Send level up DM to user"""
+    try:
+        role = user.guild.get_role(role_id)
+        level_name = LEVEL_NAMES.get(role_id, role.name if role else "Unknown Level")
+        
+        embed = discord.Embed(
+            title="🎉 Level Up! 🎉",
+            description=f"ยินดีด้วย {user.mention}! คุณได้เลื่อนระดับแล้ว!",
+            color=0xFFD700
+        )
+        embed.add_field(
+            name="🏆 ระดับปัจจุบันใหม่ของคุณคือ",
+            value=f"**{level_name}**",
+            inline=False
+        )
+        embed.add_field(
+            name="✨ SP ทั้งหมด",
+            value=f"**{format_number(sp)}** SP",
+            inline=True
+        )
+        embed.add_field(
+            name="⏫ ระดับถัดไป",
+            value=f"ต้องการอีก **{get_next_level_sp(sp)}** SP",
+            inline=True
+        )
+        embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
+        embed.set_footer(text="Sushi Shop • ขอบคุณที่ใช้บริการ 💖")
+        
+        await user.send(embed=embed)
+        print(f"✅ Sent level up DM to {user.name}")
+    except Exception as e:
+        print(f"⚠️ Could not send level up DM to {user.name}: {e}")
+
+async def send_level_down_dm(user, role_id, sp):
+    """Send level down DM to user"""
+    try:
+        role = user.guild.get_role(role_id)
+        level_name = LEVEL_NAMES.get(role_id, role.name if role else "Unknown Level")
+        
+        embed = discord.Embed(
+            title="📉 Level Down",
+            description=f"เสียใจด้วย {user.mention}! ระดับของคุณลดลง",
+            color=0xFF6B6B
+        )
+        embed.add_field(
+            name="🏆 ระดับปัจจุบันของคุณคือ",
+            value=f"**{level_name}**",
+            inline=False
+        )
+        embed.add_field(
+            name="✨ SP ทั้งหมด",
+            value=f"**{format_number(sp)}** SP",
+            inline=True
+        )
+        embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
+        embed.set_footer(text="Sushi Shop • ขอบคุณที่ใช้บริการ 💖")
+        
+        await user.send(embed=embed)
+        print(f"✅ Sent level down DM to {user.name}")
+    except Exception as e:
+        print(f"⚠️ Could not send level down DM to {user.name}: {e}")
 
 # Signal handler for graceful shutdown
 def signal_handler(signum, frame):
@@ -3358,6 +3529,7 @@ async def on_ready():
     update_presence.start()
     save_data.start()
     save_data_frequent.start()
+    hourly_backup.start()  # Start hourly backups
     update_credit_channel_task.start()
     
     if not credit_channel_update_task_running:
