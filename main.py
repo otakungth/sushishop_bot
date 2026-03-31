@@ -37,8 +37,8 @@ def keep_alive():
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
 # MongoDB Configuration
-MONGODB_URI = os.getenv("MONGODB_URI", "mongodb+srv://renipew_db_user:dUlJdI1wAVcG3snk@eatsushi.iipqsth.mongodb.net/?appName=eatsushi")
-MONGODB_DB_NAME = os.getenv("MONGODB_DB_NAME", "eatsushi")
+MONGODB_URI = os.getenv("mongodb+srv://renipew_db_user:dUlJdI1wAVcG3snk@eatsushi.iipqsth.mongodb.net/eatsushi?retryWrites=true&w=majority")
+MONGODB_DB_NAME = os.getenv("eatsushi")
 
 # Use persistent data directory for JSON fallback
 DATA_DIR = os.getenv("DATA_DIR", ".")
