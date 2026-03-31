@@ -147,29 +147,30 @@ class MongoDBManager:
     async def connect(self):
         """Connect to MongoDB"""
         try:
-            # Get password from environment variable for security
-            mongodb_uri = os.getenv("MONGODB_URI", MONGODB_URI)
+            # Use your new connection string
+            mongodb_uri = os.getenv("MONGODB_URI", "mongodb+srv://renipew_db_user:dUlJdI1wAVcG3snk@eatsushi.iipqsth.mongodb.net/")
             
-            # Check if password is still placeholder
-            if "<password>" in mongodb_uri:
-                print("⚠️ WARNING: Please set your MongoDB password in MONGODB_URI environment variable!")
-                print("   Example: export MONGODB_URI='mongodb+srv://bambooggxd_db_user:your_password@cluster0.4izqapf.mongodb.net/'")
-                return False
+            print(f"🔍 Attempting to connect to MongoDB...")
+            print(f"📝 Database: eatsushi")
             
-            # Create client with proper TLS settings
+            # Create client with proper settings
             self.client = motor.motor_asyncio.AsyncIOMotorClient(
                 mongodb_uri,
                 tls=True,
                 tlsAllowInvalidCertificates=False,
-                serverSelectionTimeoutMS=5000
+                serverSelectionTimeoutMS=10000
             )
             
             # Test connection
+            print("🔄 Testing connection...")
             await self.client.admin.command('ping')
-            self.db = self.client[MONGODB_DB_NAME]
+            print("✅ Ping successful!")
+            
+            # Use the database name from the connection string or specify one
+            self.db = self.client["eatsushi"]  # Using 'eatsushi' as database name
             self.connected = True
             print(f"✅ Connected to MongoDB Atlas!")
-            print(f"   Database: {MONGODB_DB_NAME}")
+            print(f"   Database: eatsushi")
             
             # Create indexes
             await self.create_indexes()
@@ -177,6 +178,7 @@ class MongoDBManager:
             return True
         except Exception as e:
             print(f"❌ Failed to connect to MongoDB: {e}")
+            traceback.print_exc()
             self.connected = False
             return False
     
