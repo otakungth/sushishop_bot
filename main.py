@@ -29,10 +29,18 @@ if not token:
 else:
     print(f"✅ TOKEN found (length: {len(token)})")
 
-# ============ DATA DIRECTORY SETUP ============
-DATA_DIR = os.getenv("DATA_DIR", ".")
+# ============ DATA DIRECTORY SETUP WITH PERSISTENT DISK ============
+# Check for Render persistent disk
+PERSISTENT_DISK = "/app/data"
 
-# Try to create directory and test write permissions
+if os.path.exists(PERSISTENT_DISK) and os.access(PERSISTENT_DISK, os.W_OK):
+    DATA_DIR = PERSISTENT_DISK
+    print(f"✅ Using Render persistent disk: {DATA_DIR}")
+else:
+    DATA_DIR = os.getenv("DATA_DIR", ".")
+    print(f"⚠️ Persistent disk not found or not writable, using: {DATA_DIR}")
+
+# Create directory if it doesn't exist
 try:
     os.makedirs(DATA_DIR, exist_ok=True)
     
@@ -144,7 +152,7 @@ WELCOME_MESSAGES = [
     "สวัสดีค่ะ ยินดีต้อนรับ {} ค่า 🍣"
 ]
 
-# File paths
+# File paths with persistent disk
 user_data_file = os.path.join(DATA_DIR, "user_data.json")
 ticket_transcripts_file = os.path.join(DATA_DIR, "ticket_transcripts.json")
 ticket_counter_file = os.path.join(DATA_DIR, "ticket_counter.json")
@@ -157,6 +165,7 @@ user_levels_file = os.path.join(DATA_DIR, "user_levels.json")
 print(f"📄 Data files will be saved to:")
 print(f"   - {user_levels_file}")
 print(f"   - {stock_file}")
+print(f"   - {ticket_counter_file}")
 
 # In-memory data structures
 user_data = {}
@@ -169,6 +178,7 @@ user_notes = {}
 ticket_activity = {}
 ticket_removal_tasks = {}
 ticket_anonymous_mode = {}
+ticket_counter = {"counter": 1, "date": get_thailand_time().strftime("%d%m%y")}
 
 credit_channel_queue = asyncio.Queue()
 credit_channel_update_task_running = False
@@ -190,6 +200,7 @@ def load_json(file, default):
 def save_json(file, data):
     """Save data to JSON file with backup"""
     try:
+        # Create backup before saving
         if os.path.exists(file):
             backup_file = f"{file}.backup"
             try:
@@ -218,6 +229,7 @@ def backup_user_levels():
                     file_path = os.path.join(DATA_DIR, file)
                     if os.path.getmtime(file_path) < time.time() - 7 * 86400:
                         os.remove(file_path)
+                        print(f"🗑️ Removed old backup: {file}")
         except Exception as e:
             print(f"❌ Error creating backup: {e}")
 
@@ -247,6 +259,18 @@ def load_user_levels():
         return {}
     except Exception as e:
         print(f"❌ Error loading {user_levels_file}: {e}")
+        # Try to load from backup
+        backups = [f for f in os.listdir(DATA_DIR) if f.startswith('user_levels_backup_') and f.endswith('.json')]
+        if backups:
+            latest_backup = max(backups, key=lambda x: os.path.getmtime(os.path.join(DATA_DIR, x)))
+            print(f"⚠️ Attempting to load from backup: {latest_backup}")
+            try:
+                with open(os.path.join(DATA_DIR, latest_backup), 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    print(f"✅ Successfully loaded from backup: {latest_backup}")
+                    return data
+            except Exception as backup_error:
+                print(f"❌ Failed to load from backup: {backup_error}")
         return {}
 
 def load_stock_values():
@@ -308,7 +332,7 @@ async def save_all_data():
 
 def load_all_data():
     """Load all data from JSON files"""
-    global user_data, ticket_transcripts, ticket_robux_data, ticket_customer_data, ticket_buyer_data, user_levels
+    global user_data, ticket_transcripts, ticket_robux_data, ticket_customer_data, ticket_buyer_data, user_levels, ticket_counter
     
     user_data = load_json(user_data_file, {})
     ticket_transcripts = load_json(ticket_transcripts_file, {})
@@ -316,6 +340,7 @@ def load_all_data():
     ticket_customer_data = load_json(ticket_customer_data_file, {})
     ticket_buyer_data = load_json(ticket_buyer_data_file, {})
     user_levels = load_user_levels()
+    ticket_counter = load_json(ticket_counter_file, {"counter": 1, "date": get_thailand_time().strftime("%d%m%y")})
     
     load_stock_values()
     
@@ -582,6 +607,28 @@ def is_user_always_anonymous(user):
         return False
     anonymous_role = user.guild.get_role(ANONYMOUS_USER_ROLE_ID)
     return anonymous_role and anonymous_role in user.roles
+
+def get_next_ticket_number():
+    """Get next ticket number"""
+    global ticket_counter
+    current_date = get_thailand_time().strftime("%d%m%y")
+    if ticket_counter["date"] != current_date:
+        ticket_counter = {"counter": 1, "date": current_date}
+    else:
+        ticket_counter["counter"] += 1
+    save_json(ticket_counter_file, ticket_counter)
+    return ticket_counter["counter"]
+
+def admin_only():
+    async def predicate(ctx):
+        if ctx.author.guild_permissions.administrator:
+            return True
+        admin_role = ctx.guild.get_role(1361016912259055896)
+        if admin_role and admin_role in ctx.author.roles:
+            return True
+        await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะผู้ดูแลระบบเท่านั้น", delete_after=5)
+        return False
+    return commands.check(predicate)
 
 # ============ VIEW CLASSES ============
 class LevelCheckView(View):
@@ -1367,7 +1414,6 @@ class MyBot(commands.Bot):
         self.react_rate_limiter = RateLimiter(1, 0.5)
         self.channel_edit_rate_limiter = RateLimiter(1, 5)
         self.command_rate_limiter = RateLimiter(1, 2)
-        self.ticket_counter = {"counter": 1, "date": get_thailand_time().strftime("%d%m%y")}
         self.stock_message = None
         self.main_channel_message = None
         self._shutdown_flag = False
@@ -1375,9 +1421,6 @@ class MyBot(commands.Bot):
         
         # Load all data from JSON
         load_all_data()
-        
-        # Load ticket counter
-        self.ticket_counter = load_json(ticket_counter_file, {"counter": 1, "date": get_thailand_time().strftime("%d%m%y")})
         
         # Create backup on startup
         backup_user_levels()
@@ -1402,26 +1445,6 @@ class MyBot(commands.Bot):
 bot = MyBot()
 
 # ============ TICKET HELPER FUNCTIONS ============
-def get_next_ticket_number():
-    current_date = get_thailand_time().strftime("%d%m%y")
-    if bot.ticket_counter["date"] != current_date:
-        bot.ticket_counter = {"counter": 1, "date": current_date}
-    else:
-        bot.ticket_counter["counter"] += 1
-    save_json(ticket_counter_file, bot.ticket_counter)
-    return bot.ticket_counter["counter"]
-
-def admin_only():
-    async def predicate(ctx):
-        if ctx.author.guild_permissions.administrator:
-            return True
-        admin_role = ctx.guild.get_role(1361016912259055896)
-        if admin_role and admin_role in ctx.author.roles:
-            return True
-        await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะผู้ดูแลระบบเท่านั้น", delete_after=5)
-        return False
-    return commands.check(predicate)
-
 async def schedule_removal(channel, buyer, delay_seconds):
     if str(channel.id) in ticket_removal_tasks:
         try:
@@ -2740,6 +2763,47 @@ async def del_sp_cmd(ctx, user: discord.Member, amount: int):
         await ctx.send(embed=embed)
     else:
         await ctx.send(f"❌ เกิดข้อผิดพลาดในการลบ SP หรือ SP ไม่เพียงพอ", delete_after=5)
+
+@bot.command(name="tkd")
+@admin_only()
+async def tkd_cmd(ctx):
+    """Close and delete ticket"""
+    channel = ctx.channel
+    channel_name = channel.name
+    
+    # Check if this is a ticket channel
+    valid_formats = False
+    
+    if channel_name.startswith("ticket-"):
+        valid_formats = True
+    
+    pattern = r'^\d{10}-\d+-[\w\u0E00-\u0E7F]+$'
+    if re.match(pattern, channel_name):
+        valid_formats = True
+    
+    if not valid_formats:
+        await ctx.send(f"❌ คำสั่งนี้ใช้ได้เฉพาะในช่องตั๋วเท่านั้น\nรูปแบบที่ใช้ได้: ticket-... หรือ [ddmmyytime-amount-user]\nตัวอย่าง: 0703262106-4-eurrai", delete_after=10)
+        return
+    
+    try:
+        # Send confirmation message
+        msg = await ctx.send("🗑️ กำลังลบตั๋วนี้...")
+        
+        # Save transcript before deleting
+        await save_ticket_transcript(channel, ctx.author)
+        
+        # Wait a moment
+        await asyncio.sleep(2)
+        
+        # Delete the channel
+        await channel.delete()
+        
+        print(f"✅ ลบตั๋ว {channel_name} โดย {ctx.author.name}")
+        
+    except Exception as e:
+        print(f"❌ Error in tkd: {e}")
+        traceback.print_exc()
+        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
 
 # ============ CALCULATOR COMMANDS ============
 @bot.command(name="calculator")
