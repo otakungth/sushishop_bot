@@ -39,7 +39,7 @@ logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
 # MongoDB Configuration
 # IMPORTANT: Replace <password> with your actual password or set MONGODB_URI environment variable
-MONGODB_URI = os.getenv("MONGODB_URI", "mongodb+srv://bambooggxd_db_user:<password>@cluster0.4izqapf.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
+MONGODB_URI = os.getenv("mongodb+srv://renipew_db_user:dUlJdI1wAVcG3snk@eatsushi.iipqsth.mongodb.net/")
 MONGODB_DB_NAME = os.getenv("MONGODB_DB_NAME", "sushi_shop_bot")
 
 # Use persistent data directory for JSON fallback
