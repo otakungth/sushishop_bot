@@ -375,7 +375,7 @@ async def update_member_roles(member, sp):
                         inline=True
                     )
                     embed.add_field(
-                        name="📈 ก้าวสู่ระดับถัดไป",
+                        name="⏫ ระดับถัดไป",
                         value=f"ต้องการอีก **{get_next_level_sp(sp)}** SP",
                         inline=True
                     )
@@ -467,7 +467,7 @@ class LevelCheckView(View):
         current_level, current_level_name, next_level, next_level_name, sp_needed = get_level_info(sp)
         
         embed = discord.Embed(
-            title="📊 ระดับของคุณ",
+            title="🍣 ระดับของคุณ",
             description=f"**{interaction.user.display_name}**",
             color=0x00FF99
         )
@@ -480,9 +480,9 @@ class LevelCheckView(View):
         
         if sp_needed > 0:
             progress = (sp - current_level) / (next_level - current_level) if next_level > current_level else 0
-            progress_bar = "█" * int(progress * 10) + "░" * (10 - int(progress * 10))
+            progress_bar = "🍣" * int(progress * 10) + "⬜" * (10 - int(progress * 10))
             embed.add_field(
-                name="📈 ความคืบหน้า", 
+                name="⏫ ความคืบหน้า", 
                 value=f"`{progress_bar}` {format_number(sp - current_level)}/{format_number(next_level - current_level)} SP\nเหลืออีก **{format_number(sp_needed)}** SP สู่{next_level_name}",
                 inline=False
             )
