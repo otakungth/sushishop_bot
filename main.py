@@ -2313,6 +2313,189 @@ async def rate(ctx, rate_type=None, low_rate=None, high_rate=None):
         except ValueError:
             await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง", delete_after=5)
 
+# ============ ORDER COMMANDS ============
+@bot.command()
+@admin_only()
+async def od(ctx, *, expr):
+    """รับออเดอร์เกมพาส"""
+    global gamepass_stock, gamepass_rate
+    
+    if not ctx.channel.name.startswith("ticket-") and not re.match(r'^\d{10}-\d+-[\w\u0E00-\u0E7F]+$', ctx.channel.name):
+        await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
+        return
+    
+    try:
+        expr_clean = expr.replace(",", "").lower().replace("x", "*").replace("÷", "/")
+        robux = int(eval(expr_clean))
+        price = robux / gamepass_rate
+        price_int = round_price(price)
+        
+        buyer = None
+        if str(ctx.channel.id) in ticket_buyer_data:
+            buyer_id = ticket_buyer_data[str(ctx.channel.id)].get("user_id")
+            if buyer_id:
+                buyer = ctx.guild.get_member(buyer_id)
+        
+        if not buyer:
+            parts = ctx.channel.name.split('-')
+            if len(parts) >= 3:
+                try:
+                    buyer = ctx.guild.get_member(int(parts[-1]))
+                except:
+                    pass
+        
+        if not buyer:
+            async for msg in ctx.channel.history(limit=20):
+                if not msg.author.bot and msg.author != ctx.guild.me:
+                    buyer = msg.author
+                    break
+        
+        if buyer:
+            await add_buyer_role(buyer, ctx.guild)
+        
+        async with bot.stock_lock:
+            gamepass_stock = max(0, gamepass_stock - robux)
+        
+        save_stock_values()
+        
+        ticket_robux_data[str(ctx.channel.id)] = str(robux)
+        save_json(ticket_robux_data_file, ticket_robux_data)
+        
+        embed = discord.Embed(title="🍣คำสั่งซื้อสินค้า🍣", color=0xFFA500)
+        embed.add_field(name="📦 ประเภทสินค้า", value="Gamepass", inline=False)
+        embed.add_field(name=f"💸 จำนวน{ROBUX_EMOJI}", value=f"{format_number(robux)}", inline=True)
+        embed.add_field(name="💰 ราคาตามเรท", value=f"{format_number(price_int)} บาท", inline=True)
+        embed.set_footer(text=f"รับออร์เดอร์แล้ว 🤗 • {get_thailand_time().strftime('%d/%m/%y, %H:%M')}")
+        
+        await ctx.send(embed=embed, view=DeliveryView(ctx.channel, "Gamepass", robux, price, buyer))
+        await update_main_channel()
+        
+    except Exception as e:
+        print(f"❌ Error in !od: {e}")
+        traceback.print_exc()
+        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
+
+@bot.command()
+@admin_only()
+async def odg(ctx, *, expr):
+    """รับออเดอร์โรกลุ่ม"""
+    global group_stock, group_rate_low, group_rate_high
+    
+    if not ctx.channel.name.startswith("ticket-") and not re.match(r'^\d{10}-\d+-[\w\u0E00-\u0E7F]+$', ctx.channel.name):
+        await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
+        return
+    
+    try:
+        expr_clean = expr.replace(",", "").lower().replace("x", "*").replace("÷", "/")
+        robux = int(eval(expr_clean))
+        price_baht = robux / group_rate_low
+        rate = group_rate_low if price_baht < 500 else group_rate_high
+        price = robux / rate
+        price_int = round_price(price)
+        
+        buyer = None
+        if str(ctx.channel.id) in ticket_buyer_data:
+            buyer_id = ticket_buyer_data[str(ctx.channel.id)].get("user_id")
+            if buyer_id:
+                buyer = ctx.guild.get_member(buyer_id)
+        
+        if not buyer:
+            parts = ctx.channel.name.split('-')
+            if len(parts) >= 3:
+                try:
+                    buyer = ctx.guild.get_member(int(parts[-1]))
+                except:
+                    pass
+        
+        if not buyer:
+            async for msg in ctx.channel.history(limit=20):
+                if not msg.author.bot and msg.author != ctx.guild.me:
+                    buyer = msg.author
+                    break
+        
+        if buyer:
+            await add_buyer_role(buyer, ctx.guild)
+        
+        async with bot.stock_lock:
+            group_stock = max(0, group_stock - robux)
+        
+        save_stock_values()
+        
+        ticket_robux_data[str(ctx.channel.id)] = str(robux)
+        save_json(ticket_robux_data_file, ticket_robux_data)
+        
+        embed = discord.Embed(title="🍣คำสั่งซื้อสินค้า🍣", color=0x00FFFF)
+        embed.add_field(name="📦 ประเภทสินค้า", value="Group", inline=False)
+        embed.add_field(name=f"💸 จำนวน{ROBUX_EMOJI}", value=f"{format_number(robux)}", inline=True)
+        embed.add_field(name="💰 ราคาตามเรท", value=f"{format_number(price_int)} บาท", inline=True)
+        embed.set_footer(text=f"รับออร์เดอร์แล้ว 🤗 • {get_thailand_time().strftime('%d/%m/%y, %H:%M')}")
+        
+        await ctx.send(embed=embed, view=DeliveryView(ctx.channel, "Group", robux, price, buyer))
+        await update_main_channel()
+        
+    except Exception as e:
+        print(f"❌ Error in !odg: {e}")
+        traceback.print_exc()
+        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
+
+@bot.command()
+@admin_only()
+async def odp(ctx, *, expr):
+    """รับออเดอร์พรีเมียม"""
+    global premium_stock
+    
+    if not ctx.channel.name.startswith("ticket-") and not re.match(r'^\d{10}-\d+-[\w\u0E00-\u0E7F]+$', ctx.channel.name):
+        await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
+        return
+    
+    try:
+        amount_str = expr.replace(",", "").strip()
+        amount = int(amount_str)
+        
+        buyer = None
+        if str(ctx.channel.id) in ticket_buyer_data:
+            buyer_id = ticket_buyer_data[str(ctx.channel.id)].get("user_id")
+            if buyer_id:
+                buyer = ctx.guild.get_member(buyer_id)
+        
+        if not buyer:
+            parts = ctx.channel.name.split('-')
+            if len(parts) >= 3:
+                try:
+                    buyer = ctx.guild.get_member(int(parts[-1]))
+                except:
+                    pass
+        
+        if not buyer:
+            async for msg in ctx.channel.history(limit=20):
+                if not msg.author.bot and msg.author != ctx.guild.me:
+                    buyer = msg.author
+                    break
+        
+        if buyer:
+            await add_buyer_role(buyer, ctx.guild)
+        
+        async with bot.stock_lock:
+            premium_stock = max(0, premium_stock - 1)
+        
+        save_stock_values()
+        
+        ticket_robux_data[str(ctx.channel.id)] = str(amount)
+        save_json(ticket_robux_data_file, ticket_robux_data)
+        
+        embed = discord.Embed(title="🍣คำสั่งซื้อสินค้า🍣", color=0x9B59B6)
+        embed.add_field(name="📦 ประเภทสินค้า", value="Premium", inline=False)
+        embed.add_field(name="✨ สินค้า", value="Premium Membership", inline=True)
+        embed.add_field(name="💰 ราคา", value=f"{format_number(amount)} บาท", inline=True)
+        embed.set_footer(text=f"รับออร์เดอร์แล้ว 🤗 • {get_thailand_time().strftime('%d/%m/%y, %H:%M')}")
+        
+        await ctx.send(embed=embed, view=PremiumDeliveryView(ctx.channel, "Premium Membership", amount, buyer))
+        await update_main_channel()
+        
+    except Exception as e:
+        print(f"❌ Error in !odp: {e}")
+        await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
+
 # ============ DATA COMMANDS ============
 @bot.command(name="savedata")
 @admin_only()
