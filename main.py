@@ -3222,11 +3222,20 @@ async def set_sp_cmd(ctx, user: discord.Member, amount: int):
         user_levels[user_id_str] = {"sp": 0, "total_robux": 0}
     
     old_sp = user_levels[user_id_str]["sp"]
+    old_role_id = get_role_for_sp(old_sp)
+    new_role_id = get_role_for_sp(amount)
+    
     user_levels[user_id_str]["sp"] = amount
     user_levels[user_id_str]["total_robux"] = amount
     save_json(user_levels_file, user_levels)
     
     await update_member_roles(user, amount)
+    
+    # Send level up DM if role changed
+    if old_role_id != new_role_id and amount > old_sp:
+        await send_level_up_dm(user, new_role_id, amount)
+    elif old_role_id != new_role_id and amount < old_sp:
+        await send_level_down_dm(user, new_role_id, amount)
     
     embed = discord.Embed(
         title="✅ ตั้งค่า SP สำเร็จ",
