@@ -88,7 +88,7 @@ LEVEL_ROLES = {
     777777: 1488075865337106563  # 777,777+ SP - 👑 | Superior
 }
 
-# Level names for display
+# Level names for display (using thresholds as keys)
 LEVEL_NAMES = {
     0: "🍣 | Sushi Lover",
     5000: "🐠 | Sushi Pass",
@@ -386,6 +386,14 @@ async def save_all_data():
     return True
 
 # Helper functions for level system
+def get_threshold_from_sp(sp):
+    """Get the level threshold from SP amount"""
+    sorted_thresholds = sorted(LEVEL_ROLES.keys(), reverse=True)
+    for threshold in sorted_thresholds:
+        if sp >= threshold:
+            return threshold
+    return 0
+
 def get_role_for_sp(sp):
     """Get the role ID for a given SP amount"""
     sorted_thresholds = sorted(LEVEL_ROLES.keys(), reverse=True)
@@ -393,6 +401,11 @@ def get_role_for_sp(sp):
         if sp >= threshold:
             return LEVEL_ROLES[threshold]
     return LEVEL_ROLES[0]
+
+def get_level_name_from_sp(sp):
+    """Get level name from SP amount"""
+    threshold = get_threshold_from_sp(sp)
+    return LEVEL_NAMES.get(threshold, "🍣 | Sushi Lover")
 
 def get_level_info(sp):
     """Get level information based on skill points"""
@@ -437,22 +450,26 @@ def get_next_level_sp(sp):
             return threshold - sp
     return 0
 
-async def send_level_up_dm(member, new_sp, old_level_id, new_level_id):
+async def send_level_up_dm(member, new_sp, old_sp):
     """Send level up DM to user"""
     try:
-        new_level_name = LEVEL_NAMES.get(new_level_id, "Unknown Level")
-        old_level_name = LEVEL_NAMES.get(old_level_id, "Unknown Level")
+        # Get level names based on SP thresholds
+        old_level_name = get_level_name_from_sp(old_sp)
+        new_level_name = get_level_name_from_sp(new_sp)
+        
+        # Don't send DM if level didn't actually change
+        if old_level_name == new_level_name:
+            print(f"ℹ️ No level change for {member.name} (SP: {old_sp} → {new_sp})")
+            return
         
         # Get next level info
         next_sp_needed = get_next_level_sp(new_sp)
-        next_level_id = None
         next_level_name = None
         
         sorted_levels = sorted(LEVEL_ROLES.keys())
         for threshold in sorted_levels:
             if new_sp < threshold:
-                next_level_id = threshold
-                next_level_name = LEVEL_NAMES.get(next_level_id, "Unknown Level")
+                next_level_name = LEVEL_NAMES.get(threshold, "Unknown Level")
                 break
         
         embed = discord.Embed(
@@ -514,10 +531,15 @@ async def update_member_roles(member, new_sp, old_sp=None):
         print(f"❌ Bot doesn't have Manage Roles permission in {guild.name}")
         return False
     
-    # Get old role ID if not provided
+    # Get old SP if not provided
     if old_sp is None:
-        old_sp = new_sp
+        user_id_str = str(member.id)
+        if user_id_str in user_levels:
+            old_sp = user_levels[user_id_str].get("sp", 0)
+        else:
+            old_sp = 0
     
+    # Get role IDs based on SP thresholds
     old_role_id = get_role_for_sp(old_sp)
     new_role_id = get_role_for_sp(new_sp)
     
@@ -550,7 +572,7 @@ async def update_member_roles(member, new_sp, old_sp=None):
             print(f"✅ Added role {new_role.name} to {member.name} (SP: {new_sp})")
             
             # Send level up DM
-            await send_level_up_dm(member, new_sp, old_role_id, new_role_id)
+            await send_level_up_dm(member, new_sp, old_sp)
             
             return True
         else:
@@ -601,6 +623,52 @@ async def add_sp(user_id, amount):
     except Exception as e:
         print(f"❌ Error adding SP: {e}")
         return 0
+
+async def remove_sp(user_id, amount):
+    """Remove skill points from a user and update roles"""
+    if not user_id:
+        return False
+    
+    try:
+        if mongodb.connected:
+            user_data = await mongodb.get_user_level(user_id)
+            old_sp = user_data.get("sp", 0)
+            if old_sp < amount:
+                return False
+            # Implement remove in MongoDB if needed
+            return False
+        else:
+            user_id_str = str(user_id)
+            if user_id_str not in user_levels:
+                return False
+            
+            old_sp = user_levels[user_id_str]["sp"]
+            if old_sp < amount:
+                return False
+            
+            user_levels[user_id_str]["sp"] -= amount
+            user_levels[user_id_str]["total_robux"] -= amount
+            new_sp = user_levels[user_id_str]["sp"]
+            save_json(user_levels_file, user_levels)
+            
+            print(f"✅ Removed {amount} SP from {user_id}: {old_sp} → {new_sp} SP")
+            
+            # Update roles (will send DM if level down)
+            guild = None
+            for g in bot.guilds:
+                guild = g
+                break
+            
+            if guild:
+                member = guild.get_member(user_id)
+                if member:
+                    await update_member_roles(member, new_sp, old_sp)
+            
+            return True
+            
+    except Exception as e:
+        print(f"❌ Error removing SP: {e}")
+        return False
 
 # Rate Limiter class
 class RateLimiter:
@@ -663,7 +731,6 @@ class LevelCheckView(View):
                 total_robux = user_levels[user_id_str]["total_robux"]
         
         current_level, current_level_name, next_level, next_level_name, sp_needed = get_level_info(sp)
-        current_role_id = get_role_for_sp(sp)
         
         embed = discord.Embed(
             title="🍣 ระดับของคุณ",
@@ -671,9 +738,7 @@ class LevelCheckView(View):
             color=0x00FF99
         )
         embed.add_field(name="💰 โรบัคที่ซื้อทั้งหมด", value=f"**{format_number(total_robux)}** {ROBUX_EMOJI}", inline=True)
-        
-        if current_role_id:
-            embed.add_field(name="🏅 ระดับปัจจุบัน", value=f"{current_level_name}", inline=True)
+        embed.add_field(name="🏅 ระดับปัจจุบัน", value=f"{current_level_name}", inline=True)
         
         if sp_needed > 0:
             progress = (sp - current_level) / (next_level - current_level) if next_level > current_level else 0
@@ -714,12 +779,11 @@ class LevelCheckView(View):
                     name = f"ผู้ใช้ #{user_id_str}"
                 
                 sp = data["sp"]
-                role_id = get_role_for_sp(sp)
-                role_name = LEVEL_NAMES.get(role_id, "Unknown")
+                level_name = get_level_name_from_sp(sp)
                 
                 medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉" if i == 3 else "📊"
                 rank_text += f"{medal} **#{i}** {name}\n"
-                rank_text += f"   ✨ **{format_number(sp)}** SP | {role_name}\n\n"
+                rank_text += f"   ✨ **{format_number(sp)}** SP | {level_name}\n\n"
             
             embed.description = rank_text
         
@@ -3364,12 +3428,12 @@ async def level_cmd(ctx):
     level_list = []
     sorted_levels = sorted(LEVEL_ROLES.keys())
     for threshold in sorted_levels:
-        role_name = LEVEL_NAMES.get(threshold, f"Level {threshold}")
+        level_name = LEVEL_NAMES.get(threshold, f"Level {threshold}")
         
         if threshold == 0:
-            level_list.append(f"1 SP - {role_name}")
+            level_list.append(f"1 SP - {level_name}")
         else:
-            level_list.append(f"{format_number(threshold)} SP - {role_name}")
+            level_list.append(f"{format_number(threshold)} SP - {level_name}")
     
     embed.add_field(
         name="🏆 ระดับ",
@@ -3379,6 +3443,87 @@ async def level_cmd(ctx):
     embed.set_footer(text="Sushi Shop 🍣")
     
     await ctx.send(embed=embed, view=view)
+
+@bot.command(name="checklv")
+async def check_lv_cmd(ctx, user: discord.Member = None):
+    """Check level of a user (Admin can check others)"""
+    # If no user specified, check the command author
+    if user is None:
+        user = ctx.author
+    
+    # Check if user has permission to check others
+    if user != ctx.author and not ctx.author.guild_permissions.administrator:
+        # Check if user has admin role
+        admin_role = ctx.guild.get_role(1361016912259055896)
+        if not admin_role or admin_role not in ctx.author.roles:
+            await ctx.send("❌ คุณไม่มีสิทธิ์เช็คเลเวลของผู้อื่น", delete_after=5)
+            return
+    
+    # Get user data
+    if mongodb.connected:
+        user_data = await mongodb.get_user_level(user.id)
+        sp = user_data.get("sp", 0)
+        total_robux = user_data.get("total_robux", 0)
+    else:
+        user_id_str = str(user.id)
+        if user_id_str not in user_levels:
+            sp = 0
+            total_robux = 0
+        else:
+            sp = user_levels[user_id_str]["sp"]
+            total_robux = user_levels[user_id_str]["total_robux"]
+    
+    # Get level info
+    level_name = get_level_name_from_sp(sp)
+    current_level, current_level_name, next_level, next_level_name, sp_needed = get_level_info(sp)
+    
+    # Get rank
+    if mongodb.connected:
+        all_users = await mongodb.get_all_user_levels()
+        sorted_users = sorted(all_users.items(), key=lambda x: x[1].get("sp", 0), reverse=True)
+    else:
+        sorted_users = sorted(user_levels.items(), key=lambda x: x[1]["sp"], reverse=True)
+    
+    rank = 1
+    for i, (user_id_str, data) in enumerate(sorted_users, 1):
+        if str(user.id) == user_id_str:
+            rank = i
+            break
+    
+    # Create embed
+    embed = discord.Embed(
+        title="🍣 ข้อมูลเลเวลผู้ใช้ 🍣",
+        color=0x00FF99
+    )
+    
+    # User info
+    embed.set_author(name=user.display_name, icon_url=user.avatar.url if user.avatar else None)
+    
+    # Rank and level
+    medal = "🥇" if rank == 1 else "🥈" if rank == 2 else "🥉" if rank == 3 else f"#{rank}"
+    embed.add_field(name="📊 อันดับ", value=f"{medal}", inline=True)
+    embed.add_field(name="🏅 ระดับ", value=f"{level_name}", inline=True)
+    
+    # SP and Robux
+    embed.add_field(name="✨ SP ทั้งหมด", value=f"**{format_number(sp)}** SP", inline=False)
+    embed.add_field(name="💰 โรบัคที่ซื้อทั้งหมด", value=f"**{format_number(total_robux)}** {ROBUX_EMOJI}", inline=True)
+    
+    # Progress to next level
+    if sp_needed > 0:
+        progress = (sp - current_level) / (next_level - current_level) if next_level > current_level else 0
+        progress_bar = "🍣" * int(progress * 10) + "⬜" * (10 - int(progress * 10))
+        embed.add_field(
+            name="⏫ ความคืบหน้า", 
+            value=f"`{progress_bar}` {format_number(sp - current_level)}/{format_number(next_level - current_level)} SP\nเหลืออีก **{format_number(sp_needed)}** SP สู่{next_level_name}",
+            inline=False
+        )
+    else:
+        embed.add_field(name="🏆 สถานะ", value=f"คุณถึง{level_name}สูงสุดแล้ว! 🎉", inline=False)
+    
+    embed.set_footer(text="Sushi Shop • 1 โรบัคที่ซื้อ = 1 SP")
+    embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
+    
+    await ctx.send(embed=embed)
 
 @bot.command(name="setsp")
 @admin_only()
@@ -3409,29 +3554,19 @@ async def set_sp_cmd(ctx, user: discord.Member, amount: int):
 @admin_only()
 async def del_sp_cmd(ctx, user: discord.Member, amount: int):
     """Admin command to remove SP from a user"""
-    user_id_str = str(user.id)
-    
-    if user_id_str not in user_levels:
-        await ctx.send(f"❌ {user.mention} ยังไม่มีข้อมูล SP", delete_after=5)
-        return
-    
-    current_sp = user_levels[user_id_str]["sp"]
-    
-    if current_sp < amount:
-        await ctx.send(f"❌ {user.mention} มี SP เพียง {format_number(current_sp)} SP ไม่สามารถลบได้ {format_number(amount)} SP", delete_after=5)
-        return
-    
     success = await remove_sp(user.id, amount)
     
     if success:
+        user_id_str = str(user.id)
+        new_sp = user_levels[user_id_str]["sp"] if user_id_str in user_levels else 0
         embed = discord.Embed(
             title="✅ ลบ SP สำเร็จ",
-            description=f"ลบ **{format_number(amount)}** SP จาก {user.mention}\nเหลือ SP **{format_number(current_sp - amount)}**",
+            description=f"ลบ **{format_number(amount)}** SP จาก {user.mention}\nเหลือ SP **{format_number(new_sp)}**",
             color=0x00FF00
         )
         await ctx.send(embed=embed)
     else:
-        await ctx.send(f"❌ เกิดข้อผิดพลาดในการลบ SP", delete_after=5)
+        await ctx.send(f"❌ เกิดข้อผิดพลาดในการลบ SP หรือ SP ไม่เพียงพอ", delete_after=5)
 
 @bot.command(name="checkdata")
 @admin_only()
@@ -3503,11 +3638,40 @@ async def fix_roles_cmd(ctx, user: discord.Member = None):
                     sp = data["sp"]
                     await update_member_roles(member, sp)
                     fixed_count += 1
-                    await asyncio.sleep(0.5)  # Rate limit prevention
+                    await asyncio.sleep(0.5)
             except Exception as e:
                 print(f"Error fixing roles for {user_id_str}: {e}")
         
         await ctx.send(f"✅ ซ่อมแซมบทบาทให้สมาชิก {fixed_count} คน เรียบร้อย")
+
+@bot.command(name="testmongo")
+@admin_only()
+async def test_mongo_cmd(ctx):
+    """Test MongoDB connection"""
+    if mongodb.connected:
+        embed = discord.Embed(
+            title="✅ MongoDB Connected",
+            description=f"Database: {MONGODB_DB_NAME}",
+            color=0x00FF00
+        )
+        
+        try:
+            stock_data = await mongodb.get_stock_data()
+            embed.add_field(name="Read Test", value="✅ Successful", inline=True)
+        except Exception as e:
+            embed.add_field(name="Read Test", value=f"❌ Failed: {str(e)[:50]}", inline=True)
+        
+        user_count = len(user_levels)
+        embed.add_field(name="Users in Memory", value=f"{user_count}", inline=True)
+        
+        await ctx.send(embed=embed)
+    else:
+        embed = discord.Embed(
+            title="❌ MongoDB Not Connected",
+            description="Check your connection string and credentials",
+            color=0xFF0000
+        )
+        await ctx.send(embed=embed)
 
 # Background tasks
 @tasks.loop(minutes=1)
