@@ -313,7 +313,7 @@ async def remove_sp(user_id, amount):
     return True
 
 async def update_member_roles(member, sp):
-    """Update member roles based on their skill points"""
+    """Update member roles based on their skill points and send DM notification on level up"""
     if not member:
         return
     
@@ -332,6 +332,15 @@ async def update_member_roles(member, sp):
     
     target_role = member.guild.get_role(target_role_id)
     
+    # Find current highest level role the user has
+    current_role_id = None
+    for threshold in sorted_levels:
+        role_id = LEVEL_ROLES[threshold]
+        role = member.guild.get_role(role_id)
+        if role and role in member.roles:
+            current_role_id = role_id
+            break
+    
     # Remove all level roles and add the appropriate one
     for role_id in LEVEL_ROLES.values():
         role = member.guild.get_role(role_id)
@@ -341,6 +350,50 @@ async def update_member_roles(member, sp):
     if target_role:
         await member.add_roles(target_role)
         print(f"✅ Updated roles for {member.name} (SP: {sp}) to role {target_role.name}")
+        
+        # Send DM notification if level increased
+        if current_role_id is None or sp >= target_role_id:
+            # Check if this is actually a level up (new role is different from old role)
+            if current_role_id != target_role_id:
+                try:
+                    # Get level name for the new role
+                    level_name = LEVEL_NAMES.get(target_role_id, target_role.name)
+                    
+                    embed = discord.Embed(
+                        title="🎉 Level Up! 🎉",
+                        description=f"ยินดีด้วย {member.mention}! คุณได้เลื่อนระดับแล้ว!",
+                        color=0xFFD700
+                    )
+                    embed.add_field(
+                        name="🏆 ระดับปัจจุบันใหม่ของคุณคือ",
+                        value=f"{target_role.mention}",
+                        inline=False
+                    )
+                    embed.add_field(
+                        name="✨ SP ทั้งหมด",
+                        value=f"**{format_number(sp)}** SP",
+                        inline=True
+                    )
+                    embed.add_field(
+                        name="📈 ก้าวสู่ระดับถัดไป",
+                        value=f"ต้องการอีก **{get_next_level_sp(sp)}** SP",
+                        inline=True
+                    )
+                    embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
+                    embed.set_footer(text="Sushi Shop • ขอบคุณที่ใช้บริการ 💖")
+                    
+                    await member.send(embed=embed)
+                    print(f"✅ Sent level up DM to {member.name}")
+                except Exception as e:
+                    print(f"⚠️ Could not send DM to {member.name}: {e}")
+
+def get_next_level_sp(sp):
+    """Get SP needed for next level"""
+    sorted_levels = sorted(LEVEL_ROLES.keys())
+    for threshold in sorted_levels:
+        if sp < threshold:
+            return threshold - sp
+    return 0
 
 def get_role_for_sp(sp):
     """Get the role ID for a given SP amount"""
