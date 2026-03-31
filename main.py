@@ -200,7 +200,6 @@ def load_json(file, default):
 def save_json(file, data):
     """Save data to JSON file with backup"""
     try:
-        # Create backup before saving
         if os.path.exists(file):
             backup_file = f"{file}.backup"
             try:
@@ -2804,6 +2803,312 @@ async def tkd_cmd(ctx):
         print(f"❌ Error in tkd: {e}")
         traceback.print_exc()
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
+
+# ============ TY COMMAND - FIXED ============
+@bot.command()
+@admin_only()
+async def ty(ctx):
+    """ส่งของและเพิ่ม SP ให้ลูกค้า"""
+    global gamepass_stock, group_stock, premium_stock
+    
+    # ตรวจสอบว่าใช้ในช่องตั๋วหรือไม่
+    if not ctx.channel.name.startswith("ticket-") and not re.match(r'^\d{10}-\d+-[\w\u0E00-\u0E7F]+$', ctx.channel.name):
+        await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
+        return
+    
+    processing_msg = None
+    
+    try:
+        processing_msg = await ctx.send("🔄 กำลังดำเนินการ...")
+        
+        # หาผู้ซื้อ
+        buyer = None
+        channel_name = ctx.channel.name
+        
+        # วิธีที่ 1: จากข้อมูลที่บันทึกไว้
+        if str(ctx.channel.id) in ticket_buyer_data:
+            buyer_id = ticket_buyer_data[str(ctx.channel.id)].get("user_id")
+            if buyer_id:
+                buyer = ctx.guild.get_member(buyer_id)
+                if buyer:
+                    print(f"✅ Found buyer from stored data: {buyer.name}")
+        
+        # วิธีที่ 2: จากชื่อช่อง (ticket-username-userid)
+        if not buyer and channel_name.startswith("ticket-"):
+            parts = channel_name.split('-')
+            if len(parts) >= 3:
+                try:
+                    user_id = int(parts[-1])
+                    buyer = ctx.guild.get_member(user_id)
+                    if buyer:
+                        print(f"✅ Found buyer from ticket- format: {buyer.name}")
+                except ValueError:
+                    pass
+        
+        # วิธีที่ 3: จากชื่อไฟล์ transcript (ddmmyytime-amount-username)
+        if not buyer and re.match(r'^\d{10}-\d+-[\w\u0E00-\u0E7F]+$', channel_name):
+            parts = channel_name.split('-')
+            if len(parts) >= 3:
+                username_part = parts[-1].lower()
+                for member in ctx.guild.members:
+                    if member.name.lower() == username_part or member.display_name.lower() == username_part:
+                        buyer = member
+                        if buyer:
+                            print(f"✅ Found buyer from filename format: {buyer.name}")
+                            break
+        
+        # วิธีที่ 4: จากข้อมูลลูกค้าที่บันทึก
+        if not buyer and str(ctx.channel.id) in ticket_customer_data:
+            customer_name = ticket_customer_data[str(ctx.channel.id)]
+            if customer_name != "ไม่ระบุตัวตน":
+                for member in ctx.guild.members:
+                    if member.name == customer_name or member.display_name == customer_name:
+                        buyer = member
+                        if buyer:
+                            print(f"✅ Found buyer from customer data: {buyer.name}")
+                            break
+        
+        # วิธีที่ 5: จากประวัติกิจกรรม
+        if not buyer and ctx.channel.id in ticket_activity:
+            buyer_id = ticket_activity[ctx.channel.id].get('buyer_id')
+            if buyer_id:
+                buyer = ctx.guild.get_member(buyer_id)
+                if buyer:
+                    print(f"✅ Found buyer from activity data: {buyer.name}")
+        
+        # วิธีที่ 6: จากประวัติข้อความ
+        if not buyer:
+            async for msg in ctx.channel.history(limit=50):
+                if not msg.author.bot and msg.author != ctx.guild.me:
+                    buyer = msg.author
+                    if buyer:
+                        print(f"✅ Found buyer from message history: {buyer.name}")
+                        break
+        
+        # เพิ่มบทบาทผู้ซื้อ
+        if buyer:
+            await add_buyer_role(buyer, ctx.guild)
+            print(f"✅ Found buyer: {buyer.name} (ID: {buyer.id})")
+        else:
+            print(f"⚠️ Could not find buyer for channel {ctx.channel.name}")
+        
+        # ดึงข้อมูลที่เก็บไว้
+        robux_amount = ticket_robux_data.get(str(ctx.channel.id))
+        customer_name = ticket_customer_data.get(str(ctx.channel.id))
+        
+        # ตรวจสอบประเภทสินค้า
+        product_type = "Gamepass"
+        price = 0
+        delivery_image = None
+        premium_type = None
+        is_premium = False
+        
+        if ctx.channel.category and ctx.channel.category.id == PREMIUM_CATEGORY_ID:
+            is_premium = True
+            product_type = "Premium"
+        
+        # ดึงข้อมูลจากใบเสร็จในแชท
+        async for msg in ctx.channel.history(limit=50):
+            if msg.author == bot.user and msg.embeds:
+                for embed in msg.embeds:
+                    if embed.title and "ใบเสร็จ" in embed.title:
+                        for field in embed.fields:
+                            if field.name == f"💸 จำนวน{ROBUX_EMOJI}" and not is_premium:
+                                try:
+                                    robux_amount = int(field.value.replace(",", ""))
+                                except:
+                                    pass
+                            elif field.name == "💰 ราคาตามเรท" and not is_premium:
+                                try:
+                                    price = int(float(field.value.replace(" บาท", "").replace(",", "")))
+                                except:
+                                    pass
+                            elif field.name == "✨ ประเภทพรีเมียม" and is_premium:
+                                premium_type = field.value
+                            elif field.name == "💰 ราคา" and is_premium:
+                                try:
+                                    price = int(float(field.value.replace(" บาท", "").replace(",", "")))
+                                except:
+                                    pass
+                        
+                        if embed.image.url:
+                            delivery_image = embed.image.url
+                        
+                        if "Gamepass" in embed.title:
+                            product_type = "Gamepass"
+                        elif "Group" in embed.title:
+                            product_type = "Group"
+                        elif "Premium" in embed.title:
+                            product_type = "Premium"
+                        
+                        break
+                if product_type:
+                    break
+        
+        # สร้างใบเสร็จ
+        receipt_color = 0xFFA500 if product_type == "Gamepass" else (0x00FFFF if product_type == "Group" else 0x9B59B6)
+        
+        anonymous_mode = ticket_anonymous_mode.get(str(ctx.channel.id), False)
+        buyer_display = "ไม่ระบุตัวตน" if anonymous_mode else (buyer.mention if buyer else "ไม่ทราบ")
+        
+        receipt_embed = discord.Embed(
+            title=f"🍣 ใบเสร็จการสั่งซื้อ ({product_type}) 🍣", 
+            color=receipt_color
+        )
+        receipt_embed.add_field(name="😊 ผู้ซื้อ", value=buyer_display, inline=False)
+        
+        if is_premium:
+            receipt_embed.add_field(name="✨ ประเภทพรีเมียม", value=premium_type if premium_type else "ไม่ระบุ", inline=True)
+        else:
+            receipt_embed.add_field(name=f"💸 จำนวน{ROBUX_EMOJI}", value=f"{format_number(robux_amount) if robux_amount else 0}", inline=True)
+        
+        price_int = round_price(price) if price > 0 else 0
+        receipt_embed.add_field(name="💰 ราคาตามเรท", value=f"{format_number(price_int)} บาท" if price > 0 else "ไม่ระบุ", inline=True)
+        
+        if delivery_image:
+            receipt_embed.set_image(url=delivery_image)
+        
+        receipt_embed.set_footer(text=f"จัดส่งสินค้าสำเร็จ 🤗 • {get_thailand_time().strftime('%d/%m/%y, %H:%M')}")
+        
+        # ส่งไปยังช่อง log
+        log_channel = bot.get_channel(SALES_LOG_CHANNEL_ID)
+        if log_channel:
+            await log_channel.send(embed=receipt_embed)
+            print(f"✅ ส่งใบเสร็จไปยัง sales log channel เรียบร้อย")
+        
+        # บันทึก transcript
+        save_success, filename = await save_ticket_transcript(ctx.channel, buyer, robux_amount if not is_premium else price, customer_name)
+        
+        if save_success:
+            try:
+                await ctx.channel.edit(name=filename[:100])
+            except:
+                pass
+        
+        # อัปเดตสต๊อก (เพิ่มกลับ)
+        if ctx.channel.category:
+            category_name = ctx.channel.category.name.lower()
+            if "gamepass" in category_name:
+                async with bot.stock_lock:
+                    gamepass_stock += 1
+            elif "group" in category_name or "robux" in category_name:
+                async with bot.stock_lock:
+                    group_stock += 1
+            elif ctx.channel.category.id == PREMIUM_CATEGORY_ID:
+                async with bot.stock_lock:
+                    premium_stock += 1
+        
+        save_stock_values()
+        
+        # ลบข้อความกำลังดำเนินการ
+        if processing_msg:
+            await processing_msg.delete()
+            processing_msg = None
+        
+        # ส่งข้อความสำเร็จ
+        embed = discord.Embed(
+            title="✅ ส่งของเรียบร้อยแล้ว",
+            description=(
+                "**ขอบคุณที่ใช้บริการร้าน Sushi Shop** 🍣\n"
+                "ฝากให้เครดิต +1 ให้ด้วยนะคะ ❤️\n\n"
+                "⚠️ **หมายเหตุ:** ตั๋วนี้จะถูกลบใน 10 นาที"
+            ),
+            color=0x00FF00
+        )
+        embed.set_footer(text="Sushi Shop 🍣❤️")
+        embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
+        
+        view = View(timeout=None)
+        credit_button = Button(
+            label="ให้เครดิต⭐", 
+            style=discord.ButtonStyle.link,
+            url=f"https://discord.com/channels/{ctx.guild.id}/{CREDIT_CHANNEL_ID}",
+            emoji="☑️"
+        )
+        view.add_item(credit_button)
+        
+        await ctx.send(embed=embed, view=view)
+        
+        # เสนอให้สั่งเพิ่ม (เฉพาะเกมพาส)
+        if product_type == "Gamepass" and buyer:
+            order_more_view = View(timeout=None)
+            order_more_btn = Button(label="สั่งของต่อ 📝", style=discord.ButtonStyle.secondary, emoji="🔄")
+            
+            async def order_more_cb(interaction):
+                if interaction.channel.id != ctx.channel.id:
+                    await interaction.response.send_message("❌ คุณไม่สามารถใช้ปุ่มนี้ในช่องอื่นได้", ephemeral=True)
+                    return
+                
+                cancel_removal(ctx.channel.id)
+                
+                stock_type = "gamepass"
+                
+                if buyer:
+                    await reset_channel_name(ctx.channel, buyer.id, stock_type)
+                
+                await move_to_original_category(ctx.channel, "gamepass")
+                
+                order_embed = discord.Embed(
+                    title="🍣 Sushi Shop 🍣", 
+                    description="แจ้งแอดมินขอไม่ระบุตัวตนชื่อลูกค้าได้\n\nกรอกแบบฟอร์มเพื่อสั่งสินค้า", 
+                    color=0x00FF99
+                )
+                order_embed.add_field(name="👤 ผู้ซื้อ", value=interaction.user.mention, inline=False)
+                order_embed.add_field(
+                    name="🎮 บริการกดเกมพาส", 
+                    value=f"📦 โรบัคคงเหลือ: **{format_number(gamepass_stock)}**\n💰 เรท: {gamepass_rate}", 
+                    inline=False
+                )
+                order_embed.set_footer(text="Sushi Shop")
+                order_embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
+                
+                ticket_view = View(timeout=None)
+                form_btn = Button(label="📝 กรอกแบบฟอร์มเกมพาส", style=discord.ButtonStyle.primary, emoji="📝")
+                
+                async def form_callback(interaction2):
+                    if interaction2.channel.id == ctx.channel.id:
+                        modal = GamepassTicketModal()
+                        await interaction2.response.send_modal(modal)
+                    else:
+                        await interaction2.response.send_message("❌ คุณไม่สามารถใช้ปุ่มนี้ในช่องอื่นได้", ephemeral=True)
+                
+                form_btn.callback = form_callback
+                ticket_view.add_item(form_btn)
+                
+                await interaction.response.send_message(embed=order_embed, view=ticket_view)
+            
+            order_more_btn.callback = order_more_cb
+            order_more_view.add_item(order_more_btn)
+            await ctx.send("📝 ต้องการสั่งสินค้าเพิ่ม?", view=order_more_view)
+        
+        # ล้างข้อมูลที่เก็บไว้
+        if str(ctx.channel.id) in ticket_robux_data:
+            del ticket_robux_data[str(ctx.channel.id)]
+            save_json(ticket_robux_data_file, ticket_robux_data)
+        
+        if str(ctx.channel.id) in ticket_customer_data:
+            del ticket_customer_data[str(ctx.channel.id)]
+            save_json(ticket_customer_data_file, ticket_customer_data)
+        
+        # ย้ายไป category ส่งของแล้ว และตั้งเวลาลบ
+        await move_to_delivered_category(ctx.channel)
+        await schedule_removal(ctx.channel, buyer, 600)
+        await update_main_channel()
+        
+        print(f"✅ คำสั่ง !ty ดำเนินการสำเร็จสำหรับห้อง {ctx.channel.name}")
+        
+    except Exception as e:
+        print(f"❌ เกิดข้อผิดพลาดใน !ty: {e}")
+        traceback.print_exc()
+        if processing_msg:
+            try:
+                await processing_msg.delete()
+            except:
+                pass
+        try:
+            await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
+        except:
+            pass
 
 # ============ CALCULATOR COMMANDS ============
 @bot.command(name="calculator")
