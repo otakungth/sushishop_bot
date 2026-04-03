@@ -127,7 +127,7 @@ LEVEL_ROLES = {
     25000: 1488073771662315614,
     50000: 1488073590162329640,
     100000: 1488073619543294153,
-    777777: 1488075865337106563
+    555555: 1488075865337106563
 }
 
 # Level names
@@ -138,7 +138,7 @@ LEVEL_NAMES = {
     25000: "🐈 | Sushi Platinum",
     50000: "🐈‍⬛ | Sushi Ascendant",
     100000: "🥡 | Sushi Emerald",
-    777777: "👑 | Sovereign of Sushi"
+    555555: "👑 | Sovereign of Sushi"
 }
 
 GAMEPASS_CATEGORY_NAME = "sushi gamepass"
