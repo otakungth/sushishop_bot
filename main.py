@@ -133,12 +133,12 @@ LEVEL_ROLES = {
 # Level names
 LEVEL_NAMES = {
     0: "🍣 | Sushi Lover",
-    5000: "🐠 | Sushi Pass",
-    10000: "🐡 | Sushi Silver",
-    25000: "🦈 | Sushi Platinum",
-    50000: "🐙 | Sushi Emerald",
-    100000: "🐋 | Sushi Supreme",
-    777777: "👑 | Superior"
+    5000: "🐱 | Sushi Pass",
+    10000: "😼 | Sushi Silver",
+    25000: "🐈 | Sushi Platinum",
+    50000: "🐈‍⬛ | Sushi Ascendant",
+    100000: "🥡 | Sushi Emerald",
+    777777: "👑 | Sovereign of Sushi"
 }
 
 GAMEPASS_CATEGORY_NAME = "sushi gamepass"
@@ -147,8 +147,8 @@ ROBUX_EMOJI = "<:sushirobux:1486314072701141074>"
 
 WELCOME_MESSAGES = [
     "ยินดีต้อนรับ {} สู่ร้าน Sushi Shop 🍣",
-    "สวัสดีครับ {} ยินดีต้อนรับนะครับ 🍣",
-    "ยินดีต้อนรับนะครับ {} 🍣",
+    "สวัสดีค่ะ {} ยินดีต้อนรับนะคะ 🍣",
+    "ยินดีต้อนรับนะคะ {} 🍣",
     "สวัสดีค่ะ ยินดีต้อนรับ {} ค่า 🍣"
 ]
 
