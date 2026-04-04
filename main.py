@@ -136,9 +136,9 @@ LEVEL_NAMES = {
     5000: "🐱 | Sushi Pass",
     10000: "😼 | Sushi Silver",
     25000: "🐈 | Sushi Platinum",
-    50000: "🐈‍⬛ | Sushi Ascendant",
-    100000: "🥡 | Sushi Emerald",
-    555555: "👑 | Sovereign of Sushi"
+    50000: "🐈‍⬛ | Sushi Premium",
+    100000: "🥡 | Sushi Otoro",
+    555555: "👑 | Sushi Wistom"
 }
 
 GAMEPASS_CATEGORY_NAME = "sushi gamepass"
