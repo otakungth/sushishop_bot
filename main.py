@@ -960,12 +960,6 @@ class EmbedShopView(View):
             emoji="👥", 
             disabled=not shop_open
         )
-        premium_btn = Button(
-            label="เติมพรีเมียม", 
-            style=discord.ButtonStyle.success if shop_open else discord.ButtonStyle.danger, 
-            emoji="✨", 
-            disabled=not shop_open
-        )
         notes_btn = Button(label="จดวันที่เข้ากลุ่ม", style=discord.ButtonStyle.secondary, emoji="📝")
         
         async def gamepass_cb(i):
