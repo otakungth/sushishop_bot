@@ -456,17 +456,20 @@ async def send_level_up_dm(member, new_sp, old_sp):
         print(f"⚠️ Could not send DM to {member.name}: {e}")
 
 async def update_member_roles(member, new_sp, old_sp=None):
-    """Update member roles based on their skill points"""
+    """Update member roles based on their skill points - FIXED VERSION"""
     if not member:
+        print(f"❌ Cannot update roles: member is None")
         return False
     
     guild = member.guild
     bot_member = guild.me
     
+    # Check bot permissions
     if not bot_member.guild_permissions.manage_roles:
         print(f"❌ Bot doesn't have Manage Roles permission in {guild.name}")
         return False
     
+    # Get old SP if not provided
     if old_sp is None:
         user_id_str = str(member.id)
         if user_id_str in user_levels:
@@ -474,10 +477,13 @@ async def update_member_roles(member, new_sp, old_sp=None):
         else:
             old_sp = 0
     
+    # Get role IDs based on SP thresholds
     old_role_id = get_role_for_sp(old_sp)
     new_role_id = get_role_for_sp(new_sp)
     
+    # If role hasn't changed, no need to update
     if old_role_id == new_role_id:
+        print(f"ℹ️ Role unchanged for {member.name} (SP: {new_sp})")
         return True
     
     old_role = guild.get_role(old_role_id) if old_role_id else None
@@ -487,23 +493,33 @@ async def update_member_roles(member, new_sp, old_sp=None):
         print(f"❌ Cannot find new role with ID {new_role_id}")
         return False
     
+    # Check if bot can manage the new role (role hierarchy)
     if new_role.position >= bot_member.top_role.position:
-        print(f"⚠️ Bot cannot manage role {new_role.name}")
+        print(f"⚠️ Bot cannot manage role {new_role.name} - role is higher than bot's highest role ({bot_member.top_role.name})")
+        print(f"   Please move bot's role above {new_role.name} in Server Settings → Roles")
         return False
     
     try:
+        # Remove old role if user has it
         if old_role and old_role in member.roles:
             await member.remove_roles(old_role, reason=f"Level up from {old_sp} to {new_sp} SP")
             print(f"✅ Removed role {old_role.name} from {member.name}")
         
+        # Add new role
         if new_role not in member.roles:
             await member.add_roles(new_role, reason=f"Reached {new_sp} SP")
             print(f"✅ Added role {new_role.name} to {member.name} (SP: {new_sp})")
+            
+            # Send level up DM
             await send_level_up_dm(member, new_sp, old_sp)
             return True
         else:
+            print(f"ℹ️ {member.name} already has role {new_role.name}")
             return True
             
+    except discord.Forbidden:
+        print(f"❌ Forbidden: Bot cannot manage role {new_role.name}. Check role hierarchy!")
+        return False
     except Exception as e:
         print(f"❌ Failed to update roles for {member.name}: {e}")
         return False
