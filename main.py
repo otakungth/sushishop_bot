@@ -2998,7 +2998,7 @@ async def qr2(ctx):
 # ============ BACKGROUND TASKS ============
 @tasks.loop(minutes=1)
 async def update_presence():
-    await bot.change_presence(activity=discord.Game(name="บอทเครื่องคิดเลขของ wforr | !help"))
+    await bot.change_presence(activity=discord.Game(name="แมวส้มชื่อซูชิขของ wforr"))
 
 @tasks.loop(minutes=5)
 async def save_data():
@@ -3034,7 +3034,7 @@ signal.signal(signal.SIGTERM, signal_handler)
 async def on_ready():
     print(f"✅ บอทออนไลน์แล้ว: {bot.user} (ID: {bot.user.id})")
     
-    await bot.change_presence(activity=discord.Game(name="บอทเครื่องคิดเลขของ wforr | !help"))
+    await bot.change_presence(activity=discord.Game(name="แมวส้มชื่อซูชิขของ wforr"))
     
     print("\n📝 Registered commands:")
     for cmd in bot.commands:
