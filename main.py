@@ -754,7 +754,7 @@ class CalculatorView(View):
         
         gamepass_btn = Button(label="คำนวณเกมพาส", style=discord.ButtonStyle.primary, emoji="🎮")
         group_btn = Button(label="คำนวณโรกลุ่ม", style=discord.ButtonStyle.primary, emoji="👥")
-        gpb_btn = Button(label="คำนวนเงินบาท", style=discord.ButtonStyle.secondary, emoji="💰")
+        gpb_btn = Button(label="คำนวนเงินบาท (เกมพาส)", style=discord.ButtonStyle.secondary, emoji="💰")
         gb_btn = Button(label="คำนวนเงินบาท (โรกลุ่ม)", style=discord.ButtonStyle.secondary, emoji="💰")
         
         gamepass_btn.callback = self.gamepass_callback
