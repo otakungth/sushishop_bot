@@ -500,12 +500,15 @@ async def update_member_roles(member, new_sp, old_sp=None):
         return False
     
     try:
-        # Remove old role if user has it
-        if old_role and old_role in member.roles:
-            await member.remove_roles(old_role, reason=f"Level up from {old_sp} to {new_sp} SP")
-            print(f"✅ Removed role {old_role.name} from {member.name}")
+        # Remove ALL level roles from the user first
+        all_level_roles = list(LEVEL_ROLES.values())
+        for role_id in all_level_roles:
+            role = guild.get_role(role_id)
+            if role and role in member.roles and role != new_role:
+                await member.remove_roles(role, reason=f"Updating to new level {new_sp} SP")
+                print(f"✅ Removed old role {role.name} from {member.name}")
         
-        # Add new role
+        # Add new role if not already has it
         if new_role not in member.roles:
             await member.add_roles(new_role, reason=f"Reached {new_sp} SP")
             print(f"✅ Added role {new_role.name} to {member.name} (SP: {new_sp})")
