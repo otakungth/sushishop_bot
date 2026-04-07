@@ -2457,6 +2457,67 @@ async def check_perms_cmd(ctx):
     
     await ctx.send(embed=embed)
 
+@bot.command(name="fixallroles")
+@admin_only()
+async def fix_all_roles_cmd(ctx):
+    """Force update all users' roles based on their SP"""
+    await ctx.send("🔄 กำลังตรวจสอบและซ่อมแซมบทบาทให้สมาชิกทั้งหมด...")
+    
+    fixed_count = 0
+    error_count = 0
+    no_sp_count = 0
+    
+    for member in ctx.guild.members:
+        if member.bot:
+            continue
+            
+        user_id_str = str(member.id)
+        if user_id_str in user_levels:
+            sp = user_levels[user_id_str]["sp"]
+            expected_role_id = get_role_for_sp(sp)
+            expected_role = ctx.guild.get_role(expected_role_id)
+            
+            if expected_role:
+                # Check if user has the correct role
+                if expected_role not in member.roles:
+                    # Check if user has any level role
+                    has_wrong_role = False
+                    for threshold, role_id in LEVEL_ROLES.items():
+                        role = ctx.guild.get_role(role_id)
+                        if role and role in member.roles and role != expected_role:
+                            has_wrong_role = True
+                            # Remove wrong role
+                            try:
+                                await member.remove_roles(role)
+                                print(f"Removed wrong role {role.name} from {member.name}")
+                            except:
+                                pass
+                    
+                    # Add correct role
+                    try:
+                        await member.add_roles(expected_role, reason=f"Auto-fix role for {sp} SP")
+                        fixed_count += 1
+                        print(f"✅ Added {expected_role.name} to {member.name} (SP: {sp})")
+                        await asyncio.sleep(0.5)
+                    except Exception as e:
+                        error_count += 1
+                        print(f"❌ Failed to add role to {member.name}: {e}")
+            else:
+                error_count += 1
+                print(f"❌ Role not found for threshold {expected_role_id}")
+        else:
+            no_sp_count += 1
+    
+    embed = discord.Embed(
+        title="✅ ซ่อมแซมบทบาทเสร็จสมบูรณ์",
+        description=f"**ผลลัพธ์:**\n"
+                   f"✅ แก้ไขสมาชิก: {fixed_count} คน\n"
+                   f"⚠️ สมาชิกไม่มี SP: {no_sp_count} คน\n"
+                   f"❌ เกิดข้อผิดพลาด: {error_count} คน",
+        color=0x00FF00
+    )
+    await ctx.send(embed=embed)
+
 @bot.command(name="checklv")
 async def check_lv_cmd(ctx, user: discord.Member = None):
     if user is None:
