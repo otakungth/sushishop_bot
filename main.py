@@ -503,9 +503,11 @@ async def add_sp(user_id, amount):
     user_levels[user_id_str]["total_robux"] += amount
     new_sp = user_levels[user_id_str]["sp"]
     
+    # Save immediately
     save_json(user_levels_file, user_levels)
     print(f"✅ Added {amount} SP to {user_id}: {old_sp} → {new_sp} SP")
     
+    # Find the guild and update roles
     guild = None
     for g in bot.guilds:
         guild = g
@@ -514,7 +516,12 @@ async def add_sp(user_id, amount):
     if guild:
         member = guild.get_member(user_id)
         if member:
-            await update_member_roles(member, new_sp, old_sp)
+            # Force role update with retry mechanism
+            success = await update_member_roles(member, new_sp, old_sp)
+            if not success:
+                print(f"⚠️ First attempt to update roles failed for {member.name}, retrying in 2 seconds...")
+                await asyncio.sleep(2)
+                await update_member_roles(member, new_sp, old_sp)
         else:
             print(f"⚠️ Could not find member {user_id} in guild")
     else:
