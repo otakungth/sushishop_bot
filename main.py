@@ -430,7 +430,7 @@ async def send_level_up_dm(member, new_sp, old_sp):
         print(f"⚠️ Could not send DM to {member.name}: {e}")
 
 async def update_member_roles(member, new_sp, old_sp=None):
-    """Update member roles based on their skill points - IMPROVED VERSION"""
+    """Update member roles based on their skill points"""
     if not member:
         print(f"❌ Cannot update roles: member is None")
         return False
@@ -472,34 +472,21 @@ async def update_member_roles(member, new_sp, old_sp=None):
     
     if not new_role:
         print(f"❌ Cannot find new role with ID {new_role_id}")
-        # List available roles for debugging
-        print(f"Available level roles in guild:")
-        for threshold, role_id in LEVEL_ROLES.items():
-            role = guild.get_role(role_id)
-            if role:
-                print(f"  - {threshold} SP: {role.name} (ID: {role_id})")
-            else:
-                print(f"  - {threshold} SP: Role NOT FOUND (ID: {role_id})")
         return False
     
     if new_role.position >= bot_member.top_role.position:
         print(f"⚠️ Bot cannot manage role {new_role.name} - role is higher than bot's highest role ({bot_member.top_role.name})")
-        print(f"   Bot role position: {bot_member.top_role.position}, Target role position: {new_role.position}")
-        print(f"   Please move bot's role above {new_role.name} in Server Settings → Roles")
         return False
     
     try:
-        # Remove old role if user has it
         if old_role and old_role in member.roles:
             await member.remove_roles(old_role, reason=f"Level up from {old_sp} to {new_sp} SP")
             print(f"✅ Removed role {old_role.name} from {member.name}")
         
-        # Add new role
         if new_role not in member.roles:
             await member.add_roles(new_role, reason=f"Reached {new_sp} SP")
             print(f"✅ Added role {new_role.name} to {member.name} (SP: {new_sp})")
             
-            # Send level up DM only if level actually changed
             if old_role_id != new_role_id:
                 await send_level_up_dm(member, new_sp, old_sp)
             return True
@@ -508,14 +495,15 @@ async def update_member_roles(member, new_sp, old_sp=None):
             return True
             
     except discord.Forbidden:
-        print(f"❌ Forbidden: Bot cannot manage role {new_role.name}. Check role hierarchy!")
+        print(f"❌ Forbidden: Bot cannot manage role {new_role.name}")
         return False
     except Exception as e:
         print(f"❌ Failed to update roles for {member.name}: {e}")
         return False
 
 async def add_sp(user_id, amount):
-    if not user_id:
+    """Add SP to a user - ALWAYS 1x rate"""
+    if not user_id or amount <= 0:
         return 0
     
     user_id_str = str(user_id)
@@ -524,13 +512,14 @@ async def add_sp(user_id, amount):
         user_levels[user_id_str] = {"sp": 0, "total_robux": 0}
     
     old_sp = user_levels[user_id_str]["sp"]
+    # FIXED: Always add exactly the amount (x1, not x2)
     user_levels[user_id_str]["sp"] += amount
     user_levels[user_id_str]["total_robux"] += amount
     new_sp = user_levels[user_id_str]["sp"]
     
     # Save immediately
     save_json(user_levels_file, user_levels)
-    print(f"✅ Added {amount} SP to {user_id}: {old_sp} → {new_sp} SP")
+    print(f"✅ Added {amount} SP (x1) to user {user_id}: {old_sp} → {new_sp} SP")
     
     # Find the guild and update roles
     guild = None
@@ -541,10 +530,9 @@ async def add_sp(user_id, amount):
     if guild:
         member = guild.get_member(user_id)
         if member:
-            # Force role update with retry mechanism
             success = await update_member_roles(member, new_sp, old_sp)
             if not success:
-                print(f"⚠️ First attempt to update roles failed for {member.name}, retrying in 2 seconds...")
+                print(f"⚠️ First attempt to update roles failed for {member.name}, retrying...")
                 await asyncio.sleep(2)
                 await update_member_roles(member, new_sp, old_sp)
         else:
@@ -1176,8 +1164,9 @@ class DeliveryView(View):
                         save_json(ticket_customer_data_file, ticket_customer_data)
                         
                         if self.robux_amount:
+                            # FIXED: Always add exactly the robux amount (x1, not x2)
                             await add_sp(self.buyer.id, self.robux_amount)
-                            print(f"✅ Added {self.robux_amount} SP to {self.buyer.name}")
+                            print(f"✅ Added {self.robux_amount} SP (x1) to {self.buyer.name}")
                     
                     receipt_color = 0xFFA500 if self.product_type == "Gamepass" else 0x00FFFF
                     
@@ -2675,11 +2664,11 @@ async def tkd_cmd(ctx):
         traceback.print_exc()
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
 
-# ============ TY COMMAND - FIXED WITH SP ADDITION ============
+# ============ TY COMMAND - FIXED WITH SP ADDITION (x1 ONLY) ============
 @bot.command()
 @admin_only()
 async def ty(ctx):
-    """ส่งของและเพิ่ม SP ให้ลูกค้า"""
+    """ส่งของและเพิ่ม SP ให้ลูกค้า (1 SP ต่อ 1 Robux เท่านั้น)"""
     global gamepass_stock, group_stock
     
     if not ctx.channel.name.startswith("ticket-") and not re.match(r'^\d{10}-\d+-[\w\u0E00-\u0E7F]+$', ctx.channel.name):
@@ -2783,14 +2772,17 @@ async def ty(ctx):
                 if product_type:
                     break
         
-        # ========== สำคัญ: เพิ่ม SP ให้ผู้ซื้อ ==========
+        # ========== สำคัญ: เพิ่ม SP ให้ผู้ซื้อ (x1 เสมอ) ==========
+        sp_added = 0
         if buyer:
             await add_buyer_role(buyer, ctx.guild)
             print(f"✅ Found buyer: {buyer.name} (ID: {buyer.id})")
             
             if robux_amount and robux_amount > 0:
-                new_sp = await add_sp(buyer.id, robux_amount)
-                print(f"✅ Added {robux_amount} SP to {buyer.name} (Total SP: {new_sp})")
+                # FIXED: Always add exactly the robux amount (x1, not x2)
+                sp_added = robux_amount
+                new_sp = await add_sp(buyer.id, sp_added)
+                print(f"✅ Added {sp_added} SP (x1) to {buyer.name} (Total SP: {new_sp})")
             else:
                 print(f"⚠️ No robux_amount found for {buyer.name}, cannot add SP")
         else:
@@ -2807,6 +2799,7 @@ async def ty(ctx):
         )
         receipt_embed.add_field(name="😊 ผู้ซื้อ", value=buyer_display, inline=False)
         receipt_embed.add_field(name=f"💸 จำนวน{ROBUX_EMOJI}", value=f"{format_number(robux_amount) if robux_amount else 0}", inline=True)
+        receipt_embed.add_field(name="✨ SP ที่ได้รับ", value=f"{format_number(sp_added)} SP (1 Robux = 1 SP)", inline=True)
         price_int = round_price(price) if price > 0 else 0
         receipt_embed.add_field(name="💰 ราคาตามเรท", value=f"{format_number(price_int)} บาท" if price > 0 else "ไม่ระบุ", inline=True)
         
@@ -2847,7 +2840,7 @@ async def ty(ctx):
             title="✅ ส่งของเรียบร้อยแล้ว",
             description=(
                 "**ขอบคุณที่ใช้บริการร้าน Sushi Shop** 🍣\n"
-                f"**เพิ่ม SP: {format_number(robux_amount) if robux_amount else 0}** ✨\n"
+                f"**เพิ่ม SP: {format_number(sp_added)}** ✨ (1 Robux = 1 SP)\n"
                 "ฝากให้เครดิต +1 ให้ด้วยนะคะ ❤️\n\n"
                 "⚠️ **หมายเหตุ:** ตั๋วนี้จะถูกลบใน 10 นาที"
             ),
