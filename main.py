@@ -173,6 +173,9 @@ credit_channel_update_task_running = False
 credit_channel_last_update = 0
 credit_channel_update_lock = asyncio.Lock()
 
+# Track if SP has been added for a ticket to prevent double addition
+sp_added_tracker = {}
+
 # ============ JSON FUNCTIONS ============
 def load_json(file, default):
     try:
@@ -501,10 +504,15 @@ async def update_member_roles(member, new_sp, old_sp=None):
         print(f"❌ Failed to update roles for {member.name}: {e}")
         return False
 
-async def add_sp(user_id, amount):
-    """Add SP to a user - ALWAYS 1x rate"""
+async def add_sp(user_id, amount, ticket_id=None):
+    """Add SP to a user - ALWAYS 1x rate with duplicate prevention"""
     if not user_id or amount <= 0:
         return 0
+    
+    # Check if SP was already added for this ticket (prevents double addition)
+    if ticket_id and ticket_id in sp_added_tracker:
+        print(f"⚠️ SP already added for ticket {ticket_id}, skipping duplicate addition")
+        return sp_added_tracker[ticket_id]
     
     user_id_str = str(user_id)
     
@@ -516,6 +524,10 @@ async def add_sp(user_id, amount):
     user_levels[user_id_str]["sp"] += amount
     user_levels[user_id_str]["total_robux"] += amount
     new_sp = user_levels[user_id_str]["sp"]
+    
+    # Track that SP was added for this ticket
+    if ticket_id:
+        sp_added_tracker[ticket_id] = amount
     
     # Save immediately
     save_json(user_levels_file, user_levels)
@@ -1163,10 +1175,14 @@ class DeliveryView(View):
                         ticket_customer_data[str(self.channel.id)] = self.buyer.name
                         save_json(ticket_customer_data_file, ticket_customer_data)
                         
+                        # FIXED: Only add SP here, not in the ty command!
+                        # We're removing the SP addition from the ty command
+                        # So SP is only added once here
                         if self.robux_amount:
-                            # FIXED: Always add exactly the robux amount (x1, not x2)
-                            await add_sp(self.buyer.id, self.robux_amount)
-                            print(f"✅ Added {self.robux_amount} SP (x1) to {self.buyer.name}")
+                            # Pass channel ID as ticket_id to prevent duplicate addition
+                            ticket_id = str(self.channel.id)
+                            await add_sp(self.buyer.id, self.robux_amount, ticket_id)
+                            print(f"✅ Added {self.robux_amount} SP (x1) to {self.buyer.name} via DeliveryView")
                     
                     receipt_color = 0xFFA500 if self.product_type == "Gamepass" else 0x00FFFF
                     
@@ -1179,6 +1195,7 @@ class DeliveryView(View):
                     )
                     receipt_embed.add_field(name="😊 ผู้ซื้อ", value=buyer_display, inline=False)
                     receipt_embed.add_field(name=f"💸 จำนวน{ROBUX_EMOJI}", value=f"{format_number(self.robux_amount)}", inline=True)
+                    receipt_embed.add_field(name="✨ SP ที่ได้รับ", value=f"{format_number(self.robux_amount)} SP (1 Robux = 1 SP)", inline=True)
                     price_int = round_price(self.price)
                     receipt_embed.add_field(name="💰 ราคาตามเรท", value=f"{format_number(price_int)} บาท", inline=True)
                     
@@ -1189,7 +1206,7 @@ class DeliveryView(View):
                     
                     await self.channel.send(embed=receipt_embed)
                     
-                    # ส่ง DM เฉพาะเมื่อไม่ใช่การสั่งของต่อ
+                    # Send DM only when not anonymous and not reorder
                     if self.buyer and not anonymous_mode and not self.is_reorder:
                         try:
                             dm_embed = discord.Embed(
@@ -1199,6 +1216,7 @@ class DeliveryView(View):
                             )
                             dm_embed.add_field(name="📦 สินค้า", value=self.product_type, inline=True)
                             dm_embed.add_field(name=f"💸 จำนวน{ROBUX_EMOJI}", value=f"{format_number(self.robux_amount)}", inline=True)
+                            dm_embed.add_field(name="✨ SP ที่ได้รับ", value=f"{format_number(self.robux_amount)} SP (1 Robux = 1 SP)", inline=True)
                             dm_embed.add_field(name="💰 ราคา", value=f"{format_number(price_int)} บาท", inline=True)
                             
                             if delivery_image:
@@ -2664,11 +2682,11 @@ async def tkd_cmd(ctx):
         traceback.print_exc()
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
 
-# ============ TY COMMAND - FIXED WITH SP ADDITION (x1 ONLY) ============
+# ============ TY COMMAND - FIXED - NO SP ADDITION HERE ============
 @bot.command()
 @admin_only()
 async def ty(ctx):
-    """ส่งของและเพิ่ม SP ให้ลูกค้า (1 SP ต่อ 1 Robux เท่านั้น)"""
+    """ส่งของ - NO LONGER ADDS SP (SP is added in DeliveryView confirm_cb)"""
     global gamepass_stock, group_stock
     
     if not ctx.channel.name.startswith("ticket-") and not re.match(r'^\d{10}-\d+-[\w\u0E00-\u0E7F]+$', ctx.channel.name):
@@ -2772,21 +2790,7 @@ async def ty(ctx):
                 if product_type:
                     break
         
-        # ========== สำคัญ: เพิ่ม SP ให้ผู้ซื้อ (x1 เสมอ) ==========
-        sp_added = 0
-        if buyer:
-            await add_buyer_role(buyer, ctx.guild)
-            print(f"✅ Found buyer: {buyer.name} (ID: {buyer.id})")
-            
-            if robux_amount and robux_amount > 0:
-                # FIXED: Always add exactly the robux amount (x1, not x2)
-                sp_added = robux_amount
-                new_sp = await add_sp(buyer.id, sp_added)
-                print(f"✅ Added {sp_added} SP (x1) to {buyer.name} (Total SP: {new_sp})")
-            else:
-                print(f"⚠️ No robux_amount found for {buyer.name}, cannot add SP")
-        else:
-            print(f"⚠️ Could not find buyer for channel {ctx.channel.name}")
+        # IMPORTANT: NO SP ADDITION HERE! SP is added in DeliveryView.confirm_cb
         
         receipt_color = 0xFFA500 if product_type == "Gamepass" else 0x00FFFF
         
@@ -2799,7 +2803,7 @@ async def ty(ctx):
         )
         receipt_embed.add_field(name="😊 ผู้ซื้อ", value=buyer_display, inline=False)
         receipt_embed.add_field(name=f"💸 จำนวน{ROBUX_EMOJI}", value=f"{format_number(robux_amount) if robux_amount else 0}", inline=True)
-        receipt_embed.add_field(name="✨ SP ที่ได้รับ", value=f"{format_number(sp_added)} SP (1 Robux = 1 SP)", inline=True)
+        receipt_embed.add_field(name="✨ SP ที่ได้รับ", value=f"{format_number(robux_amount) if robux_amount else 0} SP (1 Robux = 1 SP)", inline=True)
         price_int = round_price(price) if price > 0 else 0
         receipt_embed.add_field(name="💰 ราคาตามเรท", value=f"{format_number(price_int)} บาท" if price > 0 else "ไม่ระบุ", inline=True)
         
@@ -2840,7 +2844,7 @@ async def ty(ctx):
             title="✅ ส่งของเรียบร้อยแล้ว",
             description=(
                 "**ขอบคุณที่ใช้บริการร้าน Sushi Shop** 🍣\n"
-                f"**เพิ่ม SP: {format_number(sp_added)}** ✨ (1 Robux = 1 SP)\n"
+                f"**เพิ่ม SP: {format_number(robux_amount) if robux_amount else 0}** ✨ (1 Robux = 1 SP)\n"
                 "ฝากให้เครดิต +1 ให้ด้วยนะคะ ❤️\n\n"
                 "⚠️ **หมายเหตุ:** ตั๋วนี้จะถูกลบใน 10 นาที"
             ),
