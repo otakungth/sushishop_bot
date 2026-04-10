@@ -2803,7 +2803,6 @@ async def ty(ctx):
         )
         receipt_embed.add_field(name="😊 ผู้ซื้อ", value=buyer_display, inline=False)
         receipt_embed.add_field(name=f"💸 จำนวน{ROBUX_EMOJI}", value=f"{format_number(robux_amount) if robux_amount else 0}", inline=True)
-        receipt_embed.add_field(name="✨ SP ที่ได้รับ", value=f"{format_number(robux_amount) if robux_amount else 0} SP (1 Robux = 1 SP)", inline=True)
         price_int = round_price(price) if price > 0 else 0
         receipt_embed.add_field(name="💰 ราคาตามเรท", value=f"{format_number(price_int)} บาท" if price > 0 else "ไม่ระบุ", inline=True)
         
@@ -2841,11 +2840,10 @@ async def ty(ctx):
             processing_msg = None
         
         embed = discord.Embed(
-            title="✅ ส่งของเรียบร้อยแล้ว",
+            title="✅ ส่งของเรียบร้อย",
             description=(
-                "**ขอบคุณที่ใช้บริการร้าน Sushi Shop** 🍣\n"
-                f"**เพิ่ม SP: {format_number(robux_amount) if robux_amount else 0}** ✨ (1 Robux = 1 SP)\n"
-                "ฝากให้เครดิต +1 ให้ด้วยนะคะ ❤️\n\n"
+                "**ขอบคุณที่ใช้บริการ Sushi Shop** 🍣\n"
+                "ฝากให้เครดิต +1 ด้วยนะคะ ❤️\n\n"
                 "⚠️ **หมายเหตุ:** ตั๋วนี้จะถูกลบใน 10 นาที"
             ),
             color=0x00FF00
