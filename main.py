@@ -167,6 +167,7 @@ ticket_activity = {}
 ticket_removal_tasks = {}
 ticket_anonymous_mode = {}
 ticket_counter = {"counter": 1, "date": get_thailand_time().strftime("%d%m%y")}
+ticket_archived_timers = {}  # Track archive timers for tickets moved to delivered category
 
 credit_channel_queue = asyncio.Queue()
 credit_channel_update_task_running = False
@@ -1176,7 +1177,6 @@ class DeliveryView(View):
                         save_json(ticket_customer_data_file, ticket_customer_data)
                         
                         # FIXED: Only add SP here, not in the ty command!
-                        # We're removing the SP addition from the ty command
                         # So SP is only added once here
                         if self.robux_amount:
                             # Pass channel ID as ticket_id to prevent duplicate addition
@@ -1336,6 +1336,83 @@ def cancel_removal(channel_id):
         print(f"✅ Cancelled removal timer for channel {channel_id}")
         return True
     return False
+
+# New function: Schedule auto-deletion for tickets after 1 hour in delivered category
+async def schedule_auto_delete_after_delivered(channel, delay_seconds):
+    """Schedule ticket to be deleted after being in delivered category for delay_seconds"""
+    if str(channel.id) in ticket_archived_timers:
+        try:
+            ticket_archived_timers[str(channel.id)].cancel()
+        except:
+            pass
+    
+    task = asyncio.create_task(auto_delete_ticket_after_delay(channel, delay_seconds))
+    ticket_archived_timers[str(channel.id)] = task
+    
+    try:
+        await task
+    except asyncio.CancelledError:
+        print(f"ℹ️ Auto-delete task cancelled for {channel.name}")
+    finally:
+        if str(channel.id) in ticket_archived_timers:
+            del ticket_archived_timers[str(channel.id)]
+
+async def auto_delete_ticket_after_delay(channel, delay_seconds):
+    """Delete ticket after delay_seconds"""
+    try:
+        print(f"⏳ Ticket {channel.name} will be deleted in {delay_seconds/3600} hours")
+        await asyncio.sleep(delay_seconds)
+        
+        if not channel or channel not in channel.guild.channels:
+            print(f"❌ Ticket {channel.name} no longer exists")
+            return
+        
+        # Save transcript before deletion
+        await save_ticket_transcript(channel, "ระบบอัตโนมัติ (4 ชั่วโมง)")
+        await asyncio.sleep(2)
+        
+        print(f"🗑️ Auto-deleting ticket {channel.name} after {delay_seconds/3600} hours")
+        await channel.delete()
+        
+    except Exception as e:
+        print(f"❌ Error in auto_delete_ticket_after_delay: {e}")
+
+# New function: Monitor ticket for customer inactivity
+async def monitor_ticket_activity(channel, customer):
+    """Monitor if customer sends a message within 30 minutes, delete ticket if not"""
+    try:
+        print(f"🔍 Monitoring activity for ticket {channel.name} - waiting for customer message")
+        
+        # Wait 30 minutes for customer message
+        await asyncio.sleep(1800)  # 30 minutes = 1800 seconds
+        
+        # Check if channel still exists
+        if not channel or channel not in channel.guild.channels:
+            print(f"❌ Ticket {channel.name} no longer exists")
+            return
+        
+        # Check if customer has sent any message in this channel
+        customer_has_messaged = False
+        
+        async for msg in channel.history(limit=100, oldest_first=True):
+            if msg.author == customer and not msg.author.bot:
+                customer_has_messaged = True
+                break
+        
+        if not customer_has_messaged:
+            print(f"🗑️ No message from customer {customer.name} in 30 minutes, deleting ticket {channel.name}")
+            
+            # Save transcript before deletion
+            await save_ticket_transcript(channel, "ระบบอัตโนมัติ (ไม่มีข้อความ 30 นาที)")
+            await asyncio.sleep(2)
+            
+            # Delete the ticket
+            await channel.delete()
+        else:
+            print(f"✅ Customer {customer.name} sent messages in {channel.name}, keeping ticket")
+            
+    except Exception as e:
+        print(f"❌ Error in monitor_ticket_activity: {e}")
 
 async def update_channel_name():
     try:
@@ -1576,6 +1653,9 @@ async def handle_open_ticket(interaction, category_name, stock_type):
         await channel.send(embed=embed, view=ticket_view)
         print(f"✅ ส่ง embed ต้อนรับในตั๋ว {channel.name} เรียบร้อย")
         
+        # Start monitoring for customer inactivity (30 minutes)
+        bot.loop.create_task(monitor_ticket_activity(channel, interaction.user))
+        
     except Exception as e:
         print(f"❌ Error opening ticket: {e}")
         traceback.print_exc()
@@ -1651,6 +1731,11 @@ async def move_to_delivered_category(channel):
         
         await channel.edit(category=delivered_category)
         print(f"✅ ย้ายตั๋ว {channel.name} ไปยัง category ส่งของแล้ว")
+        
+        # Schedule auto-delete after 4 hours (14400 seconds) once moved to delivered category
+        await schedule_auto_delete_after_delivered(channel, 14400)  # 4 hours = 14400 seconds
+        print(f"⏰ Ticket {channel.name} will be auto-deleted in 4 hours")
+        
         return True
         
     except Exception as e:
@@ -2682,7 +2767,10 @@ async def tkd_cmd(ctx):
         traceback.print_exc()
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
 
-# ============ TY COMMAND - FIXED - NO SP ADDITION HERE ============
+# ============ TY COMMAND - MODIFIED ============
+# Changed: 10 minutes -> 1 hour (3600 seconds)
+# Removed: Don't send receipt in ticket (still send to DM)
+
 @bot.command()
 @admin_only()
 async def ty(ctx):
@@ -2803,6 +2891,7 @@ async def ty(ctx):
         )
         receipt_embed.add_field(name="😊 ผู้ซื้อ", value=buyer_display, inline=False)
         receipt_embed.add_field(name=f"💸 จำนวน{ROBUX_EMOJI}", value=f"{format_number(robux_amount) if robux_amount else 0}", inline=True)
+        receipt_embed.add_field(name="✨ SP ที่ได้รับ", value=f"{format_number(robux_amount) if robux_amount else 0} SP (1 Robux = 1 SP)", inline=True)
         price_int = round_price(price) if price > 0 else 0
         receipt_embed.add_field(name="💰 ราคาตามเรท", value=f"{format_number(price_int)} บาท" if price > 0 else "ไม่ระบุ", inline=True)
         
@@ -2815,6 +2904,31 @@ async def ty(ctx):
         if log_channel:
             await log_channel.send(embed=receipt_embed)
             print(f"✅ ส่งใบเสร็จไปยัง sales log channel เรียบร้อย")
+        
+        # DON'T send receipt to ticket channel - only DM
+        # Send DM receipt
+        if buyer and not anonymous_mode:
+            try:
+                dm_embed = discord.Embed(
+                    title=f"🧾 ใบเสร็จการซื้อสินค้า ({product_type})",
+                    description="ขอบคุณที่ใช้บริการ Sushi Shop นะคะ 🍣",
+                    color=receipt_color
+                )
+                dm_embed.add_field(name="📦 สินค้า", value=product_type, inline=True)
+                dm_embed.add_field(name=f"💸 จำนวน{ROBUX_EMOJI}", value=f"{format_number(robux_amount) if robux_amount else 0}", inline=True)
+                dm_embed.add_field(name="✨ SP ที่ได้รับ", value=f"{format_number(robux_amount) if robux_amount else 0} SP (1 Robux = 1 SP)", inline=True)
+                dm_embed.add_field(name="💰 ราคา", value=f"{format_number(price_int)} บาท" if price > 0 else "ไม่ระบุ", inline=True)
+                
+                if delivery_image:
+                    dm_embed.set_image(url=delivery_image)
+                
+                dm_embed.add_field(name="📝 หมายเหตุ", value="หากมีปัญหากรุณาติดต่อแอดมินในเซิร์ฟ", inline=False)
+                dm_embed.set_footer(text="Sushi Shop • ขอบคุณที่ใช้บริการ💖")
+                
+                await buyer.send(embed=dm_embed)
+                print(f"✅ ส่งใบเสร็จไปยัง DM ของ {buyer.name} เรียบร้อย")
+            except Exception as e:
+                print(f"⚠️ ไม่สามารถส่ง DM ถึง {buyer.name}: {e}")
         
         save_success, filename = await save_ticket_transcript(ctx.channel, buyer, robux_amount, customer_name)
         
@@ -2844,7 +2958,7 @@ async def ty(ctx):
             description=(
                 "**ขอบคุณที่ใช้บริการ Sushi Shop** 🍣\n"
                 "ฝากให้เครดิต +1 ด้วยนะคะ ❤️\n\n"
-                "⚠️ **หมายเหตุ:** ตั๋วนี้จะถูกลบใน 10 นาที"
+                "⚠️ **หมายเหตุ:** ตั๋วนี้จะถูกลบใน 1 ชั่วโมง"
             ),
             color=0x00FF00
         )
@@ -2922,7 +3036,8 @@ async def ty(ctx):
             save_json(ticket_customer_data_file, ticket_customer_data)
         
         await move_to_delivered_category(ctx.channel)
-        await schedule_removal(ctx.channel, buyer, 600)
+        # Changed: 10 minutes -> 1 hour (3600 seconds)
+        await schedule_removal(ctx.channel, buyer, 3600)
         await update_main_channel()
         
         print(f"✅ คำสั่ง !ty ดำเนินการสำเร็จสำหรับห้อง {ctx.channel.name}")
@@ -2939,6 +3054,12 @@ async def ty(ctx):
             await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
         except:
             pass
+
+# ============ WALLET COMMAND ============
+@bot.command(name="wallet")
+async def wallet_cmd(ctx):
+    """แสดงข้อมูล wallet สำหรับโอนเงิน"""
+    await ctx.send("0892278408 ชื่อลัดดา")
 
 # ============ CALCULATOR COMMANDS ============
 @bot.command(name="calculator")
