@@ -2022,7 +2022,7 @@ async def open_cmd(ctx):
     await update_channel_name()
     await update_main_channel()
     
-    embed = discord.Embed(title="✅ เปิดร้านเรียบร้อย", description="ร้าน Sushi Shop เปิดให้บริการแล้ว", color=0x00FF00)
+    embed = discord.Embed(title="✅ เปิดร้าน", description="ร้าน Sushi Shop เปิดให้บริการ", color=0x00FF00)
     embed.set_footer(text=f"เวลา: {get_thailand_time().strftime('%d/%m/%y %H:%M')}")
     await ctx.send(embed=embed)
 
@@ -2042,7 +2042,7 @@ async def close_cmd(ctx):
     await update_channel_name()
     await update_main_channel()
     
-    embed = discord.Embed(title="🔴 ปิดร้านแล้ว", description="ร้าน Sushi Shop ปิดให้บริการชั่วคราว", color=0xFF0000)
+    embed = discord.Embed(title="🔴 ปิดร้าน", description="ร้าน Sushi Shop ปิดให้บริการชั่วคราว", color=0xFF0000)
     embed.set_footer(text=f"เวลา: {get_thailand_time().strftime('%d/%m/%y %H:%M')}")
     await ctx.send(embed=embed)
 
