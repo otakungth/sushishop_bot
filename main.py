@@ -177,11 +177,6 @@ ticket_anonymous_mode = {}
 ticket_counter = {"counter": 1, "date": get_thailand_time().strftime("%d%m%y")}
 ticket_archived_timers = {}
 
-credit_channel_queue = asyncio.Queue()
-credit_channel_update_task_running = False
-credit_channel_last_update = 0
-credit_channel_update_lock = asyncio.Lock()
-
 sp_added_tracker = {}
 
 # ============ DAILY SALES FUNCTIONS ============
@@ -236,12 +231,12 @@ async def add_daily_robux(amount):
 
 def reset_daily_sales_at_11pm():
     """Check if it's after 11pm and reset if needed"""
+    global daily_robux_sold, daily_sales_date
     now = get_thailand_time()
     current_date = now.strftime("%Y%m%d")
     
-    # If date has changed, reset was already handled in add_daily_robux
+    # If date has changed, reset
     if daily_sales_date != current_date:
-        global daily_robux_sold
         daily_robux_sold = 0
         daily_sales_date = current_date
         save_daily_sales()
@@ -884,7 +879,6 @@ class GamepassCalculatorModal(Modal, title="🍣 คำนวณเกมพา�
                 title=f"🎮 Gamepass {format_number(robux)} {ROBUX_EMOJI} = {format_number(price_int)} บาท ({rate_text})",
                 color=0xFFA500
             )
-            embed.add_field(name="📝 คำนวณ", value=f"`{self.robux_amount.value}`", inline=False)
             embed.set_footer(text="Sushi Shop 🍣")
             
             await interaction.response.send_message(embed=embed, ephemeral=True)
@@ -920,7 +914,6 @@ class GamepassBahtCalculatorModal(Modal, title="🍣 คำนวณเงิน
             )
             embed.add_field(name=f"เรท {gamepass_rate} (ปกติ)", value=f"{format_number(robux_normal)} {ROBUX_EMOJI}", inline=True)
             embed.add_field(name=f"เรท {gamepass_rate_high} (> {gamepass_threshold} {ROBUX_EMOJI})", value=f"{format_number(robux_high)} {ROBUX_EMOJI}", inline=True)
-            embed.add_field(name="📝 คำนวณ", value=f"`{self.baht_amount.value}`", inline=False)
             embed.set_footer(text="Sushi Shop 🍣")
             
             await interaction.response.send_message(embed=embed, ephemeral=True)
@@ -965,7 +958,6 @@ class GroupCalculatorModal(Modal, title="🍣 คำนวณโรกลุ่�
                 title=f"👥 Group {format_number(robux)} {ROBUX_EMOJI} = {format_number(price_int)} บาท ({rate_text})",
                 color=0xFFA500
             )
-            embed.add_field(name="📝 คำนวณ", value=f"`{self.robux_amount.value}`", inline=False)
             embed.set_footer(text="Sushi Shop 🍣")
             
             await interaction.response.send_message(embed=embed, ephemeral=True)
@@ -1005,7 +997,6 @@ class GroupBahtCalculatorModal(Modal, title="🍣 คำนวณเงินบ
                 title=f"👥 {format_number(int(baht))} บาท = {format_number(robux)} {ROBUX_EMOJI} ({rate_text})",
                 color=0xFFA500
             )
-            embed.add_field(name="📝 คำนวณ", value=f"`{self.baht_amount.value}`", inline=False)
             embed.set_footer(text="Sushi Shop 🍣")
             
             await interaction.response.send_message(embed=embed, ephemeral=True)
