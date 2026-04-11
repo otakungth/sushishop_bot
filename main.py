@@ -90,7 +90,7 @@ intents.members = True
 # Global variables
 gamepass_rate = 6.5
 gamepass_rate_high = 6.7
-gamepass_threshold = 3999
+gamepass_threshold = 4000
 group_rate_low = 4
 group_rate_high = 4.5
 shop_open = True
@@ -128,7 +128,7 @@ LEVEL_ROLES = {
 LEVEL_NAMES = {
     0: "🍣 | Sushi Lover",
     5000: "🐱 | Sushi Silver",
-    10000: "😼 | Sushi Gold",
+    10000: "😼 | Sushi Pass",
     25000: "🐈 | Sushi Platinum",
     50000: "🐈‍⬛ | Sushi Premium",
     100000: "🥡 | Sushi Otoro",
@@ -2656,15 +2656,17 @@ async def level_cmd(ctx):
         inline=False
     )
     
+    # Build level list with role mentions
     level_list = []
     sorted_levels = sorted(LEVEL_ROLES.keys())
     for threshold in sorted_levels:
-        level_name = LEVEL_NAMES.get(threshold, f"Level {threshold}")
+        role_id = LEVEL_ROLES[threshold]
+        role_mention = f"<@&{role_id}>"
         
         if threshold == 0:
-            level_list.append(f"1 SP - {level_name}")
+            level_list.append(f"1 SP - {role_mention}")
         else:
-            level_list.append(f"{format_number(threshold)} SP - {level_name}")
+            level_list.append(f"{format_number(threshold)} SP - {role_mention}")
     
     embed.add_field(name="🏆 ระดับ", value="\n".join(level_list), inline=False)
     embed.set_footer(text="Sushi Shop 🍣")
@@ -2744,12 +2746,12 @@ async def tkd_cmd(ctx):
         traceback.print_exc()
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
 
-# ============ TY COMMAND - SIMPLIFIED CREDIT COMMAND ============
+# ============ TY COMMAND - MODIFIED (NO RECEIPT SENT) ============
 
 @bot.command()
 @admin_only()
 async def ty(ctx):
-    """Give credit - Simplified command that works without errors"""
+    """Give credit - Simplified command that only marks as delivered without sending duplicate receipt"""
     global gamepass_stock, group_stock
     
     if not ctx.channel.name.startswith("ticket-") and not re.match(r'^\d{10}-\d+-[\w\u0E00-\u0E7F]+$', ctx.channel.name):
@@ -2760,6 +2762,7 @@ async def ty(ctx):
         buyer = None
         channel_name = ctx.channel.name
         
+        # Find buyer
         if str(ctx.channel.id) in ticket_buyer_data:
             buyer_id = ticket_buyer_data[str(ctx.channel.id)].get("user_id")
             if buyer_id:
@@ -2785,28 +2788,13 @@ async def ty(ctx):
             if "group" in ctx.channel.category.name.lower() or "robux" in ctx.channel.category.name.lower():
                 product_type = "Group"
         
-        receipt_color = 0xFFA500 if product_type == "Gamepass" else 0x00FFFF
-        anonymous_mode = ticket_anonymous_mode.get(str(ctx.channel.id), False)
-        buyer_display = "ไม่ระบุตัวตน" if anonymous_mode else (buyer.mention if buyer else "ไม่ทราบ")
-        
         robux_amount = ticket_robux_data.get(str(ctx.channel.id), "0")
         try:
             robux_int = int(robux_amount)
         except:
             robux_int = 0
         
-        log_channel = bot.get_channel(SALES_LOG_CHANNEL_ID)
-        if log_channel:
-            log_embed = discord.Embed(
-                title=f"🍣 ใบเสร็จการสั่งซื้อ ({product_type}) 🍣", 
-                color=receipt_color
-            )
-            log_embed.add_field(name="😊 ผู้ซื้อ", value=buyer_display, inline=False)
-            log_embed.add_field(name=f"💸 จำนวน{ROBUX_EMOJI}", value=f"{format_number(robux_int)}", inline=True)
-            log_embed.add_field(name="✨ SP ที่ได้รับ", value=f"{format_number(robux_int)} SP (1 Robux = 1 SP)", inline=True)
-            log_embed.set_footer(text=f"จัดส่งสินค้าสำเร็จ 🤗 • {get_thailand_time().strftime('%d/%m/%y, %H:%M')}")
-            await log_channel.send(embed=log_embed)
-        
+        # Save transcript (without sending receipt)
         save_success, filename = await save_ticket_transcript(ctx.channel, buyer, robux_int, None)
         if save_success:
             try:
@@ -2814,6 +2802,7 @@ async def ty(ctx):
             except:
                 pass
         
+        # Update stock (return to stock)
         if ctx.channel.category:
             category_name = ctx.channel.category.name.lower()
             if "gamepass" in category_name:
@@ -2825,6 +2814,7 @@ async def ty(ctx):
         
         save_stock_values()
         
+        # Success message (no receipt embed)
         embed = discord.Embed(
             title="✅ ให้เครดิตเรียบร้อย",
             description=(
@@ -2848,6 +2838,7 @@ async def ty(ctx):
         
         await ctx.send(embed=embed, view=view)
         
+        # "Order more" button for gamepass
         if product_type == "Gamepass" and buyer:
             order_more_view = View(timeout=None)
             order_more_btn = Button(label="สั่งของต่อ 📝", style=discord.ButtonStyle.success, emoji="🔄")
@@ -2896,6 +2887,7 @@ async def ty(ctx):
             order_more_view.add_item(order_more_btn)
             await ctx.send("📝 ต้องการสั่งสินค้าเพิ่ม?", view=order_more_view)
         
+        # Clean up data
         if str(ctx.channel.id) in ticket_robux_data:
             del ticket_robux_data[str(ctx.channel.id)]
             save_json(ticket_robux_data_file, ticket_robux_data)
@@ -2904,6 +2896,7 @@ async def ty(ctx):
             del ticket_customer_data[str(ctx.channel.id)]
             save_json(ticket_customer_data_file, ticket_customer_data)
         
+        # Move to delivered and schedule removal
         await move_to_delivered_category(ctx.channel)
         await schedule_removal(ctx.channel, buyer, 3600)
         await update_main_channel()
