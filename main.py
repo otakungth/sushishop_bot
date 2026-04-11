@@ -90,7 +90,7 @@ intents.members = True
 # Global variables
 gamepass_rate = 6.5
 gamepass_rate_high = 6.7
-gamepass_threshold = 4000
+gamepass_threshold = 3999
 group_rate_low = 4
 group_rate_high = 4.5
 shop_open = True
