@@ -1195,7 +1195,6 @@ class DeliveryView(View):
                         save_json(ticket_customer_data_file, ticket_customer_data)
 
                         if self.robux_amount:
-
                             ticket_id = str(self.channel.id)
                             await add_sp(self.buyer.id, self.robux_amount, ticket_id)
                             print(f"✅ Added {self.robux_amount} SP (x1) to {self.buyer.name} via DeliveryView")
@@ -1205,7 +1204,6 @@ class DeliveryView(View):
                     anonymous_mode = ticket_anonymous_mode.get(str(self.channel.id), False)
                     buyer_display = "ไม่ระบุตัวตน" if anonymous_mode else (self.buyer.mention if self.buyer else "ไม่ทราบ")
                     
-
                     log_channel = bot.get_channel(SALES_LOG_CHANNEL_ID)
                     if log_channel:
                         log_embed = discord.Embed(
@@ -1226,7 +1224,6 @@ class DeliveryView(View):
                         await log_channel.send(embed=log_embed)
                         print(f"✅ ส่งใบเสร็จไปยัง sales log channel เรียบร้อย")
                     
-
                     if self.buyer and not anonymous_mode and not self.is_reorder:
                         try:
                             dm_embed = discord.Embed(
@@ -2791,12 +2788,12 @@ async def tkd_cmd(ctx):
         traceback.print_exc()
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
 
-# ============ TY COMMAND - MODIFIED ============
+# ============ TY COMMAND - MODIFIED (NO SP ADDITION) ============
 
 @bot.command()
 @admin_only()
 async def ty(ctx):
-    """ส่งของ - NO LONGER ADDS SP (SP is added in DeliveryView confirm_cb)"""
+    """ส่งของ - NO SP ADDITION (SP is only added via !od command)"""
     global gamepass_stock, group_stock
     
     if not ctx.channel.name.startswith("ticket-") and not re.match(r'^\d{10}-\d+-[\w\u0E00-\u0E7F]+$', ctx.channel.name):
@@ -2875,7 +2872,7 @@ async def ty(ctx):
         async for msg in ctx.channel.history(limit=50):
             if msg.author == bot.user and msg.embeds:
                 for embed in msg.embeds:
-                    if embed.title and "ใบเสร็จ" in embed.title:
+                    if embed.title and "คำสั่งซื้อ" in embed.title:
                         for field in embed.fields:
                             if field.name == f"💸 จำนวน{ROBUX_EMOJI}":
                                 try:
@@ -2888,9 +2885,6 @@ async def ty(ctx):
                                 except:
                                     pass
                         
-                        if embed.image.url:
-                            delivery_image = embed.image.url
-                        
                         if "Gamepass" in embed.title:
                             product_type = "Gamepass"
                         elif "Group" in embed.title:
@@ -2900,12 +2894,12 @@ async def ty(ctx):
                 if product_type:
                     break
         
-        
         receipt_color = 0xFFA500 if product_type == "Gamepass" else 0x00FFFF
         
         anonymous_mode = ticket_anonymous_mode.get(str(ctx.channel.id), False)
         buyer_display = "ไม่ระบุตัวตน" if anonymous_mode else (buyer.mention if buyer else "ไม่ทราบ")
-
+        
+        # Send receipt to sales log channel (NO SP ADDITION HERE)
         log_channel = bot.get_channel(SALES_LOG_CHANNEL_ID)
         if log_channel:
             log_embed = discord.Embed(
@@ -2926,6 +2920,7 @@ async def ty(ctx):
             await log_channel.send(embed=log_embed)
             print(f"✅ ส่งใบเสร็จไปยัง sales log channel เรียบร้อย")
         
+        # Send DM receipt (NO SP ADDITION HERE)
         if buyer and not anonymous_mode:
             try:
                 dm_embed = discord.Embed(
@@ -2998,7 +2993,8 @@ async def ty(ctx):
         
         if product_type == "Gamepass" and buyer:
             order_more_view = View(timeout=None)
-            order_more_btn = Button(label="สั่งของต่อ 📝", style=discord.ButtonStyle.secondary, emoji="🔄")
+            # CHANGED: Button color from secondary (grey) to success (green)
+            order_more_btn = Button(label="สั่งของต่อ 📝", style=discord.ButtonStyle.success, emoji="🔄")
             
             async def order_more_cb(interaction):
                 if interaction.channel.id != ctx.channel.id:
@@ -3287,7 +3283,7 @@ signal.signal(signal.SIGTERM, signal_handler)
 # ============ EVENT HANDLERS ============
 @bot.event
 async def on_ready():
-    print(f"✅ บอทออนไลน์แล้ว: {bot.user} (ID: {bot.user.id})")
+    print(f"✅ บอทออนไลน์แล้ว: {bot.user} (ID: {bot.user.id}")
     
     await bot.change_presence(activity=discord.Game(name="🍣แมวส้มชื่อซูชิของ wforr🍣"))
     
