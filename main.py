@@ -1495,11 +1495,17 @@ async def update_channel_name():
     try:
         channel = bot.get_channel(MAIN_CHANNEL_ID)
         if channel:
-            new_name = "〔🟢เปิด〕กดสั่งซื้อห้องนี้" if shop_open else "〔🔴ปิดชั่วคราว〕"
+            if shop_open:
+                new_name = "〔🟢เปิด〕กดสั่งซื้อห้องนี้"
+            else:
+                new_name = "〔🔴ปิดชั่วคราว〕"
+            
             if channel.name != new_name:
                 await bot.channel_edit_rate_limiter.acquire()
                 await channel.edit(name=new_name)
                 print(f"✅ เปลี่ยนชื่อช่องเป็น: {new_name}")
+            else:
+                print(f"ℹ️ ชื่อช่องคงเดิม: {channel.name}")
     except Exception as e:
         print(f"❌ Error updating channel name: {e}")
 
