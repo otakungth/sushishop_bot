@@ -1674,8 +1674,7 @@ async def handle_open_ticket(interaction, category_name, stock_type):
         gamepass_rate_text = f"เรท: {gamepass_rate_normal} (ปกติ) | {gamepass_rate_high} (>4000 {ROBUX_EMOJI})"
         
         embed = discord.Embed(
-            title="🍣 Sushi Shop 🍣", 
-            description="แจ้งแอดมินขอไม่ระบุตัวตนชื่อลูกค้าได้\n\nกรอกแบบฟอร์มเพื่อสั่งสินค้า", 
+            title="🍣 Sushi Shop 🍣",
             color=0x00FF99
         )
         embed.add_field(name="👤 ผู้ซื้อ", value=interaction.user.mention, inline=False)
