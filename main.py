@@ -2748,10 +2748,12 @@ async def tkd_cmd(ctx):
 
 # ============ TY COMMAND - MODIFIED (NO RECEIPT SENT) ============
 
+# ============ TY COMMAND - MODIFIED (NO RECEIPT SENT) ============
+
 @bot.command()
 @admin_only()
 async def ty(ctx):
-    """Give credit - Simplified command that only marks as delivered without sending duplicate receipt"""
+    """Give credit - Only marks as delivered, does NOT send receipt (receipt is sent from DeliveryView)"""
     global gamepass_stock, group_stock
     
     if not ctx.channel.name.startswith("ticket-") and not re.match(r'^\d{10}-\d+-[\w\u0E00-\u0E7F]+$', ctx.channel.name):
@@ -2794,7 +2796,7 @@ async def ty(ctx):
         except:
             robux_int = 0
         
-        # Save transcript (without sending receipt)
+        # Save transcript only (NO receipt sending)
         save_success, filename = await save_ticket_transcript(ctx.channel, buyer, robux_int, None)
         if save_success:
             try:
@@ -2814,7 +2816,7 @@ async def ty(ctx):
         
         save_stock_values()
         
-        # Success message (no receipt embed)
+        # Simple success message (NO receipt embed)
         embed = discord.Embed(
             title="✅ ให้เครดิตเรียบร้อย",
             description=(
