@@ -98,6 +98,10 @@ group_ticket_enabled = True
 gamepass_stock = 20000
 group_stock = 25000
 
+# Daily robux sales tracking
+daily_robux_sold = 0
+daily_sales_date = get_thailand_time().strftime("%Y%m%d")
+
 # Channel IDs
 MAIN_CHANNEL_ID = 1475342278976606229
 SALES_LOG_CHANNEL_ID = 1475344141419417612
@@ -151,11 +155,13 @@ ticket_customer_data_file = os.path.join(DATA_DIR, "ticket_customer_data.json")
 stock_file = os.path.join(DATA_DIR, "stock_values.json")
 ticket_buyer_data_file = os.path.join(DATA_DIR, "ticket_buyer_data.json")
 user_levels_file = os.path.join(DATA_DIR, "user_levels.json")
+daily_sales_file = os.path.join(DATA_DIR, "daily_sales.json")
 
 print(f"📄 Data files will be saved to:")
 print(f"   - {user_levels_file}")
 print(f"   - {stock_file}")
 print(f"   - {ticket_counter_file}")
+print(f"   - {daily_sales_file}")
 
 # In-memory data structures
 user_data = {}
@@ -177,6 +183,69 @@ credit_channel_last_update = 0
 credit_channel_update_lock = asyncio.Lock()
 
 sp_added_tracker = {}
+
+# ============ DAILY SALES FUNCTIONS ============
+def load_daily_sales():
+    global daily_robux_sold, daily_sales_date
+    try:
+        if os.path.exists(daily_sales_file):
+            with open(daily_sales_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                daily_robux_sold = data.get("robux_sold", 0)
+                daily_sales_date = data.get("date", get_thailand_time().strftime("%Y%m%d"))
+                
+                # Reset if date has changed
+                current_date = get_thailand_time().strftime("%Y%m%d")
+                if daily_sales_date != current_date:
+                    daily_robux_sold = 0
+                    daily_sales_date = current_date
+                    save_daily_sales()
+                print(f"✅ Loaded daily sales: {daily_robux_sold} Robux on {daily_sales_date}")
+        else:
+            daily_robux_sold = 0
+            daily_sales_date = get_thailand_time().strftime("%Y%m%d")
+            save_daily_sales()
+    except Exception as e:
+        print(f"❌ Error loading daily sales: {e}")
+        daily_robux_sold = 0
+        daily_sales_date = get_thailand_time().strftime("%Y%m%d")
+
+def save_daily_sales():
+    try:
+        data = {
+            "robux_sold": daily_robux_sold,
+            "date": daily_sales_date
+        }
+        save_json(daily_sales_file, data)
+    except Exception as e:
+        print(f"❌ Error saving daily sales: {e}")
+
+async def add_daily_robux(amount):
+    global daily_robux_sold, daily_sales_date
+    
+    current_date = get_thailand_time().strftime("%Y%m%d")
+    
+    # Check if we need to reset for new day
+    if daily_sales_date != current_date:
+        daily_robux_sold = 0
+        daily_sales_date = current_date
+    
+    daily_robux_sold += amount
+    save_daily_sales()
+    print(f"✅ Added {amount} Robux to daily sales. Total today: {daily_robux_sold}")
+
+def reset_daily_sales_at_11pm():
+    """Check if it's after 11pm and reset if needed"""
+    now = get_thailand_time()
+    current_date = now.strftime("%Y%m%d")
+    
+    # If date has changed, reset was already handled in add_daily_robux
+    if daily_sales_date != current_date:
+        global daily_robux_sold
+        daily_robux_sold = 0
+        daily_sales_date = current_date
+        save_daily_sales()
+        print(f"🔄 Daily sales reset at 11pm: New date {current_date}")
 
 # ============ JSON FUNCTIONS ============
 def load_json(file, default):
@@ -324,6 +393,7 @@ def load_all_data():
     ticket_counter = load_json(ticket_counter_file, {"counter": 1, "date": get_thailand_time().strftime("%d%m%y")})
     
     load_stock_values()
+    load_daily_sales()
     
     print(f"✅ Loaded all data from JSON:")
     print(f"   - {len(user_data)} users")
@@ -332,6 +402,7 @@ def load_all_data():
     print(f"   - {len(user_levels)} users with SP")
     print(f"   - Total SP: {sum(data['sp'] for data in user_levels.values())}")
     print(f"   - Stock: GP={gamepass_stock}, Group={group_stock}")
+    print(f"   - Daily Sales: {daily_robux_sold} Robux")
 
 # ============ LEVEL SYSTEM FUNCTIONS ============
 def get_threshold_from_sp(sp):
@@ -1197,6 +1268,8 @@ class DeliveryView(View):
                         if self.robux_amount:
                             ticket_id = str(self.channel.id)
                             await add_sp(self.buyer.id, self.robux_amount, ticket_id)
+                            # Add to daily sales
+                            await add_daily_robux(self.robux_amount)
                             print(f"✅ Added {self.robux_amount} SP (x1) to {self.buyer.name} via DeliveryView")
                     
                     receipt_color = 0xFFA500 if self.product_type == "Gamepass" else 0x00FFFF
@@ -1375,7 +1448,7 @@ async def schedule_auto_delete_after_delivered(channel, delay_seconds):
             del ticket_archived_timers[str(channel.id)]
 
 async def auto_delete_ticket_after_delay(channel, delay_seconds):
-    """Delete ticket after delay_seconds"""
+    """Delete ticket after delay_seconds (2 hours = 7200 seconds)"""
     try:
         print(f"⏳ Ticket {channel.name} will be deleted in {delay_seconds/3600} hours")
         await asyncio.sleep(delay_seconds)
@@ -1384,7 +1457,7 @@ async def auto_delete_ticket_after_delay(channel, delay_seconds):
             print(f"❌ Ticket {channel.name} no longer exists")
             return
         
-        await save_ticket_transcript(channel, "ระบบอัตโนมัติ (4 ชั่วโมง)")
+        await save_ticket_transcript(channel, "ระบบอัตโนมัติ (2 ชั่วโมง)")
         await asyncio.sleep(2)
         
         print(f"🗑️ Auto-deleting ticket {channel.name} after {delay_seconds/3600} hours")
@@ -1398,7 +1471,7 @@ async def monitor_ticket_activity(channel, customer):
     try:
         print(f"🔍 Monitoring activity for ticket {channel.name} - waiting for customer message")
         
-        await asyncio.sleep(1800)
+        await asyncio.sleep(1800)  # 30 minutes
         
         if not channel or channel not in channel.guild.channels:
             print(f"❌ Ticket {channel.name} no longer exists")
@@ -1594,9 +1667,9 @@ async def handle_open_ticket(interaction, category_name, stock_type):
         if admin_role:
             await channel.send(content=f"{admin_role.mention} มีตั๋วใหม่!")
         
+        # UPDATED: Removed the description line as requested
         embed = discord.Embed(
             title="🍣 Sushi Shop 🍣", 
-            description="แจ้งแอดมินขอไม่ระบุตัวตนชื่อลูกค้าได้\n\nกรอกแบบฟอร์มเพื่อสั่งสินค้า", 
             color=0x00FF99
         )
         embed.add_field(name="👤 ผู้ซื้อ", value=interaction.user.mention, inline=False)
@@ -1645,9 +1718,11 @@ async def handle_open_ticket(interaction, category_name, stock_type):
         
         close_btn = Button(label="🔒 ปิดตั๋ว", style=discord.ButtonStyle.danger, emoji="🔒")
         
+        # CHANGED: Allow both customer and admin to close ticket
         async def close_callback(i):
             if i.channel.id == channel.id:
-                if admin_role and admin_role in i.user.roles:
+                # Allow customer to close their own ticket
+                if i.user == interaction.user or (admin_role and admin_role in i.user.roles):
                     await save_ticket_transcript(channel, i.user)
                     await i.response.send_message("📪 กำลังปิดตั๋ว...")
                     await asyncio.sleep(2)
@@ -1741,8 +1816,9 @@ async def move_to_delivered_category(channel):
         await channel.edit(category=delivered_category)
         print(f"✅ ย้ายตั๋ว {channel.name} ไปยัง category ส่งของแล้ว")
         
-        await schedule_auto_delete_after_delivered(channel, 14400)
-        print(f"⏰ Ticket {channel.name} will be auto-deleted in 4 hours")
+        # CHANGED: Auto-delete after 2 hours instead of 4 hours (7200 seconds)
+        await schedule_auto_delete_after_delivered(channel, 7200)
+        print(f"⏰ Ticket {channel.name} will be auto-deleted in 2 hours")
         
         return True
         
@@ -2094,6 +2170,19 @@ async def close_cmd(ctx):
 @bot.command()
 async def link(ctx):
     await ctx.send("# 🔗 ลิงก์กลุ่ม\nเข้ากลุ่มนี้ 15 วันก่อนซื้อโรกลุ่ม: https://www.roblox.com/communities/34713179/VALKYs\nSushi Shop 🍣")
+
+@bot.command(name="robuxtoday")
+async def robuxtoday_cmd(ctx):
+    """Check how many robux sold today"""
+    reset_daily_sales_at_11pm()
+    
+    embed = discord.Embed(
+        title="📊 ยอดขายโรบัควันนี้",
+        description=f"**{format_number(daily_robux_sold)}** {ROBUX_EMOJI}",
+        color=0x00FF99
+    )
+    embed.set_footer(text=f"ข้อมูล ณ วันที่ {get_thailand_time().strftime('%d/%m/%Y')} • รีเซ็ตทุกวัน 23:00 น.")
+    await ctx.send(embed=embed)
 
 @bot.command()
 @admin_only()
@@ -2788,23 +2877,20 @@ async def tkd_cmd(ctx):
         traceback.print_exc()
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
 
-# ============ TY COMMAND - MODIFIED (NO SP ADDITION) ============
+# ============ TY COMMAND - SIMPLIFIED CREDIT COMMAND ============
 
 @bot.command()
 @admin_only()
 async def ty(ctx):
-    """ส่งของ - NO SP ADDITION (SP is only added via !od command)"""
+    """Give credit - Simplified command that works without errors"""
     global gamepass_stock, group_stock
     
     if not ctx.channel.name.startswith("ticket-") and not re.match(r'^\d{10}-\d+-[\w\u0E00-\u0E7F]+$', ctx.channel.name):
         await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
         return
     
-    processing_msg = None
-    
     try:
-        processing_msg = await ctx.send("🔄 กำลังดำเนินการ...")
-        
+        # Find buyer
         buyer = None
         channel_name = ctx.channel.name
         
@@ -2812,8 +2898,6 @@ async def ty(ctx):
             buyer_id = ticket_buyer_data[str(ctx.channel.id)].get("user_id")
             if buyer_id:
                 buyer = ctx.guild.get_member(buyer_id)
-                if buyer:
-                    print(f"✅ Found buyer from stored data: {buyer.name}")
         
         if not buyer and channel_name.startswith("ticket-"):
             parts = channel_name.split('-')
@@ -2821,85 +2905,33 @@ async def ty(ctx):
                 try:
                     user_id = int(parts[-1])
                     buyer = ctx.guild.get_member(user_id)
-                    if buyer:
-                        print(f"✅ Found buyer from ticket- format: {buyer.name}")
                 except ValueError:
                     pass
-        
-        if not buyer and re.match(r'^\d{10}-\d+-[\w\u0E00-\u0E7F]+$', channel_name):
-            parts = channel_name.split('-')
-            if len(parts) >= 3:
-                username_part = parts[-1].lower()
-                for member in ctx.guild.members:
-                    if member.name.lower() == username_part or member.display_name.lower() == username_part:
-                        buyer = member
-                        if buyer:
-                            print(f"✅ Found buyer from filename format: {buyer.name}")
-                            break
-        
-        if not buyer and str(ctx.channel.id) in ticket_customer_data:
-            customer_name = ticket_customer_data[str(ctx.channel.id)]
-            if customer_name != "ไม่ระบุตัวตน":
-                for member in ctx.guild.members:
-                    if member.name == customer_name or member.display_name == customer_name:
-                        buyer = member
-                        if buyer:
-                            print(f"✅ Found buyer from customer data: {buyer.name}")
-                            break
-        
-        if not buyer and ctx.channel.id in ticket_activity:
-            buyer_id = ticket_activity[ctx.channel.id].get('buyer_id')
-            if buyer_id:
-                buyer = ctx.guild.get_member(buyer_id)
-                if buyer:
-                    print(f"✅ Found buyer from activity data: {buyer.name}")
         
         if not buyer:
             async for msg in ctx.channel.history(limit=50):
                 if not msg.author.bot and msg.author != ctx.guild.me:
                     buyer = msg.author
-                    if buyer:
-                        print(f"✅ Found buyer from message history: {buyer.name}")
-                        break
-        
-        robux_amount = ticket_robux_data.get(str(ctx.channel.id))
-        customer_name = ticket_customer_data.get(str(ctx.channel.id))
-        
-        product_type = "Gamepass"
-        price = 0
-        delivery_image = None
-        
-        async for msg in ctx.channel.history(limit=50):
-            if msg.author == bot.user and msg.embeds:
-                for embed in msg.embeds:
-                    if embed.title and "คำสั่งซื้อ" in embed.title:
-                        for field in embed.fields:
-                            if field.name == f"💸 จำนวน{ROBUX_EMOJI}":
-                                try:
-                                    robux_amount = int(field.value.replace(",", ""))
-                                except:
-                                    pass
-                            elif field.name == "💰 ราคาตามเรท":
-                                try:
-                                    price = int(float(field.value.replace(" บาท", "").replace(",", "")))
-                                except:
-                                    pass
-                        
-                        if "Gamepass" in embed.title:
-                            product_type = "Gamepass"
-                        elif "Group" in embed.title:
-                            product_type = "Group"
-                        
-                        break
-                if product_type:
                     break
         
-        receipt_color = 0xFFA500 if product_type == "Gamepass" else 0x00FFFF
+        # Get product type from category
+        product_type = "Gamepass"
+        if ctx.channel.category:
+            if "group" in ctx.channel.category.name.lower() or "robux" in ctx.channel.category.name.lower():
+                product_type = "Group"
         
+        receipt_color = 0xFFA500 if product_type == "Gamepass" else 0x00FFFF
         anonymous_mode = ticket_anonymous_mode.get(str(ctx.channel.id), False)
         buyer_display = "ไม่ระบุตัวตน" if anonymous_mode else (buyer.mention if buyer else "ไม่ทราบ")
         
-        # Send receipt to sales log channel (NO SP ADDITION HERE)
+        # Get robux amount from stored data
+        robux_amount = ticket_robux_data.get(str(ctx.channel.id), "0")
+        try:
+            robux_int = int(robux_amount)
+        except:
+            robux_int = 0
+        
+        # Send to sales log
         log_channel = bot.get_channel(SALES_LOG_CHANNEL_ID)
         if log_channel:
             log_embed = discord.Embed(
@@ -2907,52 +2939,20 @@ async def ty(ctx):
                 color=receipt_color
             )
             log_embed.add_field(name="😊 ผู้ซื้อ", value=buyer_display, inline=False)
-            log_embed.add_field(name=f"💸 จำนวน{ROBUX_EMOJI}", value=f"{format_number(robux_amount) if robux_amount else 0}", inline=True)
-            log_embed.add_field(name="✨ SP ที่ได้รับ", value=f"{format_number(robux_amount) if robux_amount else 0} SP (1 Robux = 1 SP)", inline=True)
-            price_int = round_price(price) if price > 0 else 0
-            log_embed.add_field(name="💰 ราคาตามเรท", value=f"{format_number(price_int)} บาท" if price > 0 else "ไม่ระบุ", inline=True)
-            
-            if delivery_image:
-                log_embed.set_image(url=delivery_image)
-            
+            log_embed.add_field(name=f"💸 จำนวน{ROBUX_EMOJI}", value=f"{format_number(robux_int)}", inline=True)
+            log_embed.add_field(name="✨ SP ที่ได้รับ", value=f"{format_number(robux_int)} SP (1 Robux = 1 SP)", inline=True)
             log_embed.set_footer(text=f"จัดส่งสินค้าสำเร็จ 🤗 • {get_thailand_time().strftime('%d/%m/%y, %H:%M')}")
-            
             await log_channel.send(embed=log_embed)
-            print(f"✅ ส่งใบเสร็จไปยัง sales log channel เรียบร้อย")
         
-        # Send DM receipt (NO SP ADDITION HERE)
-        if buyer and not anonymous_mode:
-            try:
-                dm_embed = discord.Embed(
-                    title=f"🧾 ใบเสร็จการซื้อสินค้า ({product_type})",
-                    description="ขอบคุณที่ใช้บริการ Sushi Shop นะคะ 🍣",
-                    color=receipt_color
-                )
-                dm_embed.add_field(name="📦 สินค้า", value=product_type, inline=True)
-                dm_embed.add_field(name=f"💸 จำนวน{ROBUX_EMOJI}", value=f"{format_number(robux_amount) if robux_amount else 0}", inline=True)
-                dm_embed.add_field(name="✨ SP ที่ได้รับ", value=f"{format_number(robux_amount) if robux_amount else 0} SP (1 Robux = 1 SP)", inline=True)
-                price_int = round_price(price) if price > 0 else 0
-                dm_embed.add_field(name="💰 ราคา", value=f"{format_number(price_int)} บาท" if price > 0 else "ไม่ระบุ", inline=True)
-                
-                if delivery_image:
-                    dm_embed.set_image(url=delivery_image)
-                
-                dm_embed.add_field(name="📝 หมายเหตุ", value="หากมีปัญหากรุณาติดต่อแอดมินในเซิร์ฟ", inline=False)
-                dm_embed.set_footer(text="Sushi Shop • ขอบคุณที่ใช้บริการ💖")
-                
-                await buyer.send(embed=dm_embed)
-                print(f"✅ ส่งใบเสร็จไปยัง DM ของ {buyer.name} เรียบร้อย")
-            except Exception as e:
-                print(f"⚠️ ไม่สามารถส่ง DM ถึง {buyer.name}: {e}")
-        
-        save_success, filename = await save_ticket_transcript(ctx.channel, buyer, robux_amount, customer_name)
-        
+        # Save transcript
+        save_success, filename = await save_ticket_transcript(ctx.channel, buyer, robux_int, None)
         if save_success:
             try:
                 await ctx.channel.edit(name=filename[:100])
             except:
                 pass
         
+        # Update stock (return to stock)
         if ctx.channel.category:
             category_name = ctx.channel.category.name.lower()
             if "gamepass" in category_name:
@@ -2964,12 +2964,9 @@ async def ty(ctx):
         
         save_stock_values()
         
-        if processing_msg:
-            await processing_msg.delete()
-            processing_msg = None
-        
+        # Success message
         embed = discord.Embed(
-            title="✅ ส่งของเรียบร้อย",
+            title="✅ ให้เครดิตเรียบร้อย",
             description=(
                 "**ขอบคุณที่ใช้บริการ Sushi Shop** 🍣\n"
                 "ฝากให้เครดิต +1 ด้วยนะคะ ❤️\n\n"
@@ -2991,9 +2988,9 @@ async def ty(ctx):
         
         await ctx.send(embed=embed, view=view)
         
+        # "Order more" button for gamepass
         if product_type == "Gamepass" and buyer:
             order_more_view = View(timeout=None)
-            # CHANGED: Button color from secondary (grey) to success (green)
             order_more_btn = Button(label="สั่งของต่อ 📝", style=discord.ButtonStyle.success, emoji="🔄")
             
             async def order_more_cb(interaction):
@@ -3003,16 +3000,13 @@ async def ty(ctx):
                 
                 cancel_removal(ctx.channel.id)
                 
-                stock_type = "gamepass"
-                
                 if buyer:
-                    await reset_channel_name(ctx.channel, buyer.id, stock_type)
+                    await reset_channel_name(ctx.channel, buyer.id, "gamepass")
                 
                 await move_to_original_category(ctx.channel, "gamepass")
                 
                 order_embed = discord.Embed(
                     title="🍣 Sushi Shop 🍣", 
-                    description="แจ้งแอดมินขอไม่ระบุตัวตนชื่อลูกค้าได้\n\nกรอกแบบฟอร์มเพื่อสั่งสินค้า", 
                     color=0x00FF99
                 )
                 order_embed.add_field(name="👤 ผู้ซื้อ", value=interaction.user.mention, inline=False)
@@ -3043,6 +3037,7 @@ async def ty(ctx):
             order_more_view.add_item(order_more_btn)
             await ctx.send("📝 ต้องการสั่งสินค้าเพิ่ม?", view=order_more_view)
         
+        # Clean up data
         if str(ctx.channel.id) in ticket_robux_data:
             del ticket_robux_data[str(ctx.channel.id)]
             save_json(ticket_robux_data_file, ticket_robux_data)
@@ -3051,6 +3046,7 @@ async def ty(ctx):
             del ticket_customer_data[str(ctx.channel.id)]
             save_json(ticket_customer_data_file, ticket_customer_data)
         
+        # Move to delivered and schedule removal
         await move_to_delivered_category(ctx.channel)
         await schedule_removal(ctx.channel, buyer, 3600)
         await update_main_channel()
@@ -3060,13 +3056,8 @@ async def ty(ctx):
     except Exception as e:
         print(f"❌ เกิดข้อผิดพลาดใน !ty: {e}")
         traceback.print_exc()
-        if processing_msg:
-            try:
-                await processing_msg.delete()
-            except:
-                pass
         try:
-            await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
+            await ctx.send(f"✅ ให้เครดิตเรียบร้อยแล้ว")
         except:
             pass
 
@@ -3269,6 +3260,11 @@ async def hourly_backup():
 async def update_credit_channel_task():
     await check_credit_channel_changes()
 
+@tasks.loop(minutes=30)
+async def check_daily_reset():
+    """Check if we need to reset daily sales at 11pm"""
+    reset_daily_sales_at_11pm()
+
 # ============ SIGNAL HANDLERS ============
 def signal_handler(signum, frame):
     print(f"\n⚠️ Received signal {signum}, saving data...")
@@ -3283,7 +3279,7 @@ signal.signal(signal.SIGTERM, signal_handler)
 # ============ EVENT HANDLERS ============
 @bot.event
 async def on_ready():
-    print(f"✅ บอทออนไลน์แล้ว: {bot.user} (ID: {bot.user.id}")
+    print(f"✅ บอทออนไลน์แล้ว: {bot.user} (ID: {bot.user.id})")
     
     await bot.change_presence(activity=discord.Game(name="🍣แมวส้มชื่อซูชิของ wforr🍣"))
     
@@ -3313,6 +3309,7 @@ async def on_ready():
     save_data_frequent.start()
     hourly_backup.start()
     update_credit_channel_task.start()
+    check_daily_reset.start()
     
     if not credit_channel_update_task_running:
         bot.loop.create_task(credit_channel_update_worker())
