@@ -90,7 +90,7 @@ intents.members = True
 # Global variables
 gamepass_rate = 6.5
 gamepass_rate_high = 6.7
-gamepass_threshold = 4000
+gamepass_threshold = 3999
 group_rate_low = 4
 group_rate_high = 4.5
 shop_open = True
@@ -116,8 +116,8 @@ ANONYMOUS_USER_ROLE_ID = 1486352633290821673
 # Level roles
 LEVEL_ROLES = {
     0: 1475346221605588992,
-    5000: 1488073523946717356,
-    10000: 1488073560030445569,
+    5000: 1488073560030445569,
+    10000: 1488073523946717356,
     25000: 1488073771662315614,
     50000: 1488073590162329640,
     100000: 1488073619543294153,
@@ -127,8 +127,8 @@ LEVEL_ROLES = {
 # Level names
 LEVEL_NAMES = {
     0: "🍣 | Sushi Lover",
-    5000: "🐱 | Sushi Pass",
-    10000: "😼 | Sushi Silver",
+    5000: "🐱 | Sushi Silver",
+    10000: "😼 | Sushi Gold",
     25000: "🐈 | Sushi Platinum",
     50000: "🐈‍⬛ | Sushi Premium",
     100000: "🥡 | Sushi Otoro",
