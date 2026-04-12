@@ -2433,9 +2433,9 @@ async def od(ctx, *, expr):
                     new_balance = deduct_user_robux_balance(buyer.id, price_int)  # Deduct baht amount
                     balance_message = f"\n\n💰 **{buyer.mention} เหลือ {format_number(new_balance)} บาท**"
                 else:
-                    balance_message = f"\n\n⚠️ **{buyer.mention} มีบาทคงเหลือไม่พอ!** (มี {format_number(current_balance)} บาท ต้องการ {format_number(price_int)} บาท)"
+                    balance_message = f"\n\n⚠️ **{buyer.mention} มีเงินบาทเหลือไม่พอ!** (มี {format_number(current_balance)} บาท ต้องการ {format_number(price_int)} บาท)"
             elif current_balance == 0:
-                balance_message = f"\n\n💰 **{buyer.mention} ไม่มีบาทคงเหลือ** (ใช้ !baht เพื่อเพิ่ม)"
+                balance_message = f"\n\n💰 **{buyer.mention} ไม่มีเงินคงเหลือในระบบ**"
         
         if buyer:
             await add_buyer_role(buyer, ctx.guild)
@@ -2453,11 +2453,11 @@ async def od(ctx, *, expr):
         embed.add_field(name=f"💸 จำนวน{ROBUX_EMOJI}", value=f"{format_number(robux)}", inline=True)
         embed.add_field(name="💰 ราคาตามเรท", value=f"{format_number(price_int)} บาท", inline=True)
         if robux > gamepass_threshold:
-            embed.add_field(name="⚡ เรทที่ใช้", value=f"{rate} (มากกว่า {gamepass_threshold} {ROBUX_EMOJI})", inline=True)
+            embed.add_field(name="⚡ เรท", value=f"{rate} (มากกว่า {gamepass_threshold} {ROBUX_EMOJI})", inline=True)
         
         # Add balance message to embed if exists (now showing baht)
         if balance_message:
-            embed.add_field(name="📊 บาทคงเหลือ", value=balance_message, inline=False)
+            embed.add_field(name="💵 เงินคงเหลือ", value=balance_message, inline=False)
         
         embed.set_footer(text=f"รับออร์เดอร์แล้ว 🤗 • {get_thailand_time().strftime('%d/%m/%y, %H:%M')}")
         
@@ -2518,7 +2518,7 @@ async def odg(ctx, *, expr):
                 else:
                     balance_message = f"\n\n⚠️ **{buyer.mention} มีบาทคงเหลือไม่พอ!** (มี {format_number(current_balance)} บาท ต้องการ {format_number(price_int)} บาท)"
             elif current_balance == 0:
-                balance_message = f"\n\n💰 **{buyer.mention} ไม่มีบาทคงเหลือ** (ใช้ !baht เพื่อเพิ่ม)"
+                balance_message = f"\n\n💰 **{buyer.mention} ไม่มีเงินคงเหลือในระบบ"
         
         if buyer:
             await add_buyer_role(buyer, ctx.guild)
@@ -2538,7 +2538,7 @@ async def odg(ctx, *, expr):
         
         # Add balance message to embed if exists (now showing baht)
         if balance_message:
-            embed.add_field(name="📊 บาทคงเหลือ", value=balance_message, inline=False)
+            embed.add_field(name="💵 เงินคงเหลือ", value=balance_message, inline=False)
         
         embed.set_footer(text=f"รับออร์เดอร์แล้ว 🤗 • {get_thailand_time().strftime('%d/%m/%y, %H:%M')}")
         
