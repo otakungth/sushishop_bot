@@ -2837,7 +2837,7 @@ async def ty(ctx):
         
         # Simple success message (NO receipt embed)
         embed = discord.Embed(
-            title="✅ ให้เครดิตเรียบร้อย",
+            title="✅ ส่งของเรียบร้อย",
             description=(
                 "**ขอบคุณที่ใช้บริการ Sushi Shop** 🍣\n"
                 "ฝากให้เครดิต +1 ด้วยนะคะ ❤️\n\n"
