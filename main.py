@@ -1440,7 +1440,7 @@ async def schedule_auto_delete_after_delivered(channel, delay_seconds):
             del ticket_archived_timers[str(channel.id)]
 
 async def auto_delete_ticket_after_delay(channel, delay_seconds):
-    """Delete ticket after delay_seconds (2 hours = 7200 seconds)"""
+    """Delete ticket after delay_seconds (1 hour = 3600 seconds)"""
     try:
         print(f"⏳ Ticket {channel.name} will be deleted in {delay_seconds/3600} hours")
         await asyncio.sleep(delay_seconds)
@@ -1449,7 +1449,7 @@ async def auto_delete_ticket_after_delay(channel, delay_seconds):
             print(f"❌ Ticket {channel.name} no longer exists")
             return
         
-        await save_ticket_transcript(channel, "ระบบอัตโนมัติ (2 ชั่วโมง)")
+        await save_ticket_transcript(channel, "ระบบอัตโนมัติ (1 ชั่วโมง)")
         await asyncio.sleep(2)
         
         print(f"🗑️ Auto-deleting ticket {channel.name} after {delay_seconds/3600} hours")
@@ -1458,36 +1458,7 @@ async def auto_delete_ticket_after_delay(channel, delay_seconds):
     except Exception as e:
         print(f"❌ Error in auto_delete_ticket_after_delay: {e}")
 
-async def monitor_ticket_activity(channel, customer):
-    """Monitor if customer sends a message within 30 minutes, delete ticket if not"""
-    try:
-        print(f"🔍 Monitoring activity for ticket {channel.name} - waiting for customer message")
-        
-        await asyncio.sleep(1800)  # 30 minutes
-        
-        if not channel or channel not in channel.guild.channels:
-            print(f"❌ Ticket {channel.name} no longer exists")
-            return
-        
-        customer_has_messaged = False
-        
-        async for msg in channel.history(limit=100, oldest_first=True):
-            if msg.author == customer and not msg.author.bot:
-                customer_has_messaged = True
-                break
-        
-        if not customer_has_messaged:
-            print(f"🗑️ No message from customer {customer.name} in 30 minutes, deleting ticket {channel.name}")
-            
-            await save_ticket_transcript(channel, "ระบบอัตโนมัติ (ไม่มีข้อความ 30 นาที)")
-            await asyncio.sleep(2)
-            
-            await channel.delete()
-        else:
-            print(f"✅ Customer {customer.name} sent messages in {channel.name}, keeping ticket")
-            
-    except Exception as e:
-        print(f"❌ Error in monitor_ticket_activity: {e}")
+# REMOVED: monitor_ticket_activity function - no longer needed
 
 async def update_channel_name():
     try:
@@ -1733,7 +1704,8 @@ async def handle_open_ticket(interaction, category_name, stock_type):
         await channel.send(embed=embed, view=ticket_view)
         print(f"✅ ส่ง embed ต้อนรับในตั๋ว {channel.name} เรียบร้อย")
         
-        bot.loop.create_task(monitor_ticket_activity(channel, interaction.user))
+        # REMOVED: No activity monitoring - tickets will not auto-delete from inactivity
+        # Tickets only get deleted when moved to delivered category and after 1 hour
         
     except Exception as e:
         print(f"❌ Error opening ticket: {e}")
@@ -1811,9 +1783,9 @@ async def move_to_delivered_category(channel):
         await channel.edit(category=delivered_category)
         print(f"✅ ย้ายตั๋ว {channel.name} ไปยัง category ส่งของแล้ว")
         
-        # Auto-delete after 2 hours (7200 seconds)
-        await schedule_auto_delete_after_delivered(channel, 7200)
-        print(f"⏰ Ticket {channel.name} will be auto-deleted in 2 hours")
+        # Auto-delete after 1 hour (3600 seconds) - CHANGED FROM 2 HOURS TO 1 HOUR
+        await schedule_auto_delete_after_delivered(channel, 3600)
+        print(f"⏰ Ticket {channel.name} will be auto-deleted in 1 hour")
         
         return True
         
@@ -2912,7 +2884,7 @@ async def ty(ctx):
             del ticket_customer_data[str(ctx.channel.id)]
             save_json(ticket_customer_data_file, ticket_customer_data)
         
-        # Move to delivered and schedule removal
+        # Move to delivered and schedule removal (1 hour)
         await move_to_delivered_category(ctx.channel)
         await schedule_removal(ctx.channel, buyer, 3600)
         await update_main_channel()
