@@ -1987,7 +1987,7 @@ async def update_credit_channel_name():
             return
         
         # Format the new channel name
-        new_name = f"〔✅〕credit--{message_count}"
+        new_name = f"〔✅〕ให้เครดิต--{message_count}"
         
         # Check if name needs to be updated
         if credit_channel.name != new_name:
