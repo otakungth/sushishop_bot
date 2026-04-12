@@ -156,12 +156,14 @@ stock_file = os.path.join(DATA_DIR, "stock_values.json")
 ticket_buyer_data_file = os.path.join(DATA_DIR, "ticket_buyer_data.json")
 user_levels_file = os.path.join(DATA_DIR, "user_levels.json")
 daily_sales_file = os.path.join(DATA_DIR, "daily_sales.json")
+user_robux_balance_file = os.path.join(DATA_DIR, "user_robux_balance.json")  # NEW: For tracking robux balance
 
 print(f"📄 Data files will be saved to:")
 print(f"   - {user_levels_file}")
 print(f"   - {stock_file}")
 print(f"   - {ticket_counter_file}")
 print(f"   - {daily_sales_file}")
+print(f"   - {user_robux_balance_file}")
 
 # In-memory data structures
 user_data = {}
@@ -176,8 +178,69 @@ ticket_removal_tasks = {}
 ticket_anonymous_mode = {}
 ticket_counter = {"counter": 1, "date": get_thailand_time().strftime("%d%m%y")}
 ticket_archived_timers = {}
+user_robux_balance = {}  # NEW: Store robux balance for users
 
 sp_added_tracker = {}
+
+# ============ ROBUX BALANCE FUNCTIONS ============
+
+def load_robux_balance():
+    """Load user robux balance from file"""
+    global user_robux_balance
+    try:
+        if os.path.exists(user_robux_balance_file):
+            with open(user_robux_balance_file, 'r', encoding='utf-8') as f:
+                user_robux_balance = json.load(f)
+                print(f"✅ Loaded robux balance for {len(user_robux_balance)} users")
+        else:
+            user_robux_balance = {}
+            save_robux_balance()
+    except Exception as e:
+        print(f"❌ Error loading robux balance: {e}")
+        user_robux_balance = {}
+
+def save_robux_balance():
+    """Save user robux balance to file"""
+    try:
+        with open(user_robux_balance_file, 'w', encoding='utf-8') as f:
+            json.dump(user_robux_balance, f, ensure_ascii=False, indent=2)
+        print(f"✅ Saved robux balance for {len(user_robux_balance)} users")
+        return True
+    except Exception as e:
+        print(f"❌ Error saving robux balance: {e}")
+        return False
+
+def get_user_robux_balance(user_id):
+    """Get robux balance for a user"""
+    user_id_str = str(user_id)
+    return user_robux_balance.get(user_id_str, 0)
+
+def set_user_robux_balance(user_id, amount):
+    """Set robux balance for a user"""
+    user_id_str = str(user_id)
+    user_robux_balance[user_id_str] = amount
+    save_robux_balance()
+    return amount
+
+def deduct_user_robux_balance(user_id, amount):
+    """Deduct robux from user balance, returns new balance or None if insufficient"""
+    user_id_str = str(user_id)
+    current = user_robux_balance.get(user_id_str, 0)
+    if current < amount:
+        return None
+    new_balance = current - amount
+    user_robux_balance[user_id_str] = new_balance
+    save_robux_balance()
+    return new_balance
+
+def add_user_robux_balance(user_id, amount):
+    """Add robux to user balance"""
+    user_id_str = str(user_id)
+    current = user_robux_balance.get(user_id_str, 0)
+    new_balance = current + amount
+    user_robux_balance[user_id_str] = new_balance
+    save_robux_balance()
+    return new_balance
 
 # ============ DAILY SALES FUNCTIONS ============
 def load_daily_sales():
@@ -360,6 +423,7 @@ def save_all_data_sync():
     success &= save_json(ticket_customer_data_file, ticket_customer_data)
     success &= save_json(ticket_buyer_data_file, ticket_buyer_data)
     success &= save_json(user_levels_file, user_levels)
+    success &= save_json(user_robux_balance_file, user_robux_balance)
     save_stock_values()
     print("✅ All data saved (sync)")
     return success
@@ -372,12 +436,13 @@ async def save_all_data():
     success &= save_json(ticket_customer_data_file, ticket_customer_data)
     success &= save_json(ticket_buyer_data_file, ticket_buyer_data)
     success &= save_json(user_levels_file, user_levels)
+    success &= save_json(user_robux_balance_file, user_robux_balance)
     save_stock_values()
     print(f"✅ All data saved at {get_thailand_time().strftime('%H:%M:%S')}")
     return success
 
 def load_all_data():
-    global user_data, ticket_transcripts, ticket_robux_data, ticket_customer_data, ticket_buyer_data, user_levels, ticket_counter
+    global user_data, ticket_transcripts, ticket_robux_data, ticket_customer_data, ticket_buyer_data, user_levels, ticket_counter, user_robux_balance
     
     user_data = load_json(user_data_file, {})
     ticket_transcripts = load_json(ticket_transcripts_file, {})
@@ -389,12 +454,14 @@ def load_all_data():
     
     load_stock_values()
     load_daily_sales()
+    load_robux_balance()
     
     print(f"✅ Loaded all data from JSON:")
     print(f"   - {len(user_data)} users")
     print(f"   - {len(ticket_transcripts)} tickets")
     print(f"   - {len(ticket_buyer_data)} buyer records")
     print(f"   - {len(user_levels)} users with SP")
+    print(f"   - {len(user_robux_balance)} users with robux balance")
     print(f"   - Total SP: {sum(data['sp'] for data in user_levels.values())}")
     print(f"   - Stock: GP={gamepass_stock}, Group={group_stock}")
     print(f"   - Daily Sales: {daily_robux_sold} Robux")
@@ -1458,8 +1525,6 @@ async def auto_delete_ticket_after_delay(channel, delay_seconds):
     except Exception as e:
         print(f"❌ Error in auto_delete_ticket_after_delay: {e}")
 
-# REMOVED: monitor_ticket_activity function - no longer needed
-
 async def update_channel_name():
     try:
         channel = bot.get_channel(MAIN_CHANNEL_ID)
@@ -1704,8 +1769,9 @@ async def handle_open_ticket(interaction, category_name, stock_type):
         await channel.send(embed=embed, view=ticket_view)
         print(f"✅ ส่ง embed ต้อนรับในตั๋ว {channel.name} เรียบร้อย")
         
-        # REMOVED: No activity monitoring - tickets will not auto-delete from inactivity
-        # Tickets only get deleted when moved to delivered category and after 1 hour
+        # NEW: Send welcome message after embed
+        welcome_msg = await channel.send("สนใจกดพาสอะไรแจ้งแอดมินได้เลยค่ะ 🍣")
+        print(f"✅ ส่งข้อความต้อนรับในตั๋ว {channel.name}")
         
     except Exception as e:
         print(f"❌ Error opening ticket: {e}")
@@ -1783,7 +1849,7 @@ async def move_to_delivered_category(channel):
         await channel.edit(category=delivered_category)
         print(f"✅ ย้ายตั๋ว {channel.name} ไปยัง category ส่งของแล้ว")
         
-        # Auto-delete after 1 hour (3600 seconds) - CHANGED FROM 2 HOURS TO 1 HOUR
+        # Auto-delete after 1 hour (3600 seconds)
         await schedule_auto_delete_after_delivered(channel, 3600)
         print(f"⏰ Ticket {channel.name} will be auto-deleted in 1 hour")
         
@@ -2175,6 +2241,75 @@ async def rate(ctx, rate_type=None, low_rate=None, high_rate=None):
         embed = discord.Embed(title="❌ การใช้งานไม่ถูกต้อง", description="**การใช้งาน:**\n`!rate` - เช็คเรททั้งหมด\n`!rate group <low> <high>` - ตั้งค่าเรทโรกลุ่ม\n`!rate gamepass <normal> <high>` - ตั้งค่าเรทเกมพาส", color=0xFF0000)
         await ctx.send(embed=embed)
 
+# ============ ROBUX BALANCE COMMAND ============
+
+@bot.command(name="robux")
+@admin_only()
+async def robux_cmd(ctx, user: discord.Member = None, amount: int = None):
+    """Set robux balance for a user. Usage: !robux @user <amount>"""
+    if user is None or amount is None:
+        embed = discord.Embed(
+            title="❌ การใช้งานไม่ถูกต้อง",
+            description="**การใช้งาน:** `!robux @ผู้ใช้ <จำนวนโรบัค>`\n\n**ตัวอย่าง:**\n`!robux @user123 1000` - ตั้งค่าโรบัคคงเหลือ 1000\n`!robux @user123 0` - ล้างโรบัคคงเหลือ\n\n**หมายเหตุ:** เมื่อใช้ `!od` จำนวนโรบัคจะถูกหักอัตโนมัติ",
+            color=0xFF0000
+        )
+        await ctx.send(embed=embed, delete_after=10)
+        return
+    
+    if amount < 0:
+        await ctx.send("❌ จำนวนโรบัคต้องมากกว่าหรือเท่ากับ 0", delete_after=5)
+        return
+    
+    # Set balance
+    set_user_robux_balance(user.id, amount)
+    
+    embed = discord.Embed(
+        title="✅ ตั้งค่าโรบัคคงเหลือสำเร็จ",
+        description=f"**{user.mention}** มีโรบัคคงเหลือ **{format_number(amount)}** {ROBUX_EMOJI}",
+        color=0x00FF00
+    )
+    embed.set_footer(text=f"เมื่อใช้ !od จำนวนโรบัคจะถูกหักอัตโนมัติ")
+    await ctx.send(embed=embed)
+
+@bot.command(name="checkrobux")
+async def check_robux_cmd(ctx, user: discord.Member = None):
+    """Check robux balance for a user"""
+    if user is None:
+        user = ctx.author
+    
+    # Check permissions for checking others
+    if user != ctx.author:
+        admin_role = ctx.guild.get_role(1361016912259055896)
+        if not ctx.author.guild_permissions.administrator and (not admin_role or admin_role not in ctx.author.roles):
+            await ctx.send("❌ คุณไม่มีสิทธิ์เช็คโรบัคคงเหลือของผู้อื่น", delete_after=5)
+            return
+    
+    balance = get_user_robux_balance(user.id)
+    
+    embed = discord.Embed(
+        title="💰 โรบัคคงเหลือ",
+        description=f"**{user.mention}** มีโรบัคคงเหลือ **{format_number(balance)}** {ROBUX_EMOJI}",
+        color=0x00FF99
+    )
+    await ctx.send(embed=embed)
+
+@bot.command(name="addrobux")
+@admin_only()
+async def add_robux_cmd(ctx, user: discord.Member, amount: int):
+    """Add robux to user balance"""
+    if amount <= 0:
+        await ctx.send("❌ จำนวนโรบัคต้องมากกว่า 0", delete_after=5)
+        return
+    
+    new_balance = add_user_robux_balance(user.id, amount)
+    
+    embed = discord.Embed(
+        title="✅ เพิ่มโรบัคสำเร็จ",
+        description=f"เพิ่ม **{format_number(amount)}** {ROBUX_EMOJI} ให้ {user.mention}\nปัจจุบันเหลือ **{format_number(new_balance)}** {ROBUX_EMOJI}",
+        color=0x00FF00
+    )
+    await ctx.send(embed=embed)
+
 # ============ ORDER COMMANDS ============
 @bot.command()
 @admin_only()
@@ -2213,6 +2348,19 @@ async def od(ctx, *, expr):
                     buyer = msg.author
                     break
         
+        # NEW: Check and deduct robux balance
+        balance_message = None
+        if buyer:
+            current_balance = get_user_robux_balance(buyer.id)
+            if current_balance > 0:
+                if current_balance >= robux:
+                    new_balance = deduct_user_robux_balance(buyer.id, robux)
+                    balance_message = f"\n\n💰 **{buyer.mention} เหลือ {format_number(new_balance)} {ROBUX_EMOJI}**"
+                else:
+                    balance_message = f"\n\n⚠️ **{buyer.mention} มีโรบัคคงเหลือไม่พอ!** (มี {format_number(current_balance)} {ROBUX_EMOJI} ต้องการ {format_number(robux)} {ROBUX_EMOJI})"
+            elif current_balance == 0:
+                balance_message = f"\n\n💰 **{buyer.mention} ไม่มีโรบัคคงเหลือ** (ใช้ !robux เพื่อเพิ่ม)"
+        
         if buyer:
             await add_buyer_role(buyer, ctx.guild)
         
@@ -2230,6 +2378,11 @@ async def od(ctx, *, expr):
         embed.add_field(name="💰 ราคาตามเรท", value=f"{format_number(price_int)} บาท", inline=True)
         if robux > gamepass_threshold:
             embed.add_field(name="⚡ เรทที่ใช้", value=f"{rate} (มากกว่า {gamepass_threshold} {ROBUX_EMOJI})", inline=True)
+        
+        # Add balance message to embed if exists
+        if balance_message:
+            embed.add_field(name="📊 โรบัคคงเหลือ", value=balance_message, inline=False)
+        
         embed.set_footer(text=f"รับออร์เดอร์แล้ว 🤗 • {get_thailand_time().strftime('%d/%m/%y, %H:%M')}")
         
         await ctx.send(embed=embed, view=DeliveryView(ctx.channel, "Gamepass", robux, price, buyer, is_reorder=False))
@@ -2277,6 +2430,19 @@ async def odg(ctx, *, expr):
                     buyer = msg.author
                     break
         
+        # NEW: Check and deduct robux balance for group orders too
+        balance_message = None
+        if buyer:
+            current_balance = get_user_robux_balance(buyer.id)
+            if current_balance > 0:
+                if current_balance >= robux:
+                    new_balance = deduct_user_robux_balance(buyer.id, robux)
+                    balance_message = f"\n\n💰 **{buyer.mention} เหลือ {format_number(new_balance)} {ROBUX_EMOJI}**"
+                else:
+                    balance_message = f"\n\n⚠️ **{buyer.mention} มีโรบัคคงเหลือไม่พอ!** (มี {format_number(current_balance)} {ROBUX_EMOJI} ต้องการ {format_number(robux)} {ROBUX_EMOJI})"
+            elif current_balance == 0:
+                balance_message = f"\n\n💰 **{buyer.mention} ไม่มีโรบัคคงเหลือ** (ใช้ !robux เพื่อเพิ่ม)"
+        
         if buyer:
             await add_buyer_role(buyer, ctx.guild)
         
@@ -2292,6 +2458,11 @@ async def odg(ctx, *, expr):
         embed.add_field(name="📦 ประเภทสินค้า", value="Group", inline=False)
         embed.add_field(name=f"💸 จำนวน{ROBUX_EMOJI}", value=f"{format_number(robux)}", inline=True)
         embed.add_field(name="💰 ราคาตามเรท", value=f"{format_number(price_int)} บาท", inline=True)
+        
+        # Add balance message to embed if exists
+        if balance_message:
+            embed.add_field(name="📊 โรบัคคงเหลือ", value=balance_message, inline=False)
+        
         embed.set_footer(text=f"รับออร์เดอร์แล้ว 🤗 • {get_thailand_time().strftime('%d/%m/%y, %H:%M')}")
         
         await ctx.send(embed=embed, view=DeliveryView(ctx.channel, "Group", robux, price, buyer, is_reorder=False))
@@ -3113,7 +3284,7 @@ signal.signal(signal.SIGTERM, signal_handler)
 # ============ EVENT HANDLERS ============
 @bot.event
 async def on_ready():
-    print(f"✅ บอทออนไลน์แล้ว: {bot.user} (ID: {bot.user.id})")
+    print(f"✅ บอทออนไลน์แล้ว: {bot.user} (ID: {bot.user.id}")
     
     await bot.change_presence(activity=discord.Game(name="🍣แมวส้มชื่อซูชิของ wforr🍣"))
     
