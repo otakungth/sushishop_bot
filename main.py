@@ -1770,7 +1770,7 @@ async def handle_open_ticket(interaction, category_name, stock_type):
         print(f"✅ ส่ง embed ต้อนรับในตั๋ว {channel.name} เรียบร้อย")
         
         # NEW: Send welcome message after embed
-        welcome_msg = await channel.send("# สนใจกดพาสอะไรแจ้งแอดมินได้เลยค่ะ <:sushiheart:1410484970291466300>")
+        welcome_msg = await channel.send("# สนใจซื้ออะไรแจ้งแอดมินได้เลยค่ะ <:sushiheart:1410484970291466300>")
         print(f"✅ ส่งข้อความต้อนรับในตั๋ว {channel.name}")
         
     except Exception as e:
