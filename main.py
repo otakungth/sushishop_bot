@@ -2243,37 +2243,37 @@ async def rate(ctx, rate_type=None, low_rate=None, high_rate=None):
 
 # ============ ROBUX BALANCE COMMAND ============
 
-@bot.command(name="robux")
+@bot.command(name="baht")  # Changed from "robux"
 @admin_only()
-async def robux_cmd(ctx, user: discord.Member = None, amount: int = None):
-    """Set robux balance for a user. Usage: !robux @user <amount>"""
+async def baht_cmd(ctx, user: discord.Member = None, amount: int = None):
+    """Set baht balance for a user. Usage: !baht @user <amount>"""
     if user is None or amount is None:
         embed = discord.Embed(
             title="❌ การใช้งานไม่ถูกต้อง",
-            description="**การใช้งาน:** `!robux @ผู้ใช้ <จำนวนโรบัค>`\n\n**ตัวอย่าง:**\n`!robux @user123 1000` - ตั้งค่าโรบัคคงเหลือ 1000\n`!robux @user123 0` - ล้างโรบัคคงเหลือ\n\n**หมายเหตุ:** เมื่อใช้ `!od` จำนวนโรบัคจะถูกหักอัตโนมัติ",
+            description="**การใช้งาน:** `!baht @ผู้ใช้ <จำนวนบาท>`\n\n**ตัวอย่าง:**\n`!baht @user123 1000` - ตั้งค่าบาทคงเหลือ 1000\n`!baht @user123 0` - ล้างบาทคงเหลือ\n\n**หมายเหตุ:** เมื่อใช้ `!od` จำนวนบาทจะถูกหักอัตโนมัติ",
             color=0xFF0000
         )
         await ctx.send(embed=embed, delete_after=10)
         return
     
     if amount < 0:
-        await ctx.send("❌ จำนวนโรบัคต้องมากกว่าหรือเท่ากับ 0", delete_after=5)
+        await ctx.send("❌ จำนวนบาทต้องมากกว่าหรือเท่ากับ 0", delete_after=5)
         return
     
     # Set balance
-    set_user_robux_balance(user.id, amount)
+    set_user_robux_balance(user.id, amount)  # Note: function name kept but now stores baht
     
     embed = discord.Embed(
-        title="✅ ตั้งค่าโรบัคคงเหลือสำเร็จ",
-        description=f"**{user.mention}** มีโรบัคคงเหลือ **{format_number(amount)}** {ROBUX_EMOJI}",
+        title="✅ ตั้งค่าบาทคงเหลือสำเร็จ",
+        description=f"**{user.mention}** มีบาทคงเหลือ **{format_number(amount)}** บาท",
         color=0x00FF00
     )
-    embed.set_footer(text=f"เมื่อใช้ !od จำนวนโรบัคจะถูกหักอัตโนมัติ")
+    embed.set_footer(text=f"เมื่อใช้ !od จำนวนบาทจะถูกหักอัตโนมัติ")
     await ctx.send(embed=embed)
 
-@bot.command(name="checkrobux")
-async def check_robux_cmd(ctx, user: discord.Member = None):
-    """Check robux balance for a user"""
+@bot.command(name="checkbaht")  # Changed from "checkrobux"
+async def check_baht_cmd(ctx, user: discord.Member = None):
+    """Check baht balance for a user"""
     if user is None:
         user = ctx.author
     
@@ -2281,34 +2281,110 @@ async def check_robux_cmd(ctx, user: discord.Member = None):
     if user != ctx.author:
         admin_role = ctx.guild.get_role(1361016912259055896)
         if not ctx.author.guild_permissions.administrator and (not admin_role or admin_role not in ctx.author.roles):
-            await ctx.send("❌ คุณไม่มีสิทธิ์เช็คโรบัคคงเหลือของผู้อื่น", delete_after=5)
+            await ctx.send("❌ คุณไม่มีสิทธิ์เช็คบาทคงเหลือของผู้อื่น", delete_after=5)
             return
     
-    balance = get_user_robux_balance(user.id)
+    balance = get_user_robux_balance(user.id)  # Note: function name kept but now stores baht
     
     embed = discord.Embed(
-        title="💰 โรบัคคงเหลือ",
-        description=f"**{user.mention}** มีโรบัคคงเหลือ **{format_number(balance)}** {ROBUX_EMOJI}",
+        title="💰 บาทคงเหลือ",
+        description=f"**{user.mention}** มีบาทคงเหลือ **{format_number(balance)}** บาท",
         color=0x00FF99
     )
     await ctx.send(embed=embed)
 
-@bot.command(name="addrobux")
+@bot.command(name="addbaht")  # Changed from "addrobux"
 @admin_only()
-async def add_robux_cmd(ctx, user: discord.Member, amount: int):
-    """Add robux to user balance"""
+async def add_baht_cmd(ctx, user: discord.Member, amount: int):
+    """Add baht to user balance"""
     if amount <= 0:
-        await ctx.send("❌ จำนวนโรบัคต้องมากกว่า 0", delete_after=5)
+        await ctx.send("❌ จำนวนบาทต้องมากกว่า 0", delete_after=5)
         return
     
-    new_balance = add_user_robux_balance(user.id, amount)
+    new_balance = add_user_robux_balance(user.id, amount)  # Note: function name kept but now stores baht
     
     embed = discord.Embed(
-        title="✅ เพิ่มโรบัคสำเร็จ",
-        description=f"เพิ่ม **{format_number(amount)}** {ROBUX_EMOJI} ให้ {user.mention}\nปัจจุบันเหลือ **{format_number(new_balance)}** {ROBUX_EMOJI}",
+        title="✅ เพิ่มบาทสำเร็จ",
+        description=f"เพิ่ม **{format_number(amount)}** บาท ให้ {user.mention}\nปัจจุบันเหลือ **{format_number(new_balance)}** บาท",
         color=0x00FF00
     )
     await ctx.send(embed=embed)
+
+@bot.command(name="checkallbaht")  # NEW COMMAND
+@admin_only()
+async def check_all_baht_cmd(ctx):
+    """Check all users who have remaining baht balance"""
+    if not user_robux_balance:
+        await ctx.send("❌ ไม่มีข้อมูลบาทคงเหลือในระบบ", delete_after=5)
+        return
+    
+    # Filter users with balance > 0
+    users_with_balance = {}
+    for user_id_str, balance in user_robux_balance.items():
+        if balance > 0:
+            users_with_balance[user_id_str] = balance
+    
+    if not users_with_balance:
+        await ctx.send("📊 ไม่มีผู้ใช้ที่มีบาทคงเหลือในระบบ", delete_after=5)
+        return
+    
+    # Sort by balance (highest first)
+    sorted_users = sorted(users_with_balance.items(), key=lambda x: x[1], reverse=True)
+    
+    # Create embed with pagination if needed
+    embeds = []
+    current_embed = discord.Embed(
+        title="💰 รายชื่อผู้ใช้ที่มีบาทคงเหลือ",
+        color=0x00FF99
+    )
+    
+    description = ""
+    page = 1
+    total_pages = (len(sorted_users) + 20) // 20  # 20 users per page
+    
+    for i, (user_id_str, balance) in enumerate(sorted_users, 1):
+        user = ctx.guild.get_member(int(user_id_str))
+        if user:
+            user_name = f"{user.mention} ({user.name})"
+        else:
+            user_name = f"ผู้ใช้ ID: {user_id_str}"
+        
+        line = f"**{i}.** {user_name} - `{format_number(balance)}` บาท\n"
+        
+        if len(description + line) > 1800:  # Leave room for footer
+            current_embed.description = description
+            current_embed.set_footer(text=f"หน้า {page}/{total_pages}")
+            embeds.append(current_embed)
+            
+            # Start new embed
+            page += 1
+            current_embed = discord.Embed(
+                title="💰 รายชื่อผู้ใช้ที่มีบาทคงเหลือ (ต่อ)",
+                color=0x00FF99
+            )
+            description = line
+        else:
+            description += line
+    
+    # Add last embed
+    if description:
+        current_embed.description = description
+        current_embed.set_footer(text=f"หน้า {page}/{total_pages}")
+        embeds.append(current_embed)
+    
+    # Send embeds
+    for embed in embeds:
+        await ctx.send(embed=embed)
+    
+    # Send summary
+    total_balance = sum(users_with_balance.values())
+    summary_embed = discord.Embed(
+        title="📊 สรุปบาทคงเหลือ",
+        description=f"**จำนวนผู้ใช้ที่มีบาทคงเหลือ:** {len(users_with_balance)} คน\n"
+                   f"**บาทคงเหลือรวมทั้งหมด:** {format_number(total_balance)} บาท",
+        color=0x00FF99
+    )
+    await ctx.send(embed=summary_embed)
 
 # ============ ORDER COMMANDS ============
 @bot.command()
