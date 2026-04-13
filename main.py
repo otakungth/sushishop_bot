@@ -252,12 +252,8 @@ def load_daily_sales():
                 daily_robux_sold = data.get("robux_sold", 0)
                 daily_sales_date = data.get("date", get_thailand_time().strftime("%Y%m%d"))
                 
-                # Reset if date has changed
-                current_date = get_thailand_time().strftime("%Y%m%d")
-                if daily_sales_date != current_date:
-                    daily_robux_sold = 0
-                    daily_sales_date = current_date
-                    save_daily_sales()
+                # NO AUTO RESET AT 11PM - removed
+                # Current date is just stored for reference
                 print(f"✅ Loaded daily sales: {daily_robux_sold} Robux on {daily_sales_date}")
         else:
             daily_robux_sold = 0
@@ -281,29 +277,18 @@ def save_daily_sales():
 async def add_daily_robux(amount):
     global daily_robux_sold, daily_sales_date
     
-    current_date = get_thailand_time().strftime("%Y%m%d")
-    
-    # Check if we need to reset for new day
-    if daily_sales_date != current_date:
-        daily_robux_sold = 0
-        daily_sales_date = current_date
-    
+    # NO AUTO RESET - keep using the same date
     daily_robux_sold += amount
     save_daily_sales()
-    print(f"✅ Added {amount} Robux to daily sales. Total today: {daily_robux_sold}")
+    print(f"✅ Added {amount} Robux to daily sales. Total: {daily_robux_sold}")
 
-def reset_daily_sales_at_11pm():
-    """Check if it's after 11pm and reset if needed"""
+def reset_daily_robux():
+    """Manually reset daily robux sales to 0"""
     global daily_robux_sold, daily_sales_date
-    now = get_thailand_time()
-    current_date = now.strftime("%Y%m%d")
-    
-    # If date has changed, reset
-    if daily_sales_date != current_date:
-        daily_robux_sold = 0
-        daily_sales_date = current_date
-        save_daily_sales()
-        print(f"🔄 Daily sales reset at 11pm: New date {current_date}")
+    daily_robux_sold = 0
+    daily_sales_date = get_thailand_time().strftime("%Y%m%d")
+    save_daily_sales()
+    print(f"🔄 Daily sales manually reset to 0 on {daily_sales_date}")
 
 # ============ JSON FUNCTIONS ============
 def load_json(file, default):
@@ -2101,15 +2086,29 @@ async def link(ctx):
 @bot.command(name="robuxtoday")
 async def robuxtoday_cmd(ctx):
     """Check how many robux sold today"""
-    reset_daily_sales_at_11pm()
-    
+    # NO AUTO RESET - just display current total
     embed = discord.Embed(
-        title="📊 ยอดขายโรบัควันนี้",
+        title="📊 ยอดขายโรบัค",
         description=f"**{format_number(daily_robux_sold)}** {ROBUX_EMOJI}",
         color=0x00FF99
     )
-    embed.set_footer(text=f"ข้อมูล ณ วันที่ {get_thailand_time().strftime('%d/%m/%Y')} • รีเซ็ตทุกวัน 23:00 น.")
+    embed.set_footer(text=f"ข้อมูล ณ วันที่ {get_thailand_time().strftime('%d/%m/%Y')}")
     await ctx.send(embed=embed)
+
+@bot.command(name="resetrobuxtoday")
+@admin_only()
+async def reset_robuxtoday_cmd(ctx):
+    """Reset daily robux sales to 0"""
+    reset_daily_robux()
+    
+    embed = discord.Embed(
+        title="🔄 รีเซ็ตยอดขายโรบัคเรียบร้อย",
+        description=f"ยอดขายโรบัคถูกรีเซ็ตเป็น **0** {ROBUX_EMOJI}",
+        color=0x00FF00
+    )
+    embed.set_footer(text=f"รีเซ็ตโดย {ctx.author.name} • {get_thailand_time().strftime('%d/%m/%Y %H:%M:%S')}")
+    await ctx.send(embed=embed)
+    print(f"✅ Daily robux sales reset to 0 by {ctx.author.name}")
 
 @bot.command()
 @admin_only()
@@ -3204,10 +3203,8 @@ async def hourly_backup():
     backup_user_levels()
     print(f"✅ Hourly backup created at {get_thailand_time().strftime('%H:%M:%S')}")
 
-@tasks.loop(minutes=30)
-async def check_daily_reset():
-    """Check if we need to reset daily sales at 11pm"""
-    reset_daily_sales_at_11pm()
+# ============ NO AUTO RESET TASK - REMOVED ============
+# The check_daily_reset task has been removed since auto reset is no longer needed
 
 # ============ SIGNAL HANDLERS ============
 def signal_handler(signum, frame):
@@ -3253,7 +3250,7 @@ async def on_ready():
     save_data_frequent.start()
     hourly_backup.start()
     update_credit_channel_task.start()
-    check_daily_reset.start()
+    # check_daily_reset.start()  # REMOVED - No longer needed
     
     # Initial credit channel update
     await update_credit_channel_name()
