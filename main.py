@@ -1837,7 +1837,7 @@ bot = MyBot()
 
 # ============ SLASH COMMANDS ============
 
-@bot.tree.command(name="minesweeper", description="เล่น Minesweeper ชนะเพื่อรับ 0.05 บาท")
+@bot.tree.command(name="minesweeper", description="เล่น Minesweeper ชนะเพื่อรับ 0.1 บาท")
 async def slash_minesweeper(interaction: discord.Interaction):
     """Start a Minesweeper game via slash command"""
     
@@ -1849,7 +1849,7 @@ async def slash_minesweeper(interaction: discord.Interaction):
     
     embed = discord.Embed(
         title="🍣 Sushi Minesweeper 🍣",
-        description=f"```\n{display}\n```\n**ระเบิด: {game.bomb_count}**\n\nกด ❓ เพื่อเปิดช่อง **รางวัล: 0.05 บาท**",
+        description=f"```\n{display}\n```\n**ระเบิด: {game.bomb_count}**\n\nกด ❓ เพื่อเปิดช่อง **รางวัล: 0.1 บาท**",
         color=0xFFA500
     )
     embed.set_footer(text="ช่อง 5x5 • เปิดช่องทั้งหมดเพื่อชนะ")
