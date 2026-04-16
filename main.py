@@ -88,8 +88,8 @@ intents.message_content = True
 intents.members = True
 
 # Global variables
-gamepass_rate = 6.5
-gamepass_rate_high = 6.7
+gamepass_rate = 7
+gamepass_rate_high = 7
 gamepass_threshold = 3999
 group_rate_low = 4
 group_rate_high = 4.5
@@ -157,7 +157,7 @@ ticket_buyer_data_file = os.path.join(DATA_DIR, "ticket_buyer_data.json")
 user_levels_file = os.path.join(DATA_DIR, "user_levels.json")
 daily_sales_file = os.path.join(DATA_DIR, "daily_sales.json")
 user_robux_balance_file = os.path.join(DATA_DIR, "user_robux_balance.json")
-timer_pause_file = os.path.join(DATA_DIR, "timer_pause.json")  # NEW: Store paused timers
+timer_pause_file = os.path.join(DATA_DIR, "timer_pause.json")
 
 print(f"📄 Data files will be saved to:")
 print(f"   - {user_levels_file}")
@@ -181,7 +181,7 @@ ticket_anonymous_mode = {}
 ticket_counter = {"counter": 1, "date": get_thailand_time().strftime("%d%m%y")}
 ticket_archived_timers = {}
 user_robux_balance = {}
-paused_timers = {}  # NEW: Store paused timer info {channel_id: {"remaining": seconds, "paused_at": timestamp}}
+paused_timers = {}
 
 sp_added_tracker = {}
 
@@ -262,6 +262,10 @@ def load_robux_balance():
         if os.path.exists(user_robux_balance_file):
             with open(user_robux_balance_file, 'r', encoding='utf-8') as f:
                 user_robux_balance = json.load(f)
+                # Convert string values to float for decimal support
+                for key, value in user_robux_balance.items():
+                    if isinstance(value, str):
+                        user_robux_balance[key] = float(value)
                 print(f"✅ Loaded robux balance for {len(user_robux_balance)} users")
         else:
             user_robux_balance = {}
@@ -509,7 +513,7 @@ def load_all_data():
     load_stock_values()
     load_daily_sales()
     load_robux_balance()
-    load_paused_timers()  # NEW: Load paused timers
+    load_paused_timers()
     
     print(f"✅ Loaded all data from JSON:")
     print(f"   - {len(user_data)} users")
@@ -1332,7 +1336,7 @@ class DeliveryView(View):
         self.buyer = buyer
         self.delivered = False
         self.is_reorder = is_reorder
-        self.receipt_sent = False  # Prevent duplicate receipts
+        self.receipt_sent = False
         
         deliver_btn = Button(label="ส่งสินค้าแล้ว ✅", style=discord.ButtonStyle.success, emoji="✅")
         cancel_btn = Button(label="ยกเลิก ❌", style=discord.ButtonStyle.danger, emoji="❌")
@@ -1390,7 +1394,6 @@ class DeliveryView(View):
                     anonymous_mode = ticket_anonymous_mode.get(str(self.channel.id), False)
                     buyer_display = "ไม่ระบุตัวตน" if anonymous_mode else (self.buyer.mention if self.buyer else "ไม่ทราบ")
                     
-                    # Send receipt ONLY ONCE with image
                     if not self.receipt_sent:
                         self.receipt_sent = True
                         
@@ -1499,6 +1502,9 @@ class MyBot(commands.Bot):
     
     async def setup_hook(self):
         print(f"✅ Setup hook completed")
+        # Sync slash commands
+        await self.tree.sync()
+        print(f"✅ Slash commands synced")
     
     async def close(self):
         print("\n⚠️ กำลังปิดระบบอย่างปลอดภัย...")
@@ -1519,12 +1525,10 @@ bot = MyBot()
 # ============ TICKET HELPER FUNCTIONS ============
 async def schedule_removal(channel, buyer, delay_seconds):
     """Schedule removal of buyer permission after delay_seconds"""
-    # Check if timer is paused for this channel
     if is_timer_paused(channel.id):
         print(f"⏸️ Timer is paused for {channel.name}, not scheduling")
         return
     
-    # Cancel existing task if any
     if str(channel.id) in ticket_removal_tasks:
         try:
             ticket_removal_tasks[str(channel.id)].cancel()
@@ -1555,14 +1559,11 @@ async def reset_timer(channel, buyer):
     """Reset the 1-hour timer for a channel (used when customer clicks 'สั่งของต่อ')"""
     print(f"🔄 Resetting timer for channel {channel.name}")
     
-    # Cancel any existing timer
     cancel_removal(channel.id)
     
-    # Remove from paused timers if exists
     if is_timer_paused(channel.id):
         cancel_paused_timer(channel.id)
     
-    # Start new 1-hour timer
     await schedule_removal(channel, buyer, 3600)
     print(f"✅ Timer reset to 1 hour for {channel.name}")
 
@@ -1848,7 +1849,6 @@ async def handle_open_ticket(interaction, category_name, stock_type):
         await channel.send(embed=embed, view=ticket_view)
         print(f"✅ ส่ง embed ต้อนรับในตั๋ว {channel.name} เรียบร้อย")
         
-        # Send welcome message after embed
         welcome_msg = await channel.send("# สนใจซื้ออะไรแจ้งแอดมินได้เลยค่ะ <:sushiheart:1410484970291466300>")
         print(f"✅ ส่งข้อความต้อนรับในตั๋ว {channel.name}")
         
@@ -1928,7 +1928,6 @@ async def move_to_delivered_category(channel):
         await channel.edit(category=delivered_category)
         print(f"✅ ย้ายตั๋ว {channel.name} ไปยัง category ส่งของแล้ว")
         
-        # Auto-delete after 1 hour (3600 seconds)
         await schedule_auto_delete_after_delivered(channel, 3600)
         print(f"⏰ Ticket {channel.name} will be auto-deleted in 1 hour")
         
@@ -2001,15 +2000,13 @@ async def remove_buyer_permission_after_delay(channel, buyer, delay_seconds):
     try:
         print(f"⏳ กำลังรอ {delay_seconds} วินาทีก่อนลบสิทธิ์การดูของ {channel.name}")
         
-        # Check if timer is paused - if so, wait until resumed
         remaining = delay_seconds
         while is_timer_paused(channel.id):
             paused_data = paused_timers.get(str(channel.id), {})
             remaining = paused_data.get("remaining", remaining)
             print(f"⏸️ Timer paused for {channel.name}, waiting for resume... ({remaining} seconds remaining)")
-            await asyncio.sleep(5)  # Check every 5 seconds
+            await asyncio.sleep(5)
         
-        # Now wait for the remaining time
         await asyncio.sleep(remaining)
         
         if not channel or channel not in channel.guild.channels:
@@ -2065,12 +2062,10 @@ async def update_credit_channel_name():
             print(f"❌ Credit channel not found with ID: {CREDIT_CHANNEL_ID}")
             return
         
-        # Count messages in the channel
         message_count = 0
         try:
             async for _ in credit_channel.history(limit=None):
                 message_count += 1
-                # Safety limit to avoid infinite loop
                 if message_count >= 10000:
                     break
             print(f"📊 Credit channel has {message_count} messages")
@@ -2078,16 +2073,13 @@ async def update_credit_channel_name():
             print(f"⚠️ Error counting messages: {e}")
             return
         
-        # Format the new channel name
         new_name = f"〔✅〕ให้เครดิต--{message_count}"
         
-        # Check if name needs to be updated
         if credit_channel.name != new_name:
             try:
                 await credit_channel.edit(name=new_name)
                 print(f"✅ Credit channel name updated to: {new_name}")
                 
-                # Save to file for persistence
                 with open(os.path.join(DATA_DIR, "credit_message_count.txt"), "w") as f:
                     f.write(str(message_count))
             except discord.Forbidden:
@@ -2191,8 +2183,9 @@ async def link(ctx):
     await ctx.send("# 🔗 ลิงก์กลุ่ม\nเข้ากลุ่มนี้ 15 วันก่อนซื้อโรกลุ่ม: https://www.roblox.com/communities/34713179/VALKYs\nSushi Shop 🍣")
 
 @bot.command(name="robuxtoday")
+@admin_only()
 async def robuxtoday_cmd(ctx):
-    """Check how many robux sold today"""
+    """Check how many robux sold today - Admin only"""
     embed = discord.Embed(
         title="📊 ยอดขายโรบัค",
         description=f"**{format_number(daily_robux_sold)}** {ROBUX_EMOJI}",
@@ -2224,34 +2217,23 @@ async def stop_timer_cmd(ctx):
     """Stop/Pause the 1-hour countdown for the current ticket channel"""
     channel = ctx.channel
     
-    # Check if this is a ticket channel
     if not channel.name.startswith("ticket-") and not re.match(r'^\d{10}-\d+-[\w\u0E00-\u0E7F]+$', channel.name):
         await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
         return
     
-    # Check if there's an active timer
     if str(channel.id) not in ticket_removal_tasks and not is_timer_paused(channel.id):
         await ctx.send("❌ ไม่มีตัวจับเวลาที่กำลังทำงานอยู่ในตั๋วนี้", delete_after=5)
         return
     
-    # If already paused
     if is_timer_paused(channel.id):
         await ctx.send("⏸️ ตัวจับเวลาถูกหยุดไว้แล้ว", delete_after=5)
         return
     
-    # Get remaining time from the task
-    remaining = 3600  # default 1 hour
+    remaining = 3600
     if str(channel.id) in ticket_removal_tasks:
-        task = ticket_removal_tasks[str(channel.id)]
-        # Try to get remaining time - this is approximate
-        # Since we can't easily get remaining time from asyncio task, we'll store it
-        # For now, we'll assume full 1 hour is remaining if task exists
         pass
     
-    # Cancel the current timer
     cancel_removal(channel.id)
-    
-    # Store paused timer with remaining time
     pause_timer(channel.id, remaining)
     
     embed = discord.Embed(
@@ -2267,30 +2249,23 @@ async def resume_timer_cmd(ctx):
     """Resume the 1-hour countdown for the current ticket channel"""
     channel = ctx.channel
     
-    # Check if this is a ticket channel
     if not channel.name.startswith("ticket-") and not re.match(r'^\d{10}-\d+-[\w\u0E00-\u0E7F]+$', channel.name):
         await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
         return
     
-    # Check if timer is paused
     if not is_timer_paused(channel.id):
         await ctx.send("❌ ไม่มีตัวจับเวลาที่ถูกหยุดไว้ในตั๋วนี้", delete_after=5)
         return
     
-    # Get remaining time
     remaining = get_paused_remaining(channel.id)
     
-    # Get buyer
     buyer = None
     if str(channel.id) in ticket_buyer_data:
         buyer_id = ticket_buyer_data[str(channel.id)].get("user_id")
         if buyer_id:
             buyer = ctx.guild.get_member(buyer_id)
     
-    # Resume the timer
     resume_timer(channel.id)
-    
-    # Start new timer with remaining time
     await schedule_removal(channel, buyer, remaining)
     
     embed = discord.Embed(
@@ -2434,26 +2409,26 @@ async def rate(ctx, rate_type=None, low_rate=None, high_rate=None):
 
 @bot.command(name="baht")
 @admin_only()
-async def baht_cmd(ctx, user: discord.Member = None, amount: int = None):
+async def baht_cmd(ctx, user: discord.Member = None, amount: float = None):
     """Set baht balance for a user. Usage: !baht @user <amount>"""
     if user is None or amount is None:
         embed = discord.Embed(
             title="❌ การใช้งานไม่ถูกต้อง",
-            description="**การใช้งาน:** `!baht @ผู้ใช้ <จำนวนบาท>`\n\n**ตัวอย่าง:**\n`!baht @user123 1000` - ตั้งค่าบาทคงเหลือ 1000\n`!baht @user123 0` - ล้างบาทคงเหลือ\n\n**หมายเหตุ:** เมื่อใช้ `!od` จำนวนบาทจะถูกหักอัตโนมัติ",
+            description="**การใช้งาน:** `!baht @ผู้ใช้ <จำนวนบาท>`\n\n**ตัวอย่าง:**\n`!baht @user123 1000` - ตั้งค่าเงินคงเหลือ 1000\n`!baht @user123 0.05` - ตั้งค่า 0.05 บาท\n\n**หมายเหตุ:** เมื่อใช้ `!od` จำนวนบาทจะถูกหักอัตโนมัติ",
             color=0xFF0000
         )
         await ctx.send(embed=embed, delete_after=10)
         return
     
     if amount < 0:
-        await ctx.send("❌ จำนวนบาทต้องมากกว่าหรือเท่ากับ 0", delete_after=5)
+        await ctx.send("❌ จำนวนเงินต้องมากกว่าหรือเท่ากับ 0", delete_after=5)
         return
     
     set_user_robux_balance(user.id, amount)
     
     embed = discord.Embed(
-        title="✅ ตั้งค่าบาทคงเหลือสำเร็จ",
-        description=f"**{user.mention}** มีบาทคงเหลือ **{format_number(amount)}** บาท",
+        title="✅ ตั้งค่าเงินคงเหลือสำเร็จ",
+        description=f"**{user.mention}** มีเงินคงเหลือ **{amount:.2f}** บาท",
         color=0x00FF00
     )
     embed.set_footer(text=f"เมื่อใช้ !od จำนวนบาทจะถูกหักอัตโนมัติ")
@@ -2475,14 +2450,14 @@ async def check_baht_cmd(ctx, user: discord.Member = None):
     
     embed = discord.Embed(
         title="💰 บาทคงเหลือ",
-        description=f"**{user.mention}** มีบาทคงเหลือ **{format_number(balance)}** บาท",
+        description=f"**{user.mention}** มีบาทคงเหลือ **{balance:.2f}** บาท",
         color=0x00FF99
     )
     await ctx.send(embed=embed)
 
 @bot.command(name="addbaht")
 @admin_only()
-async def add_baht_cmd(ctx, user: discord.Member, amount: int):
+async def add_baht_cmd(ctx, user: discord.Member, amount: float):
     """Add baht to user balance"""
     if amount <= 0:
         await ctx.send("❌ จำนวนบาทต้องมากกว่า 0", delete_after=5)
@@ -2492,7 +2467,7 @@ async def add_baht_cmd(ctx, user: discord.Member, amount: int):
     
     embed = discord.Embed(
         title="✅ เพิ่มบาทสำเร็จ",
-        description=f"เพิ่ม **{format_number(amount)}** บาท ให้ {user.mention}\nปัจจุบันเหลือ **{format_number(new_balance)}** บาท",
+        description=f"เพิ่ม **{amount:.2f}** บาท ให้ {user.mention}\nปัจจุบันเหลือ **{new_balance:.2f}** บาท",
         color=0x00FF00
     )
     await ctx.send(embed=embed)
@@ -2511,14 +2486,14 @@ async def check_all_baht_cmd(ctx):
             users_with_balance[user_id_str] = balance
     
     if not users_with_balance:
-        await ctx.send("📊 ไม่มีผู้ใช้ที่มีบาทคงเหลือในระบบ", delete_after=5)
+        await ctx.send("📊 ไม่มีผู้ใช้ที่มีเงืนคงเหลือในระบบ", delete_after=5)
         return
     
     sorted_users = sorted(users_with_balance.items(), key=lambda x: x[1], reverse=True)
     
     embeds = []
     current_embed = discord.Embed(
-        title="💰 รายชื่อผู้ใช้ที่มีบาทคงเหลือ",
+        title="💰 รายชื่อผู้ใช้ที่มีเงินคงเหลือ",
         color=0x00FF99
     )
     
@@ -2533,7 +2508,7 @@ async def check_all_baht_cmd(ctx):
         else:
             user_name = f"ผู้ใช้ ID: {user_id_str}"
         
-        line = f"**{i}.** {user_name} - `{format_number(balance)}` บาท\n"
+        line = f"**{i}.** {user_name} - `{balance:.2f}` บาท\n"
         
         if len(description + line) > 1800:
             current_embed.description = description
@@ -2542,7 +2517,7 @@ async def check_all_baht_cmd(ctx):
             
             page += 1
             current_embed = discord.Embed(
-                title="💰 รายชื่อผู้ใช้ที่มีบาทคงเหลือ (ต่อ)",
+                title="💰 รายชื่อผู้ใช้ที่มีเงินคงเหลือ (ต่อ)",
                 color=0x00FF99
             )
             description = line
@@ -2559,9 +2534,9 @@ async def check_all_baht_cmd(ctx):
     
     total_balance = sum(users_with_balance.values())
     summary_embed = discord.Embed(
-        title="📊 สรุปบาทคงเหลือ",
+        title="📊 สรุปเงินคงเหลือ",
         description=f"**จำนวนผู้ใช้ที่มีบาทคงเหลือ:** {len(users_with_balance)} คน\n"
-                   f"**บาทคงเหลือรวมทั้งหมด:** {format_number(total_balance)} บาท",
+                   f"**บาทคงเหลือรวมทั้งหมด:** {total_balance:.2f} บาท",
         color=0x00FF99
     )
     await ctx.send(embed=summary_embed)
@@ -2610,9 +2585,9 @@ async def od(ctx, *, expr):
             if current_balance > 0:
                 if current_balance >= price_int:
                     new_balance = deduct_user_robux_balance(buyer.id, price_int)
-                    balance_message = f"\n\n💰 **{buyer.mention} เหลือ {format_number(new_balance)} บาท**"
+                    balance_message = f"\n\n💰 **{buyer.mention} เหลือ {new_balance:.2f} บาท**"
                 else:
-                    balance_message = f"\n\n⚠️ **{buyer.mention} มีเงินบาทเหลือไม่พอ!** (มี {format_number(current_balance)} บาท ต้องการ {format_number(price_int)} บาท)"
+                    balance_message = f"\n\n⚠️ **{buyer.mention} มีเงินบาทเหลือไม่พอ!** (มี {current_balance:.2f} บาท ต้องการ {price_int} บาท)"
             elif current_balance == 0:
                 balance_message = f"\n\n💰 **{buyer.mention} ไม่มีเงินคงเหลือในระบบ**"
         
@@ -2690,9 +2665,9 @@ async def odg(ctx, *, expr):
             if current_balance > 0:
                 if current_balance >= price_int:
                     new_balance = deduct_user_robux_balance(buyer.id, price_int)
-                    balance_message = f"\n\n💰 **{buyer.mention} เหลือ {format_number(new_balance)} บาท**"
+                    balance_message = f"\n\n💰 **{buyer.mention} เหลือ {new_balance:.2f} บาท**"
                 else:
-                    balance_message = f"\n\n⚠️ **{buyer.mention} มีบาทคงเหลือไม่พอ!** (มี {format_number(current_balance)} บาท ต้องการ {format_number(price_int)} บาท)"
+                    balance_message = f"\n\n⚠️ **{buyer.mention} มีบาทคงเหลือไม่พอ!** (มี {current_balance:.2f} บาท ต้องการ {price_int} บาท)"
             elif current_balance == 0:
                 balance_message = f"\n\n💰 **{buyer.mention} ไม่มีเงินคงเหลือในระบบ"
         
@@ -2861,15 +2836,11 @@ async def fix_all_roles_cmd(ctx):
     await ctx.send(embed=embed)
 
 @bot.command(name="checklv")
+@admin_only()
 async def check_lv_cmd(ctx, user: discord.Member = None):
+    """Check user level - Admin only now"""
     if user is None:
         user = ctx.author
-    
-    if user != ctx.author and not ctx.author.guild_permissions.administrator:
-        admin_role = ctx.guild.get_role(1361016912259055896)
-        if not admin_role or admin_role not in ctx.author.roles:
-            await ctx.send("❌ คุณไม่มีสิทธิ์เช็คเลเวลของผู้อื่น", delete_after=5)
-            return
     
     user_id_str = str(user.id)
     if user_id_str not in user_levels:
@@ -2916,7 +2887,9 @@ async def check_lv_cmd(ctx, user: discord.Member = None):
     await ctx.send(embed=embed)
 
 @bot.command(name="level")
+@admin_only()
 async def level_cmd(ctx):
+    """Level system info - Admin only now"""
     view = LevelCheckView(ctx.author.id)
     embed = discord.Embed(
         title="🍣 ระบบเลเวล Sushi Shop",
@@ -3018,12 +2991,12 @@ async def tkd_cmd(ctx):
         traceback.print_exc()
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
 
-# ============ TY COMMAND - MODIFIED (NO RECEIPT SENT) ============
+# ============ TY COMMAND - OPTIMIZED FOR SPEED ============
 
 @bot.command()
 @admin_only()
 async def ty(ctx):
-    """Give credit - Only marks as delivered, does NOT send receipt (receipt is sent from DeliveryView)"""
+    """Give credit - Optimized for faster 'สั่งของต่อ' response"""
     global gamepass_stock, group_stock
     
     if not ctx.channel.name.startswith("ticket-") and not re.match(r'^\d{10}-\d+-[\w\u0E00-\u0E7F]+$', ctx.channel.name):
@@ -3034,6 +3007,7 @@ async def ty(ctx):
         buyer = None
         channel_name = ctx.channel.name
         
+        # Get buyer information
         if str(ctx.channel.id) in ticket_buyer_data:
             buyer_id = ticket_buyer_data[str(ctx.channel.id)].get("user_id")
             if buyer_id:
@@ -3065,13 +3039,10 @@ async def ty(ctx):
         except:
             robux_int = 0
         
-        save_success, filename = await save_ticket_transcript(ctx.channel, buyer, robux_int, None)
-        if save_success:
-            try:
-                await ctx.channel.edit(name=filename[:100])
-            except:
-                pass
+        # Start background tasks for heavy operations
+        asyncio.create_task(save_ticket_transcript_background(ctx.channel, buyer, robux_int))
         
+        # Handle stock adjustment
         if ctx.channel.category:
             category_name = ctx.channel.category.name.lower()
             if "gamepass" in category_name:
@@ -3083,6 +3054,7 @@ async def ty(ctx):
         
         save_stock_values()
         
+        # Send immediate success message
         embed = discord.Embed(
             title="✅ ส่งของเรียบร้อย",
             description=(
@@ -3106,7 +3078,7 @@ async def ty(ctx):
         
         await ctx.send(embed=embed, view=view)
         
-        # "Order more" button for gamepass - RESETS TIMER
+        # Handle "สั่งของต่อ" button - this is the critical part that needs to be fast
         if product_type == "Gamepass" and buyer:
             order_more_view = View(timeout=None)
             order_more_btn = Button(label="สั่งของต่อ 📝", style=discord.ButtonStyle.success, emoji="🔄")
@@ -3116,52 +3088,17 @@ async def ty(ctx):
                     await interaction.response.send_message("❌ คุณไม่สามารถใช้ปุ่มนี้ในช่องอื่นได้", ephemeral=True)
                     return
                 
-                # Reset the timer (cancel old, start new 1-hour timer)
-                await reset_timer(ctx.channel, buyer)
+                # Fast response - acknowledge immediately
+                await interaction.response.send_message("🔄 กำลังรีเซ็ตระบบ กรุณารอสักครู่...", ephemeral=True)
                 
-                # Cancel any paused timer for this channel
-                if is_timer_paused(ctx.channel.id):
-                    cancel_paused_timer(ctx.channel.id)
-                
-                if buyer:
-                    await reset_channel_name(ctx.channel, buyer.id, "gamepass")
-                
-                await move_to_original_category(ctx.channel, "gamepass")
-                
-                order_embed = discord.Embed(
-                    title="🍣 Sushi Shop 🍣", 
-                    color=0x00FF99
-                )
-                order_embed.add_field(name="👤 ผู้ซื้อ", value=interaction.user.mention, inline=False)
-                order_embed.add_field(
-                    name="🎮 บริการกดเกมพาส", 
-                    value=f"📦 โรบัคคงเหลือ: **{format_number(gamepass_stock)}**\n💰 เรท: {gamepass_rate} (ปกติ) | {gamepass_rate_high} (>{gamepass_threshold} {ROBUX_EMOJI})", 
-                    inline=False
-                )
-                order_embed.set_footer(text="Sushi Shop")
-                order_embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
-                
-                ticket_view = View(timeout=None)
-                form_btn = Button(label="📝 กรอกแบบฟอร์มเกมพาส", style=discord.ButtonStyle.primary, emoji="📝")
-                
-                async def form_callback(interaction2):
-                    if interaction2.channel.id == ctx.channel.id:
-                        modal = GamepassTicketModal()
-                        await interaction2.response.send_modal(modal)
-                    else:
-                        await interaction2.response.send_message("❌ คุณไม่สามารถใช้ปุ่มนี้ในช่องอื่นได้", ephemeral=True)
-                
-                form_btn.callback = form_callback
-                ticket_view.add_item(form_btn)
-                
-                # Send timer reset confirmation
-                await interaction.response.send_message("🔄 ตัวจับเวลาถูกรีเซ็ตเป็น 1 ชั่วโมงแล้ว", ephemeral=True)
-                await ctx.send(embed=order_embed, view=ticket_view)
+                # Do all the heavy work in background
+                asyncio.create_task(process_order_more(ctx.channel, buyer, interaction))
             
             order_more_btn.callback = order_more_cb
             order_more_view.add_item(order_more_btn)
-            await ctx.send("📝 ต้องการสั่งสินค้าเพิ่ม? (กดปุ่มด้านล่างเพื่อรีเซ็ตตัวจับเวลาเป็น 1 ชั่วโมง)", view=order_more_view)
+            await ctx.send("📝 ต้องการสั่งของเพิ่มมั้ยคะ? ", view=order_more_view)
         
+        # Clean up data in background
         if str(ctx.channel.id) in ticket_robux_data:
             del ticket_robux_data[str(ctx.channel.id)]
             save_json(ticket_robux_data_file, ticket_robux_data)
@@ -3170,8 +3107,8 @@ async def ty(ctx):
             del ticket_customer_data[str(ctx.channel.id)]
             save_json(ticket_customer_data_file, ticket_customer_data)
         
-        await move_to_delivered_category(ctx.channel)
-        await schedule_removal(ctx.channel, buyer, 3600)
+        # Move to delivered category and schedule removal in background
+        asyncio.create_task(move_to_delivered_category_with_cleanup(ctx.channel, buyer))
         await update_main_channel()
         
         print(f"✅ คำสั่ง !ty ดำเนินการสำเร็จสำหรับห้อง {ctx.channel.name}")
@@ -3183,6 +3120,83 @@ async def ty(ctx):
             await ctx.send(f"✅ ให้เครดิตเรียบร้อยแล้ว")
         except:
             pass
+
+async def save_ticket_transcript_background(channel, buyer, robux_int):
+    """Background task for saving transcript and renaming channel"""
+    try:
+        save_success, filename = await save_ticket_transcript(channel, buyer, robux_int, None)
+        if save_success and filename:
+            try:
+                await channel.edit(name=filename[:100])
+                print(f"✅ Channel renamed to: {filename[:100]}")
+            except Exception as e:
+                print(f"⚠️ Failed to rename channel: {e}")
+    except Exception as e:
+        print(f"❌ Error in background transcript save: {e}")
+
+async def move_to_delivered_category_with_cleanup(channel, buyer):
+    """Background task for moving to delivered category and scheduling removal"""
+    try:
+        # First ensure we're not already in delivered category
+        if channel.category and channel.category.id != DELIVERED_CATEGORY_ID:
+            await move_to_delivered_category(channel)
+            print(f"✅ Moved {channel.name} to delivered category")
+        else:
+            print(f"ℹ️ Channel {channel.name} already in delivered category or category not found")
+        
+        # Schedule removal
+        await schedule_removal(channel, buyer, 3600)
+    except Exception as e:
+        print(f"❌ Error moving to delivered category: {e}")
+
+async def process_order_more(channel, buyer, interaction):
+    """Background task for processing 'สั่งของต่อ'"""
+    try:
+        # Reset timer
+        await reset_timer(channel, buyer)
+        
+        if is_timer_paused(channel.id):
+            cancel_paused_timer(channel.id)
+        
+        # Reset channel name
+        if buyer:
+            await reset_channel_name(channel, buyer.id, "gamepass")
+        
+        # Move back to original category
+        await move_to_original_category(channel, "gamepass")
+        
+        # Send the order form embed
+        order_embed = discord.Embed(
+            title="🍣 Sushi Shop 🍣", 
+            color=0x00FF99
+        )
+        order_embed.add_field(name="👤 ผู้ซื้อ", value=buyer.mention if buyer else "ไม่ระบุ", inline=False)
+        order_embed.add_field(
+            name="🎮 บริการกดเกมพาส", 
+            value=f"📦 โรบัคคงเหลือ: **{format_number(gamepass_stock)}**\n💰 เรท: {gamepass_rate} (ปกติ) | {gamepass_rate_high} (>{gamepass_threshold} {ROBUX_EMOJI})", 
+            inline=False
+        )
+        order_embed.set_footer(text="Sushi Shop")
+        order_embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
+        
+        ticket_view = View(timeout=None)
+        form_btn = Button(label="📝 กรอกแบบฟอร์มเกมพาส", style=discord.ButtonStyle.primary, emoji="📝")
+        
+        async def form_callback(interaction2):
+            if interaction2.channel.id == channel.id:
+                modal = GamepassTicketModal()
+                await interaction2.response.send_modal(modal)
+            else:
+                await interaction2.response.send_message("❌ คุณไม่สามารถใช้ปุ่มนี้ในช่องอื่นได้", ephemeral=True)
+        
+        form_btn.callback = form_callback
+        ticket_view.add_item(form_btn)
+        
+        await channel.send(embed=order_embed, view=ticket_view)
+        print(f"✅ Order more processed for {channel.name}")
+        
+    except Exception as e:
+        print(f"❌ Error processing order more: {e}")
 
 # ============ DM COMMAND ============
 @bot.command(name="dm")
@@ -3201,13 +3215,57 @@ async def dm_cmd(ctx, user: discord.Member, *, message: str):
 
 # ============ WALLET COMMAND ============
 @bot.command(name="w")
+@admin_only()
 async def wallet_cmd(ctx):
-    """แสดงข้อมูล wallet สำหรับโอนเงิน"""
+    """แสดงข้อมูล wallet สำหรับโอนเงิน - Admin only"""
     await ctx.send("0892278408 ชื่อลัดดา")
+
+# ============ QR CODE COMMANDS ============
+@bot.command(name="qr")
+@admin_only()
+async def qr_cmd(ctx):
+    """Show SCB QR code - Admin only"""
+    try:
+        await ctx.message.delete()
+    except:
+        pass
+    
+    embed = discord.Embed(title="⚠️โน๊ตสลิป: เติมโรบัค Sushi Shop เฟส Arisara Srijitjam", color=0x00CCFF)
+    embed.add_field(name="1. ชื่อบัญชี (ไทยพานิชย์ SCB)", value="**หจก. วอเตอร์ เทค เซลล์ แอนด์ เซอร์วิส**", inline=False)
+    embed.add_field(name="2. เลขบัญชี", value="**120-239181-3**", inline=False)
+    embed.set_image(url="https://media.discordapp.net/attachments/1361004239043821610/1475334379550281768/Sushi_SCB_3.png")
+    
+    view = View(timeout=None)
+    copy_btn = Button(label="คัดลอกเลขบัญชี", style=discord.ButtonStyle.success, emoji="📋")
+    
+    async def copy_cb(i):
+        await i.response.send_message(f"``` 1202391813| 🟣SCB⚠️โน๊ตสลิป: เติมโรบัค Sushi Shop เฟส Arisara Srijitjam```", ephemeral=True)
+    
+    copy_btn.callback = copy_cb
+    view.add_item(copy_btn)
+    
+    await ctx.send(embed=embed, view=view)
+
+@bot.command(name="qr2")
+@admin_only()
+async def qr2_cmd(ctx):
+    """Show Krungsri QR code - Admin only"""
+    try:
+        await ctx.message.delete()
+    except:
+        pass
+    
+    embed = discord.Embed(title="⚠️โน๊ตสลิป: เติมโรบัค Sushi Shop เฟส Can pattarapol", color=0x00CCFF)
+    embed.add_field(name="1. ชื่อบัญชี (กรุงศรี)", value="**สุทัตตา เถลิงสุข**", inline=False)
+    embed.set_image(url="https://media.discordapp.net/attachments/1485285161955360963/1487457449416982568/Can_Can-1.png")
+    
+    await ctx.send(embed=embed)
 
 # ============ CALCULATOR COMMANDS ============
 @bot.command(name="calc")
+@admin_only()
 async def calculator_cmd(ctx):
+    """Show calculator - Admin only"""
     try:
         embed = discord.Embed(
             title="🍣 เครื่องคิดเลข Sushi Shop",
@@ -3225,8 +3283,10 @@ async def calculator_cmd(ctx):
         print(f"❌ Error in calculator command: {e}")
         await ctx.send("❌ เกิดข้อผิดพลาดในการแสดงเครื่องคิดเลข")
 
+# ============ SIMPLE CALCULATOR COMMANDS (Public) ============
 @bot.command()
 async def gp(ctx, *, expr):
+    """Calculate gamepass price (Robux to Baht) - Public"""
     global gamepass_rate, gamepass_rate_high, gamepass_threshold
     try:
         expr_clean = expr.replace(",", "").lower().replace("x", "*").replace("÷", "/").replace(" ", "")
@@ -3245,6 +3305,7 @@ async def gp(ctx, *, expr):
 
 @bot.command()
 async def g(ctx, *, expr):
+    """Calculate group price (Robux to Baht) - Public"""
     global group_rate_low, group_rate_high
     try:
         expr_clean = expr.replace(",", "").lower().replace("x", "*").replace("÷", "/").replace(" ", "")
@@ -3269,6 +3330,7 @@ async def g(ctx, *, expr):
 
 @bot.command()
 async def gpb(ctx, *, expr):
+    """Calculate gamepass price (Baht to Robux) - Public"""
     global gamepass_rate, gamepass_rate_high, gamepass_threshold
     try:
         expr_clean = expr.replace(",", "").replace(" ", "")
@@ -3283,6 +3345,7 @@ async def gpb(ctx, *, expr):
 
 @bot.command()
 async def gb(ctx, *, expr):
+    """Calculate group price (Baht to Robux) - Public"""
     global group_rate_low, group_rate_high
     try:
         expr_clean = expr.replace(",", "").replace(" ", "")
@@ -3302,6 +3365,7 @@ async def gb(ctx, *, expr):
 
 @bot.command()
 async def tax(ctx, *, expr):
+    """Calculate tax deduction - Public"""
     try:
         expr = expr.replace(" ", "")
         if re.match(r"^\d+$", expr):
@@ -3316,6 +3380,7 @@ async def tax(ctx, *, expr):
     except:
         await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง", delete_after=5)
 
+# ============ PUBLIC COMMANDS (Keep accessible to everyone) ============
 @bot.command()
 async def love(ctx):
     await ctx.send("# LOVE YOU<:sushiheart:1410484970291466300>")
@@ -3323,42 +3388,6 @@ async def love(ctx):
 @bot.command()
 async def say(ctx, *, message):
     await ctx.send(f"# {message.upper()} <:sushiheart:1410484970291466300>")
-
-@bot.command()
-async def qr(ctx):
-    try:
-        await ctx.message.delete()
-    except:
-        pass
-    
-    embed = discord.Embed(title="⚠️โน๊ตสลิป: เติมโรบัค Sushi Shop เฟส Arisara Srijitjam", color=0x00CCFF)
-    embed.add_field(name="1. ชื่อบัญชี (ไทยพานิชย์ SCB)", value="**หจก. วอเตอร์ เทค เซลล์ แอนด์ เซอร์วิส**", inline=False)
-    embed.add_field(name="2. เลขบัญชี", value="**120-239181-3**", inline=False)
-    embed.set_image(url="https://media.discordapp.net/attachments/1361004239043821610/1475334379550281768/Sushi_SCB_3.png")
-    
-    view = View(timeout=None)
-    copy_btn = Button(label="คัดลอกเลขบัญชี", style=discord.ButtonStyle.success, emoji="📋")
-    
-    async def copy_cb(i):
-        await i.response.send_message(f"``` 1202391813| 🟣SCB⚠️โน๊ตสลิป: เติมโรบัค Sushi Shop เฟส Arisara Srijitjam```", ephemeral=True)
-    
-    copy_btn.callback = copy_cb
-    view.add_item(copy_btn)
-    
-    await ctx.send(embed=embed, view=view)
-
-@bot.command()
-async def qr2(ctx):
-    try:
-        await ctx.message.delete()
-    except:
-        pass
-    
-    embed = discord.Embed(title="⚠️โน๊ตสลิป: เติมโรบัค Sushi Shop เฟส Can pattarapol", color=0x00CCFF)
-    embed.add_field(name="1. ชื่อบัญชี (กรุงศรี)", value="**สุทัตตา เถลิงสุข**", inline=False)
-    embed.set_image(url="https://media.discordapp.net/attachments/1485285161955360963/1487457449416982568/Can_Can-1.png")
-    
-    await ctx.send(embed=embed)
 
 # ============ BACKGROUND TASKS ============
 @tasks.loop(minutes=1)
@@ -3397,9 +3426,11 @@ async def on_ready():
     
     await bot.change_presence(activity=discord.Game(name="🍣แมวส้มชื่อซูชิของ wforr🍣"))
     
-    print("\n📝 Registered commands:")
+    print("\n📝 Registered prefix commands:")
     for cmd in bot.commands:
         print(f"   - !{cmd.name}")
+    
+    print("\n🔧 Slash commands will be synced...")
     
     print(f"\n📁 DATA_DIR: {DATA_DIR}")
     print(f"📁 Directory exists: {os.path.exists(DATA_DIR)}")
@@ -3413,7 +3444,9 @@ async def on_ready():
     try:
         print("🔄 กำลัง sync slash commands...")
         synced = await bot.tree.sync()
-        print(f"✅ Synced {len(synced)} commands")
+        print(f"✅ Synced {len(synced)} slash commands")
+        for cmd in synced:
+            print(f"   - /{cmd.name}")
         bot.commands_synced = True
     except Exception as e:
         print(f"❌ Error syncing commands: {e}")
