@@ -186,13 +186,13 @@ paused_timers = {}
 sp_added_tracker = {}
 
 # ============ MINESWEEPER GAME ============
-MINESWEEPER_WIDTH = 7
-MINESWEEPER_HEIGHT = 10
+MINESWEEPER_WIDTH = 5
+MINESWEEPER_HEIGHT = 6
 MINESWEEPER_BOMB_RATIO = 0.35  # 35% bombs
 
 # Number emojis for display
 NUMBER_EMOJIS = {
-    0: "⬛",  # Should not be used, but as fallback
+    0: "🟦",  # Should not be used, but as fallback
     1: "1️⃣",
     2: "2️⃣",
     3: "3️⃣",
@@ -204,7 +204,7 @@ NUMBER_EMOJIS = {
 }
 
 class MinesweeperGame:
-    def __init__(self, width=7, height=10, bomb_ratio=0.35):
+    def __init__(self, width=5, height=6, bomb_ratio=0.35):
         self.width = width
         self.height = height
         self.bomb_ratio = bomb_ratio
