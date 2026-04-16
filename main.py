@@ -3488,7 +3488,7 @@ async def ty(ctx):
             
             order_more_btn.callback = order_more_cb
             order_more_view.add_item(order_more_btn)
-            await ctx.send("📝 ต้องการสั่งสินค้าเพิ่ม? (กดปุ่มด้านล่างเพื่อรีเซ็ตตัวจับเวลาเป็น 1 ชั่วโมง)", view=order_more_view)
+            await ctx.send("อยากสั่งของเพิ่มมั้ย?", view=order_more_view)
         
         if str(ctx.channel.id) in ticket_robux_data:
             del ticket_robux_data[str(ctx.channel.id)]
