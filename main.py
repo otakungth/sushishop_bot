@@ -192,7 +192,7 @@ MINESWEEPER_BOMB_RATIO = 0.25  # 25% bombs (about 6-7 bombs on 5x5)
 
 # Number emojis for display
 NUMBER_EMOJIS = {
-    0: "🟧",
+    0: "⬛",
     1: "1️⃣",
     2: "2️⃣",
     3: "3️⃣",
@@ -1813,7 +1813,7 @@ async def slash_minesweeper(interaction: discord.Interaction):
     view = MinesweeperView(game_data)
     message = await interaction.followup.send(embed=embed, view=view)
     game_data["message"] = message
-    
+
 # ============ TICKET HELPER FUNCTIONS ============
 async def schedule_removal(channel, buyer, delay_seconds):
     """Schedule removal of buyer permission after delay_seconds"""
@@ -2475,8 +2475,9 @@ async def link(ctx):
     await ctx.send("# 🔗 ลิงก์กลุ่ม\nเข้ากลุ่มนี้ 15 วันก่อนซื้อโรกลุ่ม: https://www.roblox.com/communities/34713179/VALKYs\nSushi Shop 🍣")
 
 @bot.command(name="robuxtoday")
+@admin_only()
 async def robuxtoday_cmd(ctx):
-    """Check how many robux sold today"""
+    """Check how many robux sold today - Admin only"""
     embed = discord.Embed(
         title="📊 ยอดขายโรบัค",
         description=f"**{format_number(daily_robux_sold)}** {ROBUX_EMOJI}",
@@ -3127,15 +3128,11 @@ async def fix_all_roles_cmd(ctx):
     await ctx.send(embed=embed)
 
 @bot.command(name="checklv")
+@admin_only()
 async def check_lv_cmd(ctx, user: discord.Member = None):
+    """Check user level - Admin only now"""
     if user is None:
         user = ctx.author
-    
-    if user != ctx.author and not ctx.author.guild_permissions.administrator:
-        admin_role = ctx.guild.get_role(1361016912259055896)
-        if not admin_role or admin_role not in ctx.author.roles:
-            await ctx.send("❌ คุณไม่มีสิทธิ์เช็คเลเวลของผู้อื่น", delete_after=5)
-            return
     
     user_id_str = str(user.id)
     if user_id_str not in user_levels:
@@ -3182,7 +3179,9 @@ async def check_lv_cmd(ctx, user: discord.Member = None):
     await ctx.send(embed=embed)
 
 @bot.command(name="level")
+@admin_only()
 async def level_cmd(ctx):
+    """Level system info - Admin only now"""
     view = LevelCheckView(ctx.author.id)
     embed = discord.Embed(
         title="🍣 ระบบเลเวล Sushi Shop",
@@ -3463,13 +3462,57 @@ async def dm_cmd(ctx, user: discord.Member, *, message: str):
 
 # ============ WALLET COMMAND ============
 @bot.command(name="w")
+@admin_only()
 async def wallet_cmd(ctx):
-    """แสดงข้อมูล wallet สำหรับโอนเงิน"""
+    """แสดงข้อมูล wallet สำหรับโอนเงิน - Admin only"""
     await ctx.send("0892278408 ชื่อลัดดา")
+
+# ============ QR CODE COMMANDS ============
+@bot.command(name="qr")
+@admin_only()
+async def qr_cmd(ctx):
+    """Show SCB QR code - Admin only"""
+    try:
+        await ctx.message.delete()
+    except:
+        pass
+    
+    embed = discord.Embed(title="⚠️โน๊ตสลิป: เติมโรบัค Sushi Shop เฟส Arisara Srijitjam", color=0x00CCFF)
+    embed.add_field(name="1. ชื่อบัญชี (ไทยพานิชย์ SCB)", value="**หจก. วอเตอร์ เทค เซลล์ แอนด์ เซอร์วิส**", inline=False)
+    embed.add_field(name="2. เลขบัญชี", value="**120-239181-3**", inline=False)
+    embed.set_image(url="https://media.discordapp.net/attachments/1361004239043821610/1475334379550281768/Sushi_SCB_3.png")
+    
+    view = View(timeout=None)
+    copy_btn = Button(label="คัดลอกเลขบัญชี", style=discord.ButtonStyle.success, emoji="📋")
+    
+    async def copy_cb(i):
+        await i.response.send_message(f"``` 1202391813| 🟣SCB⚠️โน๊ตสลิป: เติมโรบัค Sushi Shop เฟส Arisara Srijitjam```", ephemeral=True)
+    
+    copy_btn.callback = copy_cb
+    view.add_item(copy_btn)
+    
+    await ctx.send(embed=embed, view=view)
+
+@bot.command(name="qr2")
+@admin_only()
+async def qr2_cmd(ctx):
+    """Show Krungsri QR code - Admin only"""
+    try:
+        await ctx.message.delete()
+    except:
+        pass
+    
+    embed = discord.Embed(title="⚠️โน๊ตสลิป: เติมโรบัค Sushi Shop เฟส Can pattarapol", color=0x00CCFF)
+    embed.add_field(name="1. ชื่อบัญชี (กรุงศรี)", value="**สุทัตตา เถลิงสุข**", inline=False)
+    embed.set_image(url="https://media.discordapp.net/attachments/1485285161955360963/1487457449416982568/Can_Can-1.png")
+    
+    await ctx.send(embed=embed)
 
 # ============ CALCULATOR COMMANDS ============
 @bot.command(name="calc")
+@admin_only()
 async def calculator_cmd(ctx):
+    """Show calculator - Admin only"""
     try:
         embed = discord.Embed(
             title="🍣 เครื่องคิดเลข Sushi Shop",
@@ -3487,8 +3530,11 @@ async def calculator_cmd(ctx):
         print(f"❌ Error in calculator command: {e}")
         await ctx.send("❌ เกิดข้อผิดพลาดในการแสดงเครื่องคิดเลข")
 
+# ============ SIMPLE CALCULATOR COMMANDS (Admin Only) ============
 @bot.command()
+@admin_only()
 async def gp(ctx, *, expr):
+    """Calculate gamepass price (Robux to Baht) - Admin only"""
     global gamepass_rate, gamepass_rate_high, gamepass_threshold
     try:
         expr_clean = expr.replace(",", "").lower().replace("x", "*").replace("÷", "/").replace(" ", "")
@@ -3506,7 +3552,9 @@ async def gp(ctx, *, expr):
         await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง เช่น 500 หรือ 100+200", delete_after=5)
 
 @bot.command()
+@admin_only()
 async def g(ctx, *, expr):
+    """Calculate group price (Robux to Baht) - Admin only"""
     global group_rate_low, group_rate_high
     try:
         expr_clean = expr.replace(",", "").lower().replace("x", "*").replace("÷", "/").replace(" ", "")
@@ -3530,7 +3578,9 @@ async def g(ctx, *, expr):
         await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง เช่น 500 หรือ 100+200", delete_after=5)
 
 @bot.command()
+@admin_only()
 async def gpb(ctx, *, expr):
+    """Calculate gamepass price (Baht to Robux) - Admin only"""
     global gamepass_rate, gamepass_rate_high, gamepass_threshold
     try:
         expr_clean = expr.replace(",", "").replace(" ", "")
@@ -3544,7 +3594,9 @@ async def gpb(ctx, *, expr):
         await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง เช่น 500 หรือ 100+200", delete_after=5)
 
 @bot.command()
+@admin_only()
 async def gb(ctx, *, expr):
+    """Calculate group price (Baht to Robux) - Admin only"""
     global group_rate_low, group_rate_high
     try:
         expr_clean = expr.replace(",", "").replace(" ", "")
@@ -3563,7 +3615,9 @@ async def gb(ctx, *, expr):
         await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง เช่น 500 หรือ 100+200 หรือ 100 + 200", delete_after=5)
 
 @bot.command()
+@admin_only()
 async def tax(ctx, *, expr):
+    """Calculate tax deduction - Admin only"""
     try:
         expr = expr.replace(" ", "")
         if re.match(r"^\d+$", expr):
@@ -3578,6 +3632,7 @@ async def tax(ctx, *, expr):
     except:
         await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง", delete_after=5)
 
+# ============ PUBLIC COMMANDS (Keep accessible to everyone) ============
 @bot.command()
 async def love(ctx):
     await ctx.send("# LOVE YOU<:sushiheart:1410484970291466300>")
@@ -3585,42 +3640,6 @@ async def love(ctx):
 @bot.command()
 async def say(ctx, *, message):
     await ctx.send(f"# {message.upper()} <:sushiheart:1410484970291466300>")
-
-@bot.command()
-async def qr(ctx):
-    try:
-        await ctx.message.delete()
-    except:
-        pass
-    
-    embed = discord.Embed(title="⚠️โน๊ตสลิป: เติมโรบัค Sushi Shop เฟส Arisara Srijitjam", color=0x00CCFF)
-    embed.add_field(name="1. ชื่อบัญชี (ไทยพานิชย์ SCB)", value="**หจก. วอเตอร์ เทค เซลล์ แอนด์ เซอร์วิส**", inline=False)
-    embed.add_field(name="2. เลขบัญชี", value="**120-239181-3**", inline=False)
-    embed.set_image(url="https://media.discordapp.net/attachments/1361004239043821610/1475334379550281768/Sushi_SCB_3.png")
-    
-    view = View(timeout=None)
-    copy_btn = Button(label="คัดลอกเลขบัญชี", style=discord.ButtonStyle.success, emoji="📋")
-    
-    async def copy_cb(i):
-        await i.response.send_message(f"``` 1202391813| 🟣SCB⚠️โน๊ตสลิป: เติมโรบัค Sushi Shop เฟส Arisara Srijitjam```", ephemeral=True)
-    
-    copy_btn.callback = copy_cb
-    view.add_item(copy_btn)
-    
-    await ctx.send(embed=embed, view=view)
-
-@bot.command()
-async def qr2(ctx):
-    try:
-        await ctx.message.delete()
-    except:
-        pass
-    
-    embed = discord.Embed(title="⚠️โน๊ตสลิป: เติมโรบัค Sushi Shop เฟส Can pattarapol", color=0x00CCFF)
-    embed.add_field(name="1. ชื่อบัญชี (กรุงศรี)", value="**สุทัตตา เถลิงสุข**", inline=False)
-    embed.set_image(url="https://media.discordapp.net/attachments/1485285161955360963/1487457449416982568/Can_Can-1.png")
-    
-    await ctx.send(embed=embed)
 
 # ============ BACKGROUND TASKS ============
 @tasks.loop(minutes=1)
