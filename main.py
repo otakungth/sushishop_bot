@@ -88,8 +88,8 @@ intents.message_content = True
 intents.members = True
 
 # Global variables
-gamepass_rate = 6.5
-gamepass_rate_high = 6.7
+gamepass_rate = 7
+gamepass_rate_high = 7
 gamepass_threshold = 3999
 group_rate_low = 4
 group_rate_high = 4.5
@@ -185,14 +185,14 @@ paused_timers = {}
 
 sp_added_tracker = {}
 
-# ============ MINESWEEPER GAME ============
+# ============ MINESWEEPER GAME (DISCORD COMPLIANT) ============
 MINESWEEPER_WIDTH = 5
-MINESWEEPER_HEIGHT = 6
-MINESWEEPER_BOMB_RATIO = 0.35  # 35% bombs
+MINESWEEPER_HEIGHT = 5
+MINESWEEPER_BOMB_RATIO = 0.25  # 25% bombs (about 6-7 bombs on 5x5)
 
 # Number emojis for display
 NUMBER_EMOJIS = {
-    0: "🟦",  # Should not be used, but as fallback
+    0: "⬛",
     1: "1️⃣",
     2: "2️⃣",
     3: "3️⃣",
@@ -204,27 +204,25 @@ NUMBER_EMOJIS = {
 }
 
 class MinesweeperGame:
-    def __init__(self, width=5, height=6, bomb_ratio=0.35):
+    def __init__(self, width=5, height=5, bomb_ratio=0.25):
         self.width = width
         self.height = height
         self.bomb_ratio = bomb_ratio
         self.total_cells = width * height
-        self.bomb_count = int(self.total_cells * bomb_ratio)
-        self.board = []  # Hidden board with bombs
-        self.revealed = []  # Revealed cells
-        self.flagged = []  # Flagged cells
+        self.bomb_count = max(1, int(self.total_cells * bomb_ratio))
+        self.board = []
+        self.revealed = []
+        self.flagged = []
         self.game_over = False
         self.won = False
         self.first_move = True
         
-        # Initialize empty boards
         for y in range(height):
             self.board.append([0] * width)
             self.revealed.append([False] * width)
             self.flagged.append([False] * width)
     
     def place_bombs(self, first_x, first_y):
-        """Place bombs on the board, ensuring first click is safe"""
         import random
         cells = []
         for y in range(self.height):
@@ -236,9 +234,8 @@ class MinesweeperGame:
         bomb_positions = cells[:self.bomb_count]
         
         for x, y in bomb_positions:
-            self.board[y][x] = -1  # -1 represents a bomb
+            self.board[y][x] = -1
         
-        # Calculate numbers around bombs
         for y in range(self.height):
             for x in range(self.width):
                 if self.board[y][x] == -1:
@@ -255,18 +252,15 @@ class MinesweeperGame:
                 self.board[y][x] = count
     
     def reveal_cell(self, x, y):
-        """Reveal a cell, returns True if bomb was hit, False otherwise"""
         if self.game_over:
             return True
         
         if self.revealed[y][x] or self.flagged[y][x]:
             return False
         
-        # First move - place bombs safely
         if self.first_move:
             self.first_move = False
             self.place_bombs(x, y)
-            # Recalculate board after placing bombs
             for y2 in range(self.height):
                 for x2 in range(self.width):
                     if self.board[y2][x2] == -1:
@@ -282,24 +276,19 @@ class MinesweeperGame:
                                     count += 1
                     self.board[y2][x2] = count
         
-        # Check if bomb
         if self.board[y][x] == -1:
             self.game_over = True
-            return True  # Bomb hit!
+            return True
         
-        # Reveal this cell
         self.revealed[y][x] = True
         
-        # If cell is empty (0), reveal adjacent cells recursively
         if self.board[y][x] == 0:
             self.reveal_adjacent(x, y)
         
-        # Check win condition
         self.check_win()
         return False
     
     def reveal_adjacent(self, x, y):
-        """Reveal adjacent cells recursively for empty cells"""
         for dy in [-1, 0, 1]:
             for dx in [-1, 0, 1]:
                 if dx == 0 and dy == 0:
@@ -312,22 +301,18 @@ class MinesweeperGame:
                             self.reveal_adjacent(nx, ny)
     
     def toggle_flag(self, x, y):
-        """Toggle flag on a cell, returns True if successful"""
         if self.game_over or self.revealed[y][x]:
             return False
-        
         self.flagged[y][x] = not self.flagged[y][x]
         return True
     
     def check_win(self):
-        """Check if the player has won"""
         revealed_count = 0
         for y in range(self.height):
             for x in range(self.width):
                 if self.revealed[y][x]:
                     revealed_count += 1
         
-        # Win if all non-bomb cells are revealed
         if revealed_count == (self.total_cells - self.bomb_count):
             self.game_over = True
             self.won = True
@@ -335,14 +320,13 @@ class MinesweeperGame:
         return False
     
     def get_display_board(self, reveal_all=False):
-        """Get the board as a string for display"""
         lines = []
         for y in range(self.height):
             line = ""
             for x in range(self.width):
                 if reveal_all or self.game_over:
                     if self.board[y][x] == -1:
-                        line += "🍣"  # Bomb
+                        line += "💣"
                     else:
                         if self.board[y][x] == 0:
                             line += "⬛"
@@ -351,46 +335,65 @@ class MinesweeperGame:
                 else:
                     if self.revealed[y][x]:
                         if self.board[y][x] == -1:
-                            line += "🍣"
+                            line += "💣"
                         else:
                             if self.board[y][x] == 0:
                                 line += "⬛"
                             else:
                                 line += NUMBER_EMOJIS.get(self.board[y][x], "⬛")
                     elif self.flagged[y][x]:
-                        line += "🚩"  # Flag
+                        line += "🚩"
                     else:
-                        line += "🟦"  # Unexplored
+                        line += "❓"
             lines.append(line)
         return "\n".join(lines)
+    
+    def get_emoji_for_cell(self, x, y, reveal_all=False):
+        if reveal_all or self.game_over:
+            if self.board[y][x] == -1:
+                return "💣"
+            else:
+                if self.board[y][x] == 0:
+                    return "⬛"
+                else:
+                    return NUMBER_EMOJIS.get(self.board[y][x], "⬛")
+        else:
+            if self.revealed[y][x]:
+                if self.board[y][x] == -1:
+                    return "💣"
+                else:
+                    if self.board[y][x] == 0:
+                        return "⬛"
+                    else:
+                        return NUMBER_EMOJIS.get(self.board[y][x], "⬛")
+            elif self.flagged[y][x]:
+                return "🚩"
+            else:
+                return "❓"
+
 
 class MinesweeperButton(Button):
     def __init__(self, x, y, game_data):
         self.x = x
         self.y = y
         self.game_data = game_data
-        super().__init__(label="🟦", style=discord.ButtonStyle.secondary, row=y)
+        super().__init__(label="❓", style=discord.ButtonStyle.secondary, row=y, custom_id=f"ms_{x}_{y}")
     
     async def callback(self, interaction: discord.Interaction):
         game = self.game_data["game"]
-        message = self.game_data["message"]
         player_id = self.game_data["player_id"]
         
-        # Check if it's the same player
         if interaction.user.id != player_id:
             await interaction.response.send_message("❌ This game belongs to another player!", ephemeral=True)
             return
         
-        # Check if game is over
         if game.game_over:
             await interaction.response.send_message("⚠️ This game is already over! Start a new game with `/minesweeper`", ephemeral=True)
             return
         
-        # Reveal the cell
         hit_bomb = game.reveal_cell(self.x, self.y)
         
         if hit_bomb:
-            # Game lost - reveal all bombs
             display = game.get_display_board(reveal_all=True)
             embed = discord.Embed(
                 title="💥 BOOM! You hit a bomb! 💥",
@@ -401,9 +404,7 @@ class MinesweeperButton(Button):
             await interaction.response.edit_message(embed=embed, view=None)
             return
         
-        # Check if won
         if game.won:
-            # Award 0.05 baht to player
             current_balance = get_user_robux_balance(player_id)
             new_balance = add_user_robux_balance(player_id, 0.05)
             
@@ -417,56 +418,48 @@ class MinesweeperButton(Button):
             await interaction.response.edit_message(embed=embed, view=None)
             return
         
-        # Update the buttons
+        view = MinesweeperView(self.game_data)
         display = game.get_display_board()
         embed = discord.Embed(
             title="🍣 Sushi Minesweeper 🍣",
-            description=f"```\n{display}\n```\n**Remaining safe cells:** {game.total_cells - game.bomb_count - sum(sum(row) for row in game.revealed)}",
+            description=f"```\n{display}\n```\n**Bombs: {game.bomb_count} | Remaining safe cells: {game.total_cells - game.bomb_count - sum(sum(row) for row in game.revealed)}**\n\nClick ❓ to reveal | Right-click or use flag button below to place 🚩",
             color=0xFFA500
         )
-        embed.set_footer(text="Click on 🟦 to reveal | Click flag button to place 🚩")
-        
-        # Create new view with updated buttons
-        view = MinesweeperView(self.game_data)
+        embed.set_footer(text="💰 Win 0.05 บาท by clearing all safe cells!")
         await interaction.response.edit_message(embed=embed, view=view)
+
 
 class MinesweeperFlagButton(Button):
     def __init__(self, x, y, game_data):
         self.x = x
         self.y = y
         self.game_data = game_data
-        super().__init__(label="🚩", style=discord.ButtonStyle.danger, row=y)
+        super().__init__(label="🚩", style=discord.ButtonStyle.danger, row=y, custom_id=f"ms_flag_{x}_{y}")
     
     async def callback(self, interaction: discord.Interaction):
         game = self.game_data["game"]
-        message = self.game_data["message"]
         player_id = self.game_data["player_id"]
         
-        # Check if it's the same player
         if interaction.user.id != player_id:
             await interaction.response.send_message("❌ This game belongs to another player!", ephemeral=True)
             return
         
-        # Check if game is over
         if game.game_over:
             await interaction.response.send_message("⚠️ This game is already over!", ephemeral=True)
             return
         
-        # Toggle flag
         game.toggle_flag(self.x, self.y)
         
-        # Update display
+        view = MinesweeperView(self.game_data)
         display = game.get_display_board()
         embed = discord.Embed(
             title="🍣 Sushi Minesweeper 🍣",
-            description=f"```\n{display}\n```\n**Remaining safe cells:** {game.total_cells - game.bomb_count - sum(sum(row) for row in game.revealed)}",
+            description=f"```\n{display}\n```\n**Bombs: {game.bomb_count} | Remaining safe cells: {game.total_cells - game.bomb_count - sum(sum(row) for row in game.revealed)}**\n\nClick ❓ to reveal | Right-click or use flag button below to place 🚩",
             color=0xFFA500
         )
-        embed.set_footer(text="Click on 🟦 to reveal | Click flag button to place 🚩")
-        
-        # Create new view with updated buttons
-        view = MinesweeperView(self.game_data)
+        embed.set_footer(text="💰 Win 0.05 บาท by clearing all safe cells!")
         await interaction.response.edit_message(embed=embed, view=view)
+
 
 class MinesweeperView(View):
     def __init__(self, game_data):
@@ -474,29 +467,21 @@ class MinesweeperView(View):
         self.game_data = game_data
         game = game_data["game"]
         
-        # Create grid of buttons
+        # Create grid buttons
         for y in range(game.height):
             for x in range(game.width):
-                if game.revealed[y][x]:
-                    # Already revealed - show as disabled button with number/bomb
-                    if game.board[y][x] == -1:
-                        btn = Button(label="🍣", style=discord.ButtonStyle.danger, disabled=True, row=y)
-                    else:
-                        if game.board[y][x] == 0:
-                            btn = Button(label="⬛", style=discord.ButtonStyle.secondary, disabled=True, row=y)
-                        else:
-                            btn = Button(label=NUMBER_EMOJIS.get(game.board[y][x], "⬛"), 
-                                        style=discord.ButtonStyle.secondary, disabled=True, row=y)
+                emoji = game.get_emoji_for_cell(x, y)
+                
+                if game.revealed[y][x] or game.game_over:
+                    # Already revealed or game over - disabled button
+                    btn = Button(label=emoji, style=discord.ButtonStyle.secondary, disabled=True, row=y, custom_id=f"ms_disabled_{x}_{y}")
                 elif game.flagged[y][x]:
-                    # Flagged - show flag button
                     btn = MinesweeperFlagButton(x, y, game_data)
                 else:
-                    # Unexplored - show clickable button
                     btn = MinesweeperButton(x, y, game_data)
                 self.add_item(btn)
     
     async def on_timeout(self):
-        """Handle timeout - end the game"""
         game = self.game_data["game"]
         if not game.game_over:
             game.game_over = True
