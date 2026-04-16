@@ -384,7 +384,7 @@ class MinesweeperButton(Button):
         player_id = self.game_data["player_id"]
         
         if interaction.user.id != player_id:
-            await interaction.response.send_message("❌ เกมนี้เป็นของผู้เล่นอื่!", ephemeral=True)
+            await interaction.response.send_message("❌ เกมนี้เป็นของผู้เล่นอื่น!", ephemeral=True)
             return
         
         if game.game_over:
@@ -406,12 +406,12 @@ class MinesweeperButton(Button):
         
         if game.won:
             current_balance = get_user_robux_balance(player_id)
-            new_balance = add_user_robux_balance(player_id, 0.03)
+            new_balance = add_user_robux_balance(player_id, 0.05)
             
             display = game.get_display_board()
             embed = discord.Embed(
                 title="🎉CONGRATULATIONS 🎉",
-                description=f"```\n{display}\n```\n✅ **ชนะแล้ว**\n💰 คุณได้รับ **0.03 บาท**!\n💵 ยอดเงิน: **{new_balance:.2f}** บาท",
+                description=f"```\n{display}\n```\n✅ **ชนะแล้ว**\n💰 คุณได้รับ **0.05 บาท**!\n💵 ยอดเงิน: **{new_balance:.2f}** บาท",
                 color=0x00FF00
             )
             embed.set_footer(text="Sushi Shop Minesweeper")
@@ -422,10 +422,10 @@ class MinesweeperButton(Button):
         display = game.get_display_board()
         embed = discord.Embed(
             title="🍣 Sushi Minesweeper 🍣",
-            description=f"```\n{display}\n```\n**Bombs: {game.bomb_count} | Remaining safe cells: {game.total_cells - game.bomb_count - sum(sum(row) for row in game.revealed)}**\n\nกด ❓ เพื่อเปิดข่อง | ใช้ธงเพื่อปักธง 🚩",
+            description=f"```\n{display}\n```\n**Bombs: {game.bomb_count} | Remaining safe cells: {game.total_cells - game.bomb_count - sum(sum(row) for row in game.revealed)}**\n\nกด ❓ เพื่อเปิดข่อง",
             color=0xFFA500
         )
-        embed.set_footer(text="💰 ชนะ 0.03 บาท โดนการชนะเกม")
+        embed.set_footer(text="💰 รับ 0.05 บาท โดนการชนะเกม")
         await interaction.response.edit_message(embed=embed, view=view)
 
 
@@ -454,7 +454,7 @@ class MinesweeperFlagButton(Button):
         display = game.get_display_board()
         embed = discord.Embed(
             title="🍣 Sushi Minesweeper 🍣",
-            description=f"```\n{display}\n```\n**Bombs: {game.bomb_count} | Remaining safe cells: {game.total_cells - game.bomb_count - sum(sum(row) for row in game.revealed)}**\n\nClick ❓ to reveal | Right-click or use flag button below to place 🚩",
+            description=f"```\n{display}\n```\n**Bombs: {game.bomb_count} | Remaining safe cells: {game.total_cells - game.bomb_count - sum(sum(row) for row in game.revealed)}**\n\nกด ❓ เพื่อเปิดข่อง",
             color=0xFFA500
         )
         embed.set_footer(text="💰 Win 0.05 บาท by clearing all safe cells!")
@@ -1837,7 +1837,7 @@ bot = MyBot()
 
 # ============ SLASH COMMANDS ============
 
-@bot.tree.command(name="minesweeper", description="เล่น Minesweeper! ชนะเพื่อรับ 0.05 บาท")
+@bot.tree.command(name="minesweeper", description="เล่น Minesweeper ชนะเพื่อรับ 0.05 บาท")
 async def slash_minesweeper(interaction: discord.Interaction):
     """Start a Minesweeper game via slash command"""
     
@@ -1849,7 +1849,7 @@ async def slash_minesweeper(interaction: discord.Interaction):
     
     embed = discord.Embed(
         title="🍣 Sushi Minesweeper 🍣",
-        description=f"```\n{display}\n```\n**ระเบิด: {game.bomb_count}**\n\nกด ❓ เพื่อเปิดช่อง!\nปักธง (🚩) เพื่อทำเครื่องหมายบนระเบิด\n\n💰 **รางวัล: 0.03 บาท**",
+        description=f"```\n{display}\n```\n**ระเบิด: {game.bomb_count}**\n\nกด ❓ เพื่อเปิดช่อง **รางวัล: 0.05 บาท**",
         color=0xFFA500
     )
     embed.set_footer(text="ช่อง 5x5 • เปิดช่องทั้งหมดเพื่อชนะ")
