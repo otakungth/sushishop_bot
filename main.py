@@ -157,7 +157,7 @@ ticket_buyer_data_file = os.path.join(DATA_DIR, "ticket_buyer_data.json")
 user_levels_file = os.path.join(DATA_DIR, "user_levels.json")
 daily_sales_file = os.path.join(DATA_DIR, "daily_sales.json")
 user_robux_balance_file = os.path.join(DATA_DIR, "user_robux_balance.json")
-timer_pause_file = os.path.join(DATA_DIR, "timer_pause.json")  # NEW: Store paused timers
+timer_pause_file = os.path.join(DATA_DIR, "timer_pause.json")
 
 print(f"📄 Data files will be saved to:")
 print(f"   - {user_levels_file}")
@@ -181,9 +181,337 @@ ticket_anonymous_mode = {}
 ticket_counter = {"counter": 1, "date": get_thailand_time().strftime("%d%m%y")}
 ticket_archived_timers = {}
 user_robux_balance = {}
-paused_timers = {}  # NEW: Store paused timer info {channel_id: {"remaining": seconds, "paused_at": timestamp}}
+paused_timers = {}
 
 sp_added_tracker = {}
+
+# ============ MINESWEEPER GAME ============
+MINESWEEPER_WIDTH = 7
+MINESWEEPER_HEIGHT = 10
+MINESWEEPER_BOMB_RATIO = 0.35  # 35% bombs
+
+# Number emojis for display
+NUMBER_EMOJIS = {
+    0: "⬛",  # Should not be used, but as fallback
+    1: "1️⃣",
+    2: "2️⃣",
+    3: "3️⃣",
+    4: "4️⃣",
+    5: "5️⃣",
+    6: "6️⃣",
+    7: "7️⃣",
+    8: "8️⃣"
+}
+
+class MinesweeperGame:
+    def __init__(self, width=7, height=10, bomb_ratio=0.35):
+        self.width = width
+        self.height = height
+        self.bomb_ratio = bomb_ratio
+        self.total_cells = width * height
+        self.bomb_count = int(self.total_cells * bomb_ratio)
+        self.board = []  # Hidden board with bombs
+        self.revealed = []  # Revealed cells
+        self.flagged = []  # Flagged cells
+        self.game_over = False
+        self.won = False
+        self.first_move = True
+        
+        # Initialize empty boards
+        for y in range(height):
+            self.board.append([0] * width)
+            self.revealed.append([False] * width)
+            self.flagged.append([False] * width)
+    
+    def place_bombs(self, first_x, first_y):
+        """Place bombs on the board, ensuring first click is safe"""
+        import random
+        cells = []
+        for y in range(self.height):
+            for x in range(self.width):
+                if not (x == first_x and y == first_y):
+                    cells.append((x, y))
+        
+        random.shuffle(cells)
+        bomb_positions = cells[:self.bomb_count]
+        
+        for x, y in bomb_positions:
+            self.board[y][x] = -1  # -1 represents a bomb
+        
+        # Calculate numbers around bombs
+        for y in range(self.height):
+            for x in range(self.width):
+                if self.board[y][x] == -1:
+                    continue
+                count = 0
+                for dy in [-1, 0, 1]:
+                    for dx in [-1, 0, 1]:
+                        if dx == 0 and dy == 0:
+                            continue
+                        nx, ny = x + dx, y + dy
+                        if 0 <= nx < self.width and 0 <= ny < self.height:
+                            if self.board[ny][nx] == -1:
+                                count += 1
+                self.board[y][x] = count
+    
+    def reveal_cell(self, x, y):
+        """Reveal a cell, returns True if bomb was hit, False otherwise"""
+        if self.game_over:
+            return True
+        
+        if self.revealed[y][x] or self.flagged[y][x]:
+            return False
+        
+        # First move - place bombs safely
+        if self.first_move:
+            self.first_move = False
+            self.place_bombs(x, y)
+            # Recalculate board after placing bombs
+            for y2 in range(self.height):
+                for x2 in range(self.width):
+                    if self.board[y2][x2] == -1:
+                        continue
+                    count = 0
+                    for dy in [-1, 0, 1]:
+                        for dx in [-1, 0, 1]:
+                            if dx == 0 and dy == 0:
+                                continue
+                            nx, ny = x2 + dx, y2 + dy
+                            if 0 <= nx < self.width and 0 <= ny < self.height:
+                                if self.board[ny][nx] == -1:
+                                    count += 1
+                    self.board[y2][x2] = count
+        
+        # Check if bomb
+        if self.board[y][x] == -1:
+            self.game_over = True
+            return True  # Bomb hit!
+        
+        # Reveal this cell
+        self.revealed[y][x] = True
+        
+        # If cell is empty (0), reveal adjacent cells recursively
+        if self.board[y][x] == 0:
+            self.reveal_adjacent(x, y)
+        
+        # Check win condition
+        self.check_win()
+        return False
+    
+    def reveal_adjacent(self, x, y):
+        """Reveal adjacent cells recursively for empty cells"""
+        for dy in [-1, 0, 1]:
+            for dx in [-1, 0, 1]:
+                if dx == 0 and dy == 0:
+                    continue
+                nx, ny = x + dx, y + dy
+                if 0 <= nx < self.width and 0 <= ny < self.height:
+                    if not self.revealed[ny][nx] and not self.flagged[ny][nx]:
+                        self.revealed[ny][nx] = True
+                        if self.board[ny][nx] == 0:
+                            self.reveal_adjacent(nx, ny)
+    
+    def toggle_flag(self, x, y):
+        """Toggle flag on a cell, returns True if successful"""
+        if self.game_over or self.revealed[y][x]:
+            return False
+        
+        self.flagged[y][x] = not self.flagged[y][x]
+        return True
+    
+    def check_win(self):
+        """Check if the player has won"""
+        revealed_count = 0
+        for y in range(self.height):
+            for x in range(self.width):
+                if self.revealed[y][x]:
+                    revealed_count += 1
+        
+        # Win if all non-bomb cells are revealed
+        if revealed_count == (self.total_cells - self.bomb_count):
+            self.game_over = True
+            self.won = True
+            return True
+        return False
+    
+    def get_display_board(self, reveal_all=False):
+        """Get the board as a string for display"""
+        lines = []
+        for y in range(self.height):
+            line = ""
+            for x in range(self.width):
+                if reveal_all or self.game_over:
+                    if self.board[y][x] == -1:
+                        line += "🍣"  # Bomb
+                    else:
+                        if self.board[y][x] == 0:
+                            line += "⬛"
+                        else:
+                            line += NUMBER_EMOJIS.get(self.board[y][x], "⬛")
+                else:
+                    if self.revealed[y][x]:
+                        if self.board[y][x] == -1:
+                            line += "🍣"
+                        else:
+                            if self.board[y][x] == 0:
+                                line += "⬛"
+                            else:
+                                line += NUMBER_EMOJIS.get(self.board[y][x], "⬛")
+                    elif self.flagged[y][x]:
+                        line += "🚩"  # Flag
+                    else:
+                        line += "🟦"  # Unexplored
+            lines.append(line)
+        return "\n".join(lines)
+
+class MinesweeperButton(Button):
+    def __init__(self, x, y, game_data):
+        self.x = x
+        self.y = y
+        self.game_data = game_data
+        super().__init__(label="🟦", style=discord.ButtonStyle.secondary, row=y)
+    
+    async def callback(self, interaction: discord.Interaction):
+        game = self.game_data["game"]
+        message = self.game_data["message"]
+        player_id = self.game_data["player_id"]
+        
+        # Check if it's the same player
+        if interaction.user.id != player_id:
+            await interaction.response.send_message("❌ This game belongs to another player!", ephemeral=True)
+            return
+        
+        # Check if game is over
+        if game.game_over:
+            await interaction.response.send_message("⚠️ This game is already over! Start a new game with `!minesweeper`", ephemeral=True)
+            return
+        
+        # Reveal the cell
+        hit_bomb = game.reveal_cell(self.x, self.y)
+        
+        if hit_bomb:
+            # Game lost - reveal all bombs
+            display = game.get_display_board(reveal_all=True)
+            embed = discord.Embed(
+                title="💥 BOOM! You hit a bomb! 💥",
+                description=f"```\n{display}\n```\n❌ **Game Over!** You lost!",
+                color=0xFF0000
+            )
+            embed.set_footer(text="Sushi Shop Minesweeper • Start new game with !minesweeper")
+            await interaction.response.edit_message(embed=embed, view=None)
+            return
+        
+        # Check if won
+        if game.won:
+            # Award 0.05 baht to player
+            current_balance = get_user_robux_balance(player_id)
+            new_balance = add_user_robux_balance(player_id, 0.05)
+            
+            display = game.get_display_board()
+            embed = discord.Embed(
+                title="🎉 CONGRATULATIONS! You won! 🎉",
+                description=f"```\n{display}\n```\n✅ **You cleared the mines!**\n💰 You received **0.05 บาท**!\n💵 New balance: **{new_balance:.2f}** บาท",
+                color=0x00FF00
+            )
+            embed.set_footer(text="Sushi Shop Minesweeper")
+            await interaction.response.edit_message(embed=embed, view=None)
+            return
+        
+        # Update the buttons
+        display = game.get_display_board()
+        embed = discord.Embed(
+            title="🍣 Sushi Minesweeper 🍣",
+            description=f"```\n{display}\n```\n**Remaining safe cells:** {game.total_cells - game.bomb_count - sum(sum(row) for row in game.revealed)}",
+            color=0xFFA500
+        )
+        embed.set_footer(text="Click on 🟦 to reveal | Click flag button to place 🚩")
+        
+        # Create new view with updated buttons
+        view = MinesweeperView(self.game_data)
+        await interaction.response.edit_message(embed=embed, view=view)
+
+class MinesweeperFlagButton(Button):
+    def __init__(self, x, y, game_data):
+        self.x = x
+        self.y = y
+        self.game_data = game_data
+        super().__init__(label="🚩", style=discord.ButtonStyle.danger, row=y)
+    
+    async def callback(self, interaction: discord.Interaction):
+        game = self.game_data["game"]
+        message = self.game_data["message"]
+        player_id = self.game_data["player_id"]
+        
+        # Check if it's the same player
+        if interaction.user.id != player_id:
+            await interaction.response.send_message("❌ This game belongs to another player!", ephemeral=True)
+            return
+        
+        # Check if game is over
+        if game.game_over:
+            await interaction.response.send_message("⚠️ This game is already over!", ephemeral=True)
+            return
+        
+        # Toggle flag
+        game.toggle_flag(self.x, self.y)
+        
+        # Update display
+        display = game.get_display_board()
+        embed = discord.Embed(
+            title="🍣 Sushi Minesweeper 🍣",
+            description=f"```\n{display}\n```\n**Remaining safe cells:** {game.total_cells - game.bomb_count - sum(sum(row) for row in game.revealed)}",
+            color=0xFFA500
+        )
+        embed.set_footer(text="Click on 🟦 to reveal | Click flag button to place 🚩")
+        
+        # Create new view with updated buttons
+        view = MinesweeperView(self.game_data)
+        await interaction.response.edit_message(embed=embed, view=view)
+
+class MinesweeperView(View):
+    def __init__(self, game_data):
+        super().__init__(timeout=300)
+        self.game_data = game_data
+        game = game_data["game"]
+        
+        # Create grid of buttons
+        for y in range(game.height):
+            for x in range(game.width):
+                if game.revealed[y][x]:
+                    # Already revealed - show as disabled button with number/bomb
+                    if game.board[y][x] == -1:
+                        btn = Button(label="🍣", style=discord.ButtonStyle.danger, disabled=True, row=y)
+                    else:
+                        if game.board[y][x] == 0:
+                            btn = Button(label="⬛", style=discord.ButtonStyle.secondary, disabled=True, row=y)
+                        else:
+                            btn = Button(label=NUMBER_EMOJIS.get(game.board[y][x], "⬛"), 
+                                        style=discord.ButtonStyle.secondary, disabled=True, row=y)
+                elif game.flagged[y][x]:
+                    # Flagged - show flag button
+                    btn = MinesweeperFlagButton(x, y, game_data)
+                else:
+                    # Unexplored - show clickable button
+                    btn = MinesweeperButton(x, y, game_data)
+                self.add_item(btn)
+    
+    async def on_timeout(self):
+        """Handle timeout - end the game"""
+        game = self.game_data["game"]
+        if not game.game_over:
+            game.game_over = True
+            display = game.get_display_board(reveal_all=True)
+            embed = discord.Embed(
+                title="⏰ Game Timeout!",
+                description=f"```\n{display}\n```\n❌ **Game expired due to inactivity!**",
+                color=0xFF6600
+            )
+            embed.set_footer(text="Sushi Shop Minesweeper • Start new game with !minesweeper")
+            
+            try:
+                await self.game_data["message"].edit(embed=embed, view=None)
+            except:
+                pass
 
 # ============ TIMER PAUSE/RESUME FUNCTIONS ============
 
@@ -262,6 +590,10 @@ def load_robux_balance():
         if os.path.exists(user_robux_balance_file):
             with open(user_robux_balance_file, 'r', encoding='utf-8') as f:
                 user_robux_balance = json.load(f)
+                # Convert string values to float for decimal support
+                for key, value in user_robux_balance.items():
+                    if isinstance(value, str):
+                        user_robux_balance[key] = float(value)
                 print(f"✅ Loaded robux balance for {len(user_robux_balance)} users")
         else:
             user_robux_balance = {}
@@ -509,7 +841,7 @@ def load_all_data():
     load_stock_values()
     load_daily_sales()
     load_robux_balance()
-    load_paused_timers()  # NEW: Load paused timers
+    load_paused_timers()
     
     print(f"✅ Loaded all data from JSON:")
     print(f"   - {len(user_data)} users")
@@ -1332,7 +1664,7 @@ class DeliveryView(View):
         self.buyer = buyer
         self.delivered = False
         self.is_reorder = is_reorder
-        self.receipt_sent = False  # Prevent duplicate receipts
+        self.receipt_sent = False
         
         deliver_btn = Button(label="ส่งสินค้าแล้ว ✅", style=discord.ButtonStyle.success, emoji="✅")
         cancel_btn = Button(label="ยกเลิก ❌", style=discord.ButtonStyle.danger, emoji="❌")
@@ -1390,7 +1722,6 @@ class DeliveryView(View):
                     anonymous_mode = ticket_anonymous_mode.get(str(self.channel.id), False)
                     buyer_display = "ไม่ระบุตัวตน" if anonymous_mode else (self.buyer.mention if self.buyer else "ไม่ทราบ")
                     
-                    # Send receipt ONLY ONCE with image
                     if not self.receipt_sent:
                         self.receipt_sent = True
                         
@@ -1519,12 +1850,10 @@ bot = MyBot()
 # ============ TICKET HELPER FUNCTIONS ============
 async def schedule_removal(channel, buyer, delay_seconds):
     """Schedule removal of buyer permission after delay_seconds"""
-    # Check if timer is paused for this channel
     if is_timer_paused(channel.id):
         print(f"⏸️ Timer is paused for {channel.name}, not scheduling")
         return
     
-    # Cancel existing task if any
     if str(channel.id) in ticket_removal_tasks:
         try:
             ticket_removal_tasks[str(channel.id)].cancel()
@@ -1555,14 +1884,11 @@ async def reset_timer(channel, buyer):
     """Reset the 1-hour timer for a channel (used when customer clicks 'สั่งของต่อ')"""
     print(f"🔄 Resetting timer for channel {channel.name}")
     
-    # Cancel any existing timer
     cancel_removal(channel.id)
     
-    # Remove from paused timers if exists
     if is_timer_paused(channel.id):
         cancel_paused_timer(channel.id)
     
-    # Start new 1-hour timer
     await schedule_removal(channel, buyer, 3600)
     print(f"✅ Timer reset to 1 hour for {channel.name}")
 
@@ -1848,7 +2174,6 @@ async def handle_open_ticket(interaction, category_name, stock_type):
         await channel.send(embed=embed, view=ticket_view)
         print(f"✅ ส่ง embed ต้อนรับในตั๋ว {channel.name} เรียบร้อย")
         
-        # Send welcome message after embed
         welcome_msg = await channel.send("# สนใจซื้ออะไรแจ้งแอดมินได้เลยค่ะ <:sushiheart:1410484970291466300>")
         print(f"✅ ส่งข้อความต้อนรับในตั๋ว {channel.name}")
         
@@ -1928,7 +2253,6 @@ async def move_to_delivered_category(channel):
         await channel.edit(category=delivered_category)
         print(f"✅ ย้ายตั๋ว {channel.name} ไปยัง category ส่งของแล้ว")
         
-        # Auto-delete after 1 hour (3600 seconds)
         await schedule_auto_delete_after_delivered(channel, 3600)
         print(f"⏰ Ticket {channel.name} will be auto-deleted in 1 hour")
         
@@ -2001,15 +2325,13 @@ async def remove_buyer_permission_after_delay(channel, buyer, delay_seconds):
     try:
         print(f"⏳ กำลังรอ {delay_seconds} วินาทีก่อนลบสิทธิ์การดูของ {channel.name}")
         
-        # Check if timer is paused - if so, wait until resumed
         remaining = delay_seconds
         while is_timer_paused(channel.id):
             paused_data = paused_timers.get(str(channel.id), {})
             remaining = paused_data.get("remaining", remaining)
             print(f"⏸️ Timer paused for {channel.name}, waiting for resume... ({remaining} seconds remaining)")
-            await asyncio.sleep(5)  # Check every 5 seconds
+            await asyncio.sleep(5)
         
-        # Now wait for the remaining time
         await asyncio.sleep(remaining)
         
         if not channel or channel not in channel.guild.channels:
@@ -2065,12 +2387,10 @@ async def update_credit_channel_name():
             print(f"❌ Credit channel not found with ID: {CREDIT_CHANNEL_ID}")
             return
         
-        # Count messages in the channel
         message_count = 0
         try:
             async for _ in credit_channel.history(limit=None):
                 message_count += 1
-                # Safety limit to avoid infinite loop
                 if message_count >= 10000:
                     break
             print(f"📊 Credit channel has {message_count} messages")
@@ -2078,16 +2398,13 @@ async def update_credit_channel_name():
             print(f"⚠️ Error counting messages: {e}")
             return
         
-        # Format the new channel name
         new_name = f"〔✅〕ให้เครดิต--{message_count}"
         
-        # Check if name needs to be updated
         if credit_channel.name != new_name:
             try:
                 await credit_channel.edit(name=new_name)
                 print(f"✅ Credit channel name updated to: {new_name}")
                 
-                # Save to file for persistence
                 with open(os.path.join(DATA_DIR, "credit_message_count.txt"), "w") as f:
                     f.write(str(message_count))
             except discord.Forbidden:
@@ -2216,6 +2533,39 @@ async def reset_robuxtoday_cmd(ctx):
     await ctx.send(embed=embed)
     print(f"✅ Daily robux sales reset to 0 by {ctx.author.name}")
 
+# ============ MINESWEEPER COMMAND ============
+
+@bot.command(name="minesweeper")
+async def minesweeper_cmd(ctx):
+    """Start a Minesweeper game. Win to earn 0.05 baht!"""
+    
+    # Create new game
+    game = MinesweeperGame(MINESWEEPER_WIDTH, MINESWEEPER_HEIGHT, MINESWEEPER_BOMB_RATIO)
+    
+    # Initial display (all hidden)
+    display = game.get_display_board()
+    
+    embed = discord.Embed(
+        title="🍣 Sushi Minesweeper 🍣",
+        description=f"```\n{display}\n```\n**Click on 🟦 to reveal tiles!**\n**Bombs: 🍣 | Flags: 🚩**\n**Bomb rate: 35%**\n\n💰 **Reward: 0.05 บาท if you win!**",
+        color=0xFFA500
+    )
+    embed.set_footer(text="Click on 🟦 to reveal | Click flag button to place 🚩")
+    
+    # Store game data
+    game_data = {
+        "game": game,
+        "message": None,
+        "player_id": ctx.author.id
+    }
+    
+    # Create view
+    view = MinesweeperView(game_data)
+    
+    # Send message
+    message = await ctx.send(embed=embed, view=view)
+    game_data["message"] = message
+
 # ============ TIMER CONTROL COMMANDS ============
 
 @bot.command(name="stop")
@@ -2224,34 +2574,23 @@ async def stop_timer_cmd(ctx):
     """Stop/Pause the 1-hour countdown for the current ticket channel"""
     channel = ctx.channel
     
-    # Check if this is a ticket channel
     if not channel.name.startswith("ticket-") and not re.match(r'^\d{10}-\d+-[\w\u0E00-\u0E7F]+$', channel.name):
         await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
         return
     
-    # Check if there's an active timer
     if str(channel.id) not in ticket_removal_tasks and not is_timer_paused(channel.id):
         await ctx.send("❌ ไม่มีตัวจับเวลาที่กำลังทำงานอยู่ในตั๋วนี้", delete_after=5)
         return
     
-    # If already paused
     if is_timer_paused(channel.id):
         await ctx.send("⏸️ ตัวจับเวลาถูกหยุดไว้แล้ว", delete_after=5)
         return
     
-    # Get remaining time from the task
-    remaining = 3600  # default 1 hour
+    remaining = 3600
     if str(channel.id) in ticket_removal_tasks:
-        task = ticket_removal_tasks[str(channel.id)]
-        # Try to get remaining time - this is approximate
-        # Since we can't easily get remaining time from asyncio task, we'll store it
-        # For now, we'll assume full 1 hour is remaining if task exists
         pass
     
-    # Cancel the current timer
     cancel_removal(channel.id)
-    
-    # Store paused timer with remaining time
     pause_timer(channel.id, remaining)
     
     embed = discord.Embed(
@@ -2267,30 +2606,23 @@ async def resume_timer_cmd(ctx):
     """Resume the 1-hour countdown for the current ticket channel"""
     channel = ctx.channel
     
-    # Check if this is a ticket channel
     if not channel.name.startswith("ticket-") and not re.match(r'^\d{10}-\d+-[\w\u0E00-\u0E7F]+$', channel.name):
         await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
         return
     
-    # Check if timer is paused
     if not is_timer_paused(channel.id):
         await ctx.send("❌ ไม่มีตัวจับเวลาที่ถูกหยุดไว้ในตั๋วนี้", delete_after=5)
         return
     
-    # Get remaining time
     remaining = get_paused_remaining(channel.id)
     
-    # Get buyer
     buyer = None
     if str(channel.id) in ticket_buyer_data:
         buyer_id = ticket_buyer_data[str(channel.id)].get("user_id")
         if buyer_id:
             buyer = ctx.guild.get_member(buyer_id)
     
-    # Resume the timer
     resume_timer(channel.id)
-    
-    # Start new timer with remaining time
     await schedule_removal(channel, buyer, remaining)
     
     embed = discord.Embed(
@@ -2434,12 +2766,12 @@ async def rate(ctx, rate_type=None, low_rate=None, high_rate=None):
 
 @bot.command(name="baht")
 @admin_only()
-async def baht_cmd(ctx, user: discord.Member = None, amount: int = None):
+async def baht_cmd(ctx, user: discord.Member = None, amount: float = None):
     """Set baht balance for a user. Usage: !baht @user <amount>"""
     if user is None or amount is None:
         embed = discord.Embed(
             title="❌ การใช้งานไม่ถูกต้อง",
-            description="**การใช้งาน:** `!baht @ผู้ใช้ <จำนวนบาท>`\n\n**ตัวอย่าง:**\n`!baht @user123 1000` - ตั้งค่าบาทคงเหลือ 1000\n`!baht @user123 0` - ล้างบาทคงเหลือ\n\n**หมายเหตุ:** เมื่อใช้ `!od` จำนวนบาทจะถูกหักอัตโนมัติ",
+            description="**การใช้งาน:** `!baht @ผู้ใช้ <จำนวนบาท>`\n\n**ตัวอย่าง:**\n`!baht @user123 1000` - ตั้งค่าบาทคงเหลือ 1000\n`!baht @user123 0.05` - ตั้งค่า 0.05 บาท\n\n**หมายเหตุ:** เมื่อใช้ `!od` จำนวนบาทจะถูกหักอัตโนมัติ",
             color=0xFF0000
         )
         await ctx.send(embed=embed, delete_after=10)
@@ -2453,7 +2785,7 @@ async def baht_cmd(ctx, user: discord.Member = None, amount: int = None):
     
     embed = discord.Embed(
         title="✅ ตั้งค่าบาทคงเหลือสำเร็จ",
-        description=f"**{user.mention}** มีบาทคงเหลือ **{format_number(amount)}** บาท",
+        description=f"**{user.mention}** มีบาทคงเหลือ **{amount:.2f}** บาท",
         color=0x00FF00
     )
     embed.set_footer(text=f"เมื่อใช้ !od จำนวนบาทจะถูกหักอัตโนมัติ")
@@ -2475,14 +2807,14 @@ async def check_baht_cmd(ctx, user: discord.Member = None):
     
     embed = discord.Embed(
         title="💰 บาทคงเหลือ",
-        description=f"**{user.mention}** มีบาทคงเหลือ **{format_number(balance)}** บาท",
+        description=f"**{user.mention}** มีบาทคงเหลือ **{balance:.2f}** บาท",
         color=0x00FF99
     )
     await ctx.send(embed=embed)
 
 @bot.command(name="addbaht")
 @admin_only()
-async def add_baht_cmd(ctx, user: discord.Member, amount: int):
+async def add_baht_cmd(ctx, user: discord.Member, amount: float):
     """Add baht to user balance"""
     if amount <= 0:
         await ctx.send("❌ จำนวนบาทต้องมากกว่า 0", delete_after=5)
@@ -2492,7 +2824,7 @@ async def add_baht_cmd(ctx, user: discord.Member, amount: int):
     
     embed = discord.Embed(
         title="✅ เพิ่มบาทสำเร็จ",
-        description=f"เพิ่ม **{format_number(amount)}** บาท ให้ {user.mention}\nปัจจุบันเหลือ **{format_number(new_balance)}** บาท",
+        description=f"เพิ่ม **{amount:.2f}** บาท ให้ {user.mention}\nปัจจุบันเหลือ **{new_balance:.2f}** บาท",
         color=0x00FF00
     )
     await ctx.send(embed=embed)
@@ -2533,7 +2865,7 @@ async def check_all_baht_cmd(ctx):
         else:
             user_name = f"ผู้ใช้ ID: {user_id_str}"
         
-        line = f"**{i}.** {user_name} - `{format_number(balance)}` บาท\n"
+        line = f"**{i}.** {user_name} - `{balance:.2f}` บาท\n"
         
         if len(description + line) > 1800:
             current_embed.description = description
@@ -2561,7 +2893,7 @@ async def check_all_baht_cmd(ctx):
     summary_embed = discord.Embed(
         title="📊 สรุปบาทคงเหลือ",
         description=f"**จำนวนผู้ใช้ที่มีบาทคงเหลือ:** {len(users_with_balance)} คน\n"
-                   f"**บาทคงเหลือรวมทั้งหมด:** {format_number(total_balance)} บาท",
+                   f"**บาทคงเหลือรวมทั้งหมด:** {total_balance:.2f} บาท",
         color=0x00FF99
     )
     await ctx.send(embed=summary_embed)
@@ -2610,9 +2942,9 @@ async def od(ctx, *, expr):
             if current_balance > 0:
                 if current_balance >= price_int:
                     new_balance = deduct_user_robux_balance(buyer.id, price_int)
-                    balance_message = f"\n\n💰 **{buyer.mention} เหลือ {format_number(new_balance)} บาท**"
+                    balance_message = f"\n\n💰 **{buyer.mention} เหลือ {new_balance:.2f} บาท**"
                 else:
-                    balance_message = f"\n\n⚠️ **{buyer.mention} มีเงินบาทเหลือไม่พอ!** (มี {format_number(current_balance)} บาท ต้องการ {format_number(price_int)} บาท)"
+                    balance_message = f"\n\n⚠️ **{buyer.mention} มีเงินบาทเหลือไม่พอ!** (มี {current_balance:.2f} บาท ต้องการ {price_int} บาท)"
             elif current_balance == 0:
                 balance_message = f"\n\n💰 **{buyer.mention} ไม่มีเงินคงเหลือในระบบ**"
         
@@ -2690,9 +3022,9 @@ async def odg(ctx, *, expr):
             if current_balance > 0:
                 if current_balance >= price_int:
                     new_balance = deduct_user_robux_balance(buyer.id, price_int)
-                    balance_message = f"\n\n💰 **{buyer.mention} เหลือ {format_number(new_balance)} บาท**"
+                    balance_message = f"\n\n💰 **{buyer.mention} เหลือ {new_balance:.2f} บาท**"
                 else:
-                    balance_message = f"\n\n⚠️ **{buyer.mention} มีบาทคงเหลือไม่พอ!** (มี {format_number(current_balance)} บาท ต้องการ {format_number(price_int)} บาท)"
+                    balance_message = f"\n\n⚠️ **{buyer.mention} มีบาทคงเหลือไม่พอ!** (มี {current_balance:.2f} บาท ต้องการ {price_int} บาท)"
             elif current_balance == 0:
                 balance_message = f"\n\n💰 **{buyer.mention} ไม่มีเงินคงเหลือในระบบ"
         
@@ -3106,7 +3438,6 @@ async def ty(ctx):
         
         await ctx.send(embed=embed, view=view)
         
-        # "Order more" button for gamepass - RESETS TIMER
         if product_type == "Gamepass" and buyer:
             order_more_view = View(timeout=None)
             order_more_btn = Button(label="สั่งของต่อ 📝", style=discord.ButtonStyle.success, emoji="🔄")
@@ -3116,10 +3447,8 @@ async def ty(ctx):
                     await interaction.response.send_message("❌ คุณไม่สามารถใช้ปุ่มนี้ในช่องอื่นได้", ephemeral=True)
                     return
                 
-                # Reset the timer (cancel old, start new 1-hour timer)
                 await reset_timer(ctx.channel, buyer)
                 
-                # Cancel any paused timer for this channel
                 if is_timer_paused(ctx.channel.id):
                     cancel_paused_timer(ctx.channel.id)
                 
@@ -3154,7 +3483,6 @@ async def ty(ctx):
                 form_btn.callback = form_callback
                 ticket_view.add_item(form_btn)
                 
-                # Send timer reset confirmation
                 await interaction.response.send_message("🔄 ตัวจับเวลาถูกรีเซ็ตเป็น 1 ชั่วโมงแล้ว", ephemeral=True)
                 await ctx.send(embed=order_embed, view=ticket_view)
             
