@@ -383,7 +383,7 @@ class MinesweeperButton(Button):
         
         # Check if game is over
         if game.game_over:
-            await interaction.response.send_message("⚠️ This game is already over! Start a new game with `!minesweeper`", ephemeral=True)
+            await interaction.response.send_message("⚠️ This game is already over! Start a new game with `/minesweeper`", ephemeral=True)
             return
         
         # Reveal the cell
@@ -397,7 +397,7 @@ class MinesweeperButton(Button):
                 description=f"```\n{display}\n```\n❌ **Game Over!** You lost!",
                 color=0xFF0000
             )
-            embed.set_footer(text="Sushi Shop Minesweeper • Start new game with !minesweeper")
+            embed.set_footer(text="Sushi Shop Minesweeper • Start new game with /minesweeper")
             await interaction.response.edit_message(embed=embed, view=None)
             return
         
@@ -506,7 +506,7 @@ class MinesweeperView(View):
                 description=f"```\n{display}\n```\n❌ **Game expired due to inactivity!**",
                 color=0xFF6600
             )
-            embed.set_footer(text="Sushi Shop Minesweeper • Start new game with !minesweeper")
+            embed.set_footer(text="Sushi Shop Minesweeper • Start new game with /minesweeper")
             
             try:
                 await self.game_data["message"].edit(embed=embed, view=None)
@@ -1830,6 +1830,9 @@ class MyBot(commands.Bot):
     
     async def setup_hook(self):
         print(f"✅ Setup hook completed")
+        # Sync slash commands
+        await self.tree.sync()
+        print(f"✅ Slash commands synced")
     
     async def close(self):
         print("\n⚠️ กำลังปิดระบบอย่างปลอดภัย...")
@@ -1846,6 +1849,42 @@ class MyBot(commands.Bot):
         await super().close()
 
 bot = MyBot()
+
+# ============ SLASH COMMANDS ============
+
+@bot.tree.command(name="minesweeper", description="Play Minesweeper! Win to earn 0.05 baht")
+async def slash_minesweeper(interaction: discord.Interaction):
+    """Start a Minesweeper game via slash command"""
+    
+    # Defer response to avoid timeout
+    await interaction.response.defer()
+    
+    # Create new game
+    game = MinesweeperGame(MINESWEEPER_WIDTH, MINESWEEPER_HEIGHT, MINESWEEPER_BOMB_RATIO)
+    
+    # Initial display (all hidden)
+    display = game.get_display_board()
+    
+    embed = discord.Embed(
+        title="🍣 Sushi Minesweeper 🍣",
+        description=f"```\n{display}\n```\n**Click on 🟦 to reveal tiles!**\n**Bombs: 🍣 | Flags: 🚩**\n**Bomb rate: 35%**\n\n💰 **Reward: 0.05 บาท if you win!**",
+        color=0xFFA500
+    )
+    embed.set_footer(text="Click on 🟦 to reveal | Click flag button to place 🚩")
+    
+    # Store game data
+    game_data = {
+        "game": game,
+        "message": None,
+        "player_id": interaction.user.id
+    }
+    
+    # Create view
+    view = MinesweeperView(game_data)
+    
+    # Send message
+    message = await interaction.followup.send(embed=embed, view=view)
+    game_data["message"] = message
 
 # ============ TICKET HELPER FUNCTIONS ============
 async def schedule_removal(channel, buyer, delay_seconds):
@@ -2532,39 +2571,6 @@ async def reset_robuxtoday_cmd(ctx):
     embed.set_footer(text=f"รีเซ็ตโดย {ctx.author.name} • {get_thailand_time().strftime('%d/%m/%Y %H:%M:%S')}")
     await ctx.send(embed=embed)
     print(f"✅ Daily robux sales reset to 0 by {ctx.author.name}")
-
-# ============ MINESWEEPER COMMAND ============
-
-@bot.command(name="minesweeper")
-async def minesweeper_cmd(ctx):
-    """Start a Minesweeper game. Win to earn 0.05 baht!"""
-    
-    # Create new game
-    game = MinesweeperGame(MINESWEEPER_WIDTH, MINESWEEPER_HEIGHT, MINESWEEPER_BOMB_RATIO)
-    
-    # Initial display (all hidden)
-    display = game.get_display_board()
-    
-    embed = discord.Embed(
-        title="🍣 Sushi Minesweeper 🍣",
-        description=f"```\n{display}\n```\n**Click on 🟦 to reveal tiles!**\n**Bombs: 🍣 | Flags: 🚩**\n**Bomb rate: 35%**\n\n💰 **Reward: 0.05 บาท if you win!**",
-        color=0xFFA500
-    )
-    embed.set_footer(text="Click on 🟦 to reveal | Click flag button to place 🚩")
-    
-    # Store game data
-    game_data = {
-        "game": game,
-        "message": None,
-        "player_id": ctx.author.id
-    }
-    
-    # Create view
-    view = MinesweeperView(game_data)
-    
-    # Send message
-    message = await ctx.send(embed=embed, view=view)
-    game_data["message"] = message
 
 # ============ TIMER CONTROL COMMANDS ============
 
@@ -3488,7 +3494,7 @@ async def ty(ctx):
             
             order_more_btn.callback = order_more_cb
             order_more_view.add_item(order_more_btn)
-            await ctx.send("อยากสั่งของเพิ่มมั้ย?", view=order_more_view)
+            await ctx.send("📝 ต้องการสั่งของเพิ่มมั้ยคะ? ", view=order_more_view)
         
         if str(ctx.channel.id) in ticket_robux_data:
             del ticket_robux_data[str(ctx.channel.id)]
@@ -3725,9 +3731,11 @@ async def on_ready():
     
     await bot.change_presence(activity=discord.Game(name="🍣แมวส้มชื่อซูชิของ wforr🍣"))
     
-    print("\n📝 Registered commands:")
+    print("\n📝 Registered prefix commands:")
     for cmd in bot.commands:
         print(f"   - !{cmd.name}")
+    
+    print("\n🔧 Slash commands will be synced...")
     
     print(f"\n📁 DATA_DIR: {DATA_DIR}")
     print(f"📁 Directory exists: {os.path.exists(DATA_DIR)}")
@@ -3741,7 +3749,9 @@ async def on_ready():
     try:
         print("🔄 กำลัง sync slash commands...")
         synced = await bot.tree.sync()
-        print(f"✅ Synced {len(synced)} commands")
+        print(f"✅ Synced {len(synced)} slash commands")
+        for cmd in synced:
+            print(f"   - /{cmd.name}")
         bot.commands_synced = True
     except Exception as e:
         print(f"❌ Error syncing commands: {e}")
