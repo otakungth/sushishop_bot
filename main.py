@@ -406,12 +406,12 @@ class MinesweeperButton(Button):
         
         if game.won:
             current_balance = get_user_robux_balance(player_id)
-            new_balance = add_user_robux_balance(player_id, 0.05)
+            new_balance = add_user_robux_balance(player_id, 0.1)
             
             display = game.get_display_board()
             embed = discord.Embed(
                 title="🎉CONGRATULATIONS 🎉",
-                description=f"```\n{display}\n```\n✅ **ชนะแล้ว**\n💰 คุณได้รับ **0.05 บาท**!\n💵 ยอดเงิน: **{new_balance:.2f}** บาท",
+                description=f"```\n{display}\n```\n✅ **ชนะแล้ว**\n💰 คุณได้รับ **0.1 บาท**!\n💵 ยอดเงิน: **{new_balance:.2f}** บาท",
                 color=0x00FF00
             )
             embed.set_footer(text="Sushi Shop Minesweeper")
@@ -425,7 +425,7 @@ class MinesweeperButton(Button):
             description=f"```\n{display}\n```\n**Bombs: {game.bomb_count} | Remaining safe cells: {game.total_cells - game.bomb_count - sum(sum(row) for row in game.revealed)}**\n\nกด ❓ เพื่อเปิดข่อง",
             color=0xFFA500
         )
-        embed.set_footer(text="💰 รับ 0.05 บาท โดนการชนะเกม")
+        embed.set_footer(text="💰 รับ 0.1 บาท โดยการชนะเกม")
         await interaction.response.edit_message(embed=embed, view=view)
 
 
@@ -457,7 +457,7 @@ class MinesweeperFlagButton(Button):
             description=f"```\n{display}\n```\n**Bombs: {game.bomb_count} | Remaining safe cells: {game.total_cells - game.bomb_count - sum(sum(row) for row in game.revealed)}**\n\nกด ❓ เพื่อเปิดข่อง",
             color=0xFFA500
         )
-        embed.set_footer(text="💰 Win 0.05 บาท by clearing all safe cells!")
+        embed.set_footer(text="💰 รับ 0.1 บาท โดยการชนะเกม")
         await interaction.response.edit_message(embed=embed, view=view)
 
 
