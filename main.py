@@ -384,11 +384,11 @@ class MinesweeperButton(Button):
         player_id = self.game_data["player_id"]
         
         if interaction.user.id != player_id:
-            await interaction.response.send_message("❌ This game belongs to another player!", ephemeral=True)
+            await interaction.response.send_message("❌ เกมนี้เป็นของผู้เล่นอื่!", ephemeral=True)
             return
         
         if game.game_over:
-            await interaction.response.send_message("⚠️ This game is already over! Start a new game with `/minesweeper`", ephemeral=True)
+            await interaction.response.send_message("⚠️ เกมนี้จบลงแล้ว", ephemeral=True)
             return
         
         hit_bomb = game.reveal_cell(self.x, self.y)
@@ -396,22 +396,22 @@ class MinesweeperButton(Button):
         if hit_bomb:
             display = game.get_display_board(reveal_all=True)
             embed = discord.Embed(
-                title="💥 BOOM! You hit a bomb! 💥",
-                description=f"```\n{display}\n```\n❌ **Game Over!** You lost!",
+                title="ลาก่อน💥",
+                description=f"```\n{display}\n```\n❌ **Game Over!** แพ้",
                 color=0xFF0000
             )
-            embed.set_footer(text="Sushi Shop Minesweeper • Start new game with /minesweeper")
+            embed.set_footer(text="Sushi Shop Minesweeper • เริ่มเกมใหม่พิมพ์ /minesweeper")
             await interaction.response.edit_message(embed=embed, view=None)
             return
         
         if game.won:
             current_balance = get_user_robux_balance(player_id)
-            new_balance = add_user_robux_balance(player_id, 0.05)
+            new_balance = add_user_robux_balance(player_id, 0.03)
             
             display = game.get_display_board()
             embed = discord.Embed(
-                title="🎉 CONGRATULATIONS! You won! 🎉",
-                description=f"```\n{display}\n```\n✅ **You cleared the mines!**\n💰 You received **0.05 บาท**!\n💵 New balance: **{new_balance:.2f}** บาท",
+                title="🎉CONGRATULATIONS 🎉",
+                description=f"```\n{display}\n```\n✅ **ชนะแล้ว**\n💰 คุณได้รับ **0.03 บาท**!\n💵 ยอดเงิน: **{new_balance:.2f}** บาท",
                 color=0x00FF00
             )
             embed.set_footer(text="Sushi Shop Minesweeper")
@@ -422,10 +422,10 @@ class MinesweeperButton(Button):
         display = game.get_display_board()
         embed = discord.Embed(
             title="🍣 Sushi Minesweeper 🍣",
-            description=f"```\n{display}\n```\n**Bombs: {game.bomb_count} | Remaining safe cells: {game.total_cells - game.bomb_count - sum(sum(row) for row in game.revealed)}**\n\nClick ❓ to reveal | Right-click or use flag button below to place 🚩",
+            description=f"```\n{display}\n```\n**Bombs: {game.bomb_count} | Remaining safe cells: {game.total_cells - game.bomb_count - sum(sum(row) for row in game.revealed)}**\n\nกด ❓ เพื่อเปิดข่อง | ใช้ธงเพื่อปักธง 🚩",
             color=0xFFA500
         )
-        embed.set_footer(text="💰 Win 0.05 บาท by clearing all safe cells!")
+        embed.set_footer(text="💰 ชนะ 0.03 บาท โดนการชนะเกม")
         await interaction.response.edit_message(embed=embed, view=view)
 
 
@@ -441,11 +441,11 @@ class MinesweeperFlagButton(Button):
         player_id = self.game_data["player_id"]
         
         if interaction.user.id != player_id:
-            await interaction.response.send_message("❌ This game belongs to another player!", ephemeral=True)
+            await interaction.response.send_message("❌ เกมนี้เป็นของผู้เล่นอื่น", ephemeral=True)
             return
         
         if game.game_over:
-            await interaction.response.send_message("⚠️ This game is already over!", ephemeral=True)
+            await interaction.response.send_message("⚠️ เกมนี้จบลงแล้ว", ephemeral=True)
             return
         
         game.toggle_flag(self.x, self.y)
@@ -488,10 +488,10 @@ class MinesweeperView(View):
             display = game.get_display_board(reveal_all=True)
             embed = discord.Embed(
                 title="⏰ Game Timeout!",
-                description=f"```\n{display}\n```\n❌ **Game expired due to inactivity!**",
+                description=f"```\n{display}\n```\n❌ **เกมหมดอายุ**",
                 color=0xFF6600
             )
-            embed.set_footer(text="Sushi Shop Minesweeper • Start new game with /minesweeper")
+            embed.set_footer(text="Sushi Shop Minesweeper • เริ่มเกมใหม่โดยการพิมพ์ /minesweeper")
             
             try:
                 await self.game_data["message"].edit(embed=embed, view=None)
@@ -1837,37 +1837,30 @@ bot = MyBot()
 
 # ============ SLASH COMMANDS ============
 
-@bot.tree.command(name="minesweeper", description="Play Minesweeper! Win to earn 0.05 baht")
+@bot.tree.command(name="minesweeper", description="เล่น Minesweeper! ชนะเพื่อรับ 0.05 บาท")
 async def slash_minesweeper(interaction: discord.Interaction):
     """Start a Minesweeper game via slash command"""
     
-    # Defer response to avoid timeout
     await interaction.response.defer()
     
-    # Create new game
     game = MinesweeperGame(MINESWEEPER_WIDTH, MINESWEEPER_HEIGHT, MINESWEEPER_BOMB_RATIO)
     
-    # Initial display (all hidden)
     display = game.get_display_board()
     
     embed = discord.Embed(
         title="🍣 Sushi Minesweeper 🍣",
-        description=f"```\n{display}\n```\n**Click on 🟦 to reveal tiles!**\n**Bombs: 🍣 | Flags: 🚩**\n**Bomb rate: 35%**\n\n💰 **Reward: 0.05 บาท if you win!**",
+        description=f"```\n{display}\n```\n**ระเบิด: {game.bomb_count}**\n\nกด ❓ เพื่อเปิดช่อง!\nปักธง (🚩) เพื่อทำเครื่องหมายบนระเบิด\n\n💰 **รางวัล: 0.03 บาท**",
         color=0xFFA500
     )
-    embed.set_footer(text="Click on 🟦 to reveal | Click flag button to place 🚩")
+    embed.set_footer(text="ช่อง 5x5 • เปิดช่องทั้งหมดเพื่อชนะ")
     
-    # Store game data
     game_data = {
         "game": game,
         "message": None,
         "player_id": interaction.user.id
     }
     
-    # Create view
     view = MinesweeperView(game_data)
-    
-    # Send message
     message = await interaction.followup.send(embed=embed, view=view)
     game_data["message"] = message
 
