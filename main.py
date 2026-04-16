@@ -192,7 +192,7 @@ MINESWEEPER_BOMB_RATIO = 0.25  # 25% bombs (about 6-7 bombs on 5x5)
 
 # Number emojis for display
 NUMBER_EMOJIS = {
-    0: "⬛",
+    0: "🟧",
     1: "1️⃣",
     2: "2️⃣",
     3: "3️⃣",
@@ -212,7 +212,6 @@ class MinesweeperGame:
         self.bomb_count = max(1, int(self.total_cells * bomb_ratio))
         self.board = []
         self.revealed = []
-        self.flagged = []
         self.game_over = False
         self.won = False
         self.first_move = True
@@ -220,7 +219,6 @@ class MinesweeperGame:
         for y in range(height):
             self.board.append([0] * width)
             self.revealed.append([False] * width)
-            self.flagged.append([False] * width)
     
     def place_bombs(self, first_x, first_y):
         import random
@@ -255,7 +253,7 @@ class MinesweeperGame:
         if self.game_over:
             return True
         
-        if self.revealed[y][x] or self.flagged[y][x]:
+        if self.revealed[y][x]:
             return False
         
         if self.first_move:
@@ -295,16 +293,10 @@ class MinesweeperGame:
                     continue
                 nx, ny = x + dx, y + dy
                 if 0 <= nx < self.width and 0 <= ny < self.height:
-                    if not self.revealed[ny][nx] and not self.flagged[ny][nx]:
+                    if not self.revealed[ny][nx]:
                         self.revealed[ny][nx] = True
                         if self.board[ny][nx] == 0:
                             self.reveal_adjacent(nx, ny)
-    
-    def toggle_flag(self, x, y):
-        if self.game_over or self.revealed[y][x]:
-            return False
-        self.flagged[y][x] = not self.flagged[y][x]
-        return True
     
     def check_win(self):
         revealed_count = 0
@@ -341,35 +333,18 @@ class MinesweeperGame:
                                 line += "⬛"
                             else:
                                 line += NUMBER_EMOJIS.get(self.board[y][x], "⬛")
-                    elif self.flagged[y][x]:
-                        line += "🚩"
                     else:
                         line += "❓"
             lines.append(line)
         return "\n".join(lines)
     
-    def get_emoji_for_cell(self, x, y, reveal_all=False):
-        if reveal_all or self.game_over:
-            if self.board[y][x] == -1:
-                return "💣"
-            else:
-                if self.board[y][x] == 0:
-                    return "⬛"
-                else:
-                    return NUMBER_EMOJIS.get(self.board[y][x], "⬛")
-        else:
-            if self.revealed[y][x]:
-                if self.board[y][x] == -1:
-                    return "💣"
-                else:
-                    if self.board[y][x] == 0:
-                        return "⬛"
-                    else:
-                        return NUMBER_EMOJIS.get(self.board[y][x], "⬛")
-            elif self.flagged[y][x]:
-                return "🚩"
-            else:
-                return "❓"
+    def get_remaining_safe_cells(self):
+        revealed_count = 0
+        for y in range(self.height):
+            for x in range(self.width):
+                if self.revealed[y][x]:
+                    revealed_count += 1
+        return self.total_cells - self.bomb_count - revealed_count
 
 
 class MinesweeperButton(Button):
@@ -400,7 +375,7 @@ class MinesweeperButton(Button):
                 description=f"```\n{display}\n```\n❌ **Game Over!** แพ้",
                 color=0xFF0000
             )
-            embed.set_footer(text="Sushi Shop Minesweeper • เริ่มเกมใหม่พิมพ์ /minesweeper")
+            embed.set_footer(text="Sushi Shop • คำสั่งเกม /minesweeper")
             await interaction.response.edit_message(embed=embed, view=None)
             return
         
@@ -410,54 +385,27 @@ class MinesweeperButton(Button):
             
             display = game.get_display_board()
             embed = discord.Embed(
-                title="🎉CONGRATULATIONS 🎉",
+                title="🎉 CONGRATULATIONS 🎉",
                 description=f"```\n{display}\n```\n✅ **ชนะแล้ว**\n💰 คุณได้รับ **0.1 บาท**!\n💵 ยอดเงิน: **{new_balance:.2f}** บาท",
                 color=0x00FF00
             )
-            embed.set_footer(text="Sushi Shop Minesweeper")
+            embed.set_footer(text="Sushi Shop • คำสั่งเกม /minesweeper")
             await interaction.response.edit_message(embed=embed, view=None)
             return
         
+        # Update game display - ongoing game
         view = MinesweeperView(self.game_data)
         display = game.get_display_board()
+        remaining = game.get_remaining_safe_cells()
+        
         embed = discord.Embed(
             title="🍣 Sushi Minesweeper 🍣",
-            description=f"```\n{display}\n```\n**Bombs: {game.bomb_count} | Remaining safe cells: {game.total_cells - game.bomb_count - sum(sum(row) for row in game.revealed)}**\n\nกด ❓ เพื่อเปิดข่อง",
+            description=f"```\n{display}\n```",
             color=0xFFA500
         )
-        embed.set_footer(text="💰 รับ 0.1 บาท โดยการชนะเกม")
-        await interaction.response.edit_message(embed=embed, view=view)
-
-
-class MinesweeperFlagButton(Button):
-    def __init__(self, x, y, game_data):
-        self.x = x
-        self.y = y
-        self.game_data = game_data
-        super().__init__(label="🚩", style=discord.ButtonStyle.danger, row=y, custom_id=f"ms_flag_{x}_{y}")
-    
-    async def callback(self, interaction: discord.Interaction):
-        game = self.game_data["game"]
-        player_id = self.game_data["player_id"]
+        embed.add_field(name="📊 สถานะ", value=f"**Bombs: {game.bomb_count} | Remaining safe cells: {remaining}**", inline=False)
+        embed.set_footer(text="💰 รับ 0.1 บาท โดยการชนะเกม • กด ❓ เพื่อเปิดช่อง")
         
-        if interaction.user.id != player_id:
-            await interaction.response.send_message("❌ เกมนี้เป็นของผู้เล่นอื่น", ephemeral=True)
-            return
-        
-        if game.game_over:
-            await interaction.response.send_message("⚠️ เกมนี้จบลงแล้ว", ephemeral=True)
-            return
-        
-        game.toggle_flag(self.x, self.y)
-        
-        view = MinesweeperView(self.game_data)
-        display = game.get_display_board()
-        embed = discord.Embed(
-            title="🍣 Sushi Minesweeper 🍣",
-            description=f"```\n{display}\n```\n**Bombs: {game.bomb_count} | Remaining safe cells: {game.total_cells - game.bomb_count - sum(sum(row) for row in game.revealed)}**\n\nกด ❓ เพื่อเปิดข่อง",
-            color=0xFFA500
-        )
-        embed.set_footer(text="💰 รับ 0.1 บาท โดยการชนะเกม")
         await interaction.response.edit_message(embed=embed, view=view)
 
 
@@ -467,17 +415,18 @@ class MinesweeperView(View):
         self.game_data = game_data
         game = game_data["game"]
         
-        # Create grid buttons
+        # Create grid buttons - only reveal buttons, no flag buttons
         for y in range(game.height):
             for x in range(game.width):
-                emoji = game.get_emoji_for_cell(x, y)
-                
                 if game.revealed[y][x] or game.game_over:
-                    # Already revealed or game over - disabled button
-                    btn = Button(label=emoji, style=discord.ButtonStyle.secondary, disabled=True, row=y, custom_id=f"ms_disabled_{x}_{y}")
-                elif game.flagged[y][x]:
-                    btn = MinesweeperFlagButton(x, y, game_data)
+                    # Already revealed or game over - disabled button showing the value
+                    if game.board[y][x] == -1:
+                        label = "💣"
+                    else:
+                        label = NUMBER_EMOJIS.get(game.board[y][x], "⬛")
+                    btn = Button(label=label, style=discord.ButtonStyle.secondary, disabled=True, row=y, custom_id=f"ms_disabled_{x}_{y}")
                 else:
+                    # Unexplored cell - clickable button
                     btn = MinesweeperButton(x, y, game_data)
                 self.add_item(btn)
     
@@ -491,7 +440,7 @@ class MinesweeperView(View):
                 description=f"```\n{display}\n```\n❌ **เกมหมดอายุ**",
                 color=0xFF6600
             )
-            embed.set_footer(text="Sushi Shop Minesweeper • เริ่มเกมใหม่โดยการพิมพ์ /minesweeper")
+            embed.set_footer(text="Sushi Shop • คำสั่งเกม /minesweeper")
             
             try:
                 await self.game_data["message"].edit(embed=embed, view=None)
@@ -1849,10 +1798,11 @@ async def slash_minesweeper(interaction: discord.Interaction):
     
     embed = discord.Embed(
         title="🍣 Sushi Minesweeper 🍣",
-        description=f"```\n{display}\n```\n**ระเบิด: {game.bomb_count}**\n\nกด ❓ เพื่อเปิดช่อง **รางวัล: 0.1 บาท**",
+        description=f"```\n{display}\n```",
         color=0xFFA500
     )
-    embed.set_footer(text="ช่อง 5x5 • เปิดช่องทั้งหมดเพื่อชนะ")
+    embed.add_field(name="📊 สถานะ", value=f"**Bombs: {game.bomb_count}**", inline=False)
+    embed.set_footer(text="💰 รับ 0.1 บาท โดยการชนะเกม • กด ❓ เพื่อเปิดช่อง")
     
     game_data = {
         "game": game,
@@ -1863,7 +1813,7 @@ async def slash_minesweeper(interaction: discord.Interaction):
     view = MinesweeperView(game_data)
     message = await interaction.followup.send(embed=embed, view=view)
     game_data["message"] = message
-
+    
 # ============ TICKET HELPER FUNCTIONS ============
 async def schedule_removal(channel, buyer, delay_seconds):
     """Schedule removal of buyer permission after delay_seconds"""
