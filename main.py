@@ -3530,11 +3530,10 @@ async def calculator_cmd(ctx):
         print(f"❌ Error in calculator command: {e}")
         await ctx.send("❌ เกิดข้อผิดพลาดในการแสดงเครื่องคิดเลข")
 
-# ============ SIMPLE CALCULATOR COMMANDS (Admin Only) ============
+# ============ SIMPLE CALCULATOR COMMANDS (Public) ============
 @bot.command()
-@admin_only()
 async def gp(ctx, *, expr):
-    """Calculate gamepass price (Robux to Baht) - Admin only"""
+    """Calculate gamepass price (Robux to Baht) - Public"""
     global gamepass_rate, gamepass_rate_high, gamepass_threshold
     try:
         expr_clean = expr.replace(",", "").lower().replace("x", "*").replace("÷", "/").replace(" ", "")
@@ -3552,9 +3551,8 @@ async def gp(ctx, *, expr):
         await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง เช่น 500 หรือ 100+200", delete_after=5)
 
 @bot.command()
-@admin_only()
 async def g(ctx, *, expr):
-    """Calculate group price (Robux to Baht) - Admin only"""
+    """Calculate group price (Robux to Baht) - Public"""
     global group_rate_low, group_rate_high
     try:
         expr_clean = expr.replace(",", "").lower().replace("x", "*").replace("÷", "/").replace(" ", "")
@@ -3578,9 +3576,8 @@ async def g(ctx, *, expr):
         await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง เช่น 500 หรือ 100+200", delete_after=5)
 
 @bot.command()
-@admin_only()
 async def gpb(ctx, *, expr):
-    """Calculate gamepass price (Baht to Robux) - Admin only"""
+    """Calculate gamepass price (Baht to Robux) - Public"""
     global gamepass_rate, gamepass_rate_high, gamepass_threshold
     try:
         expr_clean = expr.replace(",", "").replace(" ", "")
@@ -3594,9 +3591,8 @@ async def gpb(ctx, *, expr):
         await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง เช่น 500 หรือ 100+200", delete_after=5)
 
 @bot.command()
-@admin_only()
 async def gb(ctx, *, expr):
-    """Calculate group price (Baht to Robux) - Admin only"""
+    """Calculate group price (Baht to Robux) - Public"""
     global group_rate_low, group_rate_high
     try:
         expr_clean = expr.replace(",", "").replace(" ", "")
@@ -3615,9 +3611,8 @@ async def gb(ctx, *, expr):
         await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง เช่น 500 หรือ 100+200 หรือ 100 + 200", delete_after=5)
 
 @bot.command()
-@admin_only()
 async def tax(ctx, *, expr):
-    """Calculate tax deduction - Admin only"""
+    """Calculate tax deduction - Public"""
     try:
         expr = expr.replace(" ", "")
         if re.match(r"^\d+$", expr):
