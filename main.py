@@ -2777,21 +2777,21 @@ async def baht_cmd(ctx, user: discord.Member = None, amount: float = None):
     if user is None or amount is None:
         embed = discord.Embed(
             title="❌ การใช้งานไม่ถูกต้อง",
-            description="**การใช้งาน:** `!baht @ผู้ใช้ <จำนวนบาท>`\n\n**ตัวอย่าง:**\n`!baht @user123 1000` - ตั้งค่าบาทคงเหลือ 1000\n`!baht @user123 0.05` - ตั้งค่า 0.05 บาท\n\n**หมายเหตุ:** เมื่อใช้ `!od` จำนวนบาทจะถูกหักอัตโนมัติ",
+            description="**การใช้งาน:** `!baht @ผู้ใช้ <จำนวนบาท>`\n\n**ตัวอย่าง:**\n`!baht @user123 1000` - ตั้งค่าเงินคงเหลือ 1000\n`!baht @user123 0.05` - ตั้งค่า 0.05 บาท\n\n**หมายเหตุ:** เมื่อใช้ `!od` จำนวนบาทจะถูกหักอัตโนมัติ",
             color=0xFF0000
         )
         await ctx.send(embed=embed, delete_after=10)
         return
     
     if amount < 0:
-        await ctx.send("❌ จำนวนบาทต้องมากกว่าหรือเท่ากับ 0", delete_after=5)
+        await ctx.send("❌ จำนวนเงินต้องมากกว่าหรือเท่ากับ 0", delete_after=5)
         return
     
     set_user_robux_balance(user.id, amount)
     
     embed = discord.Embed(
-        title="✅ ตั้งค่าบาทคงเหลือสำเร็จ",
-        description=f"**{user.mention}** มีบาทคงเหลือ **{amount:.2f}** บาท",
+        title="✅ ตั้งค่าเงินคงเหลือสำเร็จ",
+        description=f"**{user.mention}** มีเงินคงเหลือ **{amount:.2f}** บาท",
         color=0x00FF00
     )
     embed.set_footer(text=f"เมื่อใช้ !od จำนวนบาทจะถูกหักอัตโนมัติ")
@@ -2849,14 +2849,14 @@ async def check_all_baht_cmd(ctx):
             users_with_balance[user_id_str] = balance
     
     if not users_with_balance:
-        await ctx.send("📊 ไม่มีผู้ใช้ที่มีบาทคงเหลือในระบบ", delete_after=5)
+        await ctx.send("📊 ไม่มีผู้ใช้ที่มีเงืนคงเหลือในระบบ", delete_after=5)
         return
     
     sorted_users = sorted(users_with_balance.items(), key=lambda x: x[1], reverse=True)
     
     embeds = []
     current_embed = discord.Embed(
-        title="💰 รายชื่อผู้ใช้ที่มีบาทคงเหลือ",
+        title="💰 รายชื่อผู้ใช้ที่มีเงินคงเหลือ",
         color=0x00FF99
     )
     
@@ -2880,7 +2880,7 @@ async def check_all_baht_cmd(ctx):
             
             page += 1
             current_embed = discord.Embed(
-                title="💰 รายชื่อผู้ใช้ที่มีบาทคงเหลือ (ต่อ)",
+                title="💰 รายชื่อผู้ใช้ที่มีเงินคงเหลือ (ต่อ)",
                 color=0x00FF99
             )
             description = line
@@ -2897,7 +2897,7 @@ async def check_all_baht_cmd(ctx):
     
     total_balance = sum(users_with_balance.values())
     summary_embed = discord.Embed(
-        title="📊 สรุปบาทคงเหลือ",
+        title="📊 สรุปเงินคงเหลือ",
         description=f"**จำนวนผู้ใช้ที่มีบาทคงเหลือ:** {len(users_with_balance)} คน\n"
                    f"**บาทคงเหลือรวมทั้งหมด:** {total_balance:.2f} บาท",
         color=0x00FF99
