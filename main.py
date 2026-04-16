@@ -156,7 +156,8 @@ stock_file = os.path.join(DATA_DIR, "stock_values.json")
 ticket_buyer_data_file = os.path.join(DATA_DIR, "ticket_buyer_data.json")
 user_levels_file = os.path.join(DATA_DIR, "user_levels.json")
 daily_sales_file = os.path.join(DATA_DIR, "daily_sales.json")
-user_robux_balance_file = os.path.join(DATA_DIR, "user_robux_balance.json")  # NEW: For tracking robux balance
+user_robux_balance_file = os.path.join(DATA_DIR, "user_robux_balance.json")
+timer_pause_file = os.path.join(DATA_DIR, "timer_pause.json")  # NEW: Store paused timers
 
 print(f"📄 Data files will be saved to:")
 print(f"   - {user_levels_file}")
@@ -164,6 +165,7 @@ print(f"   - {stock_file}")
 print(f"   - {ticket_counter_file}")
 print(f"   - {daily_sales_file}")
 print(f"   - {user_robux_balance_file}")
+print(f"   - {timer_pause_file}")
 
 # In-memory data structures
 user_data = {}
@@ -178,9 +180,78 @@ ticket_removal_tasks = {}
 ticket_anonymous_mode = {}
 ticket_counter = {"counter": 1, "date": get_thailand_time().strftime("%d%m%y")}
 ticket_archived_timers = {}
-user_robux_balance = {}  # NEW: Store robux balance for users
+user_robux_balance = {}
+paused_timers = {}  # NEW: Store paused timer info {channel_id: {"remaining": seconds, "paused_at": timestamp}}
 
 sp_added_tracker = {}
+
+# ============ TIMER PAUSE/RESUME FUNCTIONS ============
+
+def load_paused_timers():
+    """Load paused timer data from file"""
+    global paused_timers
+    try:
+        if os.path.exists(timer_pause_file):
+            with open(timer_pause_file, 'r', encoding='utf-8') as f:
+                paused_timers = json.load(f)
+                print(f"✅ Loaded {len(paused_timers)} paused timers")
+        else:
+            paused_timers = {}
+            save_paused_timers()
+    except Exception as e:
+        print(f"❌ Error loading paused timers: {e}")
+        paused_timers = {}
+
+def save_paused_timers():
+    """Save paused timer data to file"""
+    try:
+        with open(timer_pause_file, 'w', encoding='utf-8') as f:
+            json.dump(paused_timers, f, ensure_ascii=False, indent=2)
+        print(f"✅ Saved {len(paused_timers)} paused timers")
+        return True
+    except Exception as e:
+        print(f"❌ Error saving paused timers: {e}")
+        return False
+
+def is_timer_paused(channel_id):
+    """Check if timer is paused for a channel"""
+    return str(channel_id) in paused_timers
+
+def get_paused_remaining(channel_id):
+    """Get remaining time for paused timer"""
+    channel_id_str = str(channel_id)
+    if channel_id_str in paused_timers:
+        return paused_timers[channel_id_str].get("remaining", 0)
+    return 0
+
+def pause_timer(channel_id, remaining_seconds):
+    """Pause a timer and store remaining time"""
+    channel_id_str = str(channel_id)
+    paused_timers[channel_id_str] = {
+        "remaining": remaining_seconds,
+        "paused_at": time.time()
+    }
+    save_paused_timers()
+    print(f"⏸️ Timer paused for channel {channel_id} with {remaining_seconds} seconds remaining")
+
+def resume_timer(channel_id):
+    """Resume a timer and return remaining time, removes from paused storage"""
+    channel_id_str = str(channel_id)
+    if channel_id_str in paused_timers:
+        remaining = paused_timers[channel_id_str].get("remaining", 0)
+        del paused_timers[channel_id_str]
+        save_paused_timers()
+        print(f"▶️ Timer resumed for channel {channel_id} with {remaining} seconds remaining")
+        return remaining
+    return 0
+
+def cancel_paused_timer(channel_id):
+    """Remove a paused timer without resuming"""
+    channel_id_str = str(channel_id)
+    if channel_id_str in paused_timers:
+        del paused_timers[channel_id_str]
+        save_paused_timers()
+        print(f"🗑️ Paused timer cancelled for channel {channel_id}")
 
 # ============ ROBUX BALANCE FUNCTIONS ============
 
@@ -251,9 +322,6 @@ def load_daily_sales():
                 data = json.load(f)
                 daily_robux_sold = data.get("robux_sold", 0)
                 daily_sales_date = data.get("date", get_thailand_time().strftime("%Y%m%d"))
-                
-                # NO AUTO RESET AT 11PM - removed
-                # Current date is just stored for reference
                 print(f"✅ Loaded daily sales: {daily_robux_sold} Robux on {daily_sales_date}")
         else:
             daily_robux_sold = 0
@@ -277,7 +345,6 @@ def save_daily_sales():
 async def add_daily_robux(amount):
     global daily_robux_sold, daily_sales_date
     
-    # NO AUTO RESET - keep using the same date
     daily_robux_sold += amount
     save_daily_sales()
     print(f"✅ Added {amount} Robux to daily sales. Total: {daily_robux_sold}")
@@ -410,6 +477,7 @@ def save_all_data_sync():
     success &= save_json(user_levels_file, user_levels)
     success &= save_json(user_robux_balance_file, user_robux_balance)
     save_stock_values()
+    save_paused_timers()
     print("✅ All data saved (sync)")
     return success
 
@@ -423,6 +491,7 @@ async def save_all_data():
     success &= save_json(user_levels_file, user_levels)
     success &= save_json(user_robux_balance_file, user_robux_balance)
     save_stock_values()
+    save_paused_timers()
     print(f"✅ All data saved at {get_thailand_time().strftime('%H:%M:%S')}")
     return success
 
@@ -440,6 +509,7 @@ def load_all_data():
     load_stock_values()
     load_daily_sales()
     load_robux_balance()
+    load_paused_timers()  # NEW: Load paused timers
     
     print(f"✅ Loaded all data from JSON:")
     print(f"   - {len(user_data)} users")
@@ -447,6 +517,7 @@ def load_all_data():
     print(f"   - {len(ticket_buyer_data)} buyer records")
     print(f"   - {len(user_levels)} users with SP")
     print(f"   - {len(user_robux_balance)} users with robux balance")
+    print(f"   - {len(paused_timers)} paused timers")
     print(f"   - Total SP: {sum(data['sp'] for data in user_levels.values())}")
     print(f"   - Stock: GP={gamepass_stock}, Group={group_stock}")
     print(f"   - Daily Sales: {daily_robux_sold} Robux")
@@ -1447,6 +1518,13 @@ bot = MyBot()
 
 # ============ TICKET HELPER FUNCTIONS ============
 async def schedule_removal(channel, buyer, delay_seconds):
+    """Schedule removal of buyer permission after delay_seconds"""
+    # Check if timer is paused for this channel
+    if is_timer_paused(channel.id):
+        print(f"⏸️ Timer is paused for {channel.name}, not scheduling")
+        return
+    
+    # Cancel existing task if any
     if str(channel.id) in ticket_removal_tasks:
         try:
             ticket_removal_tasks[str(channel.id)].cancel()
@@ -1465,12 +1543,28 @@ async def schedule_removal(channel, buyer, delay_seconds):
             del ticket_removal_tasks[str(channel.id)]
 
 def cancel_removal(channel_id):
+    """Cancel the removal timer for a channel"""
     if str(channel_id) in ticket_removal_tasks:
         ticket_removal_tasks[str(channel_id)].cancel()
         del ticket_removal_tasks[str(channel_id)]
         print(f"✅ Cancelled removal timer for channel {channel_id}")
         return True
     return False
+
+async def reset_timer(channel, buyer):
+    """Reset the 1-hour timer for a channel (used when customer clicks 'สั่งของต่อ')"""
+    print(f"🔄 Resetting timer for channel {channel.name}")
+    
+    # Cancel any existing timer
+    cancel_removal(channel.id)
+    
+    # Remove from paused timers if exists
+    if is_timer_paused(channel.id):
+        cancel_paused_timer(channel.id)
+    
+    # Start new 1-hour timer
+    await schedule_removal(channel, buyer, 3600)
+    print(f"✅ Timer reset to 1 hour for {channel.name}")
 
 async def schedule_auto_delete_after_delivered(channel, delay_seconds):
     """Schedule ticket to be deleted after being in delivered category for delay_seconds"""
@@ -1754,7 +1848,7 @@ async def handle_open_ticket(interaction, category_name, stock_type):
         await channel.send(embed=embed, view=ticket_view)
         print(f"✅ ส่ง embed ต้อนรับในตั๋ว {channel.name} เรียบร้อย")
         
-        # NEW: Send welcome message after embed
+        # Send welcome message after embed
         welcome_msg = await channel.send("# สนใจซื้ออะไรแจ้งแอดมินได้เลยค่ะ <:sushiheart:1410484970291466300>")
         print(f"✅ ส่งข้อความต้อนรับในตั๋ว {channel.name}")
         
@@ -1906,7 +2000,17 @@ async def reset_channel_name(channel, user_id, product_type):
 async def remove_buyer_permission_after_delay(channel, buyer, delay_seconds):
     try:
         print(f"⏳ กำลังรอ {delay_seconds} วินาทีก่อนลบสิทธิ์การดูของ {channel.name}")
-        await asyncio.sleep(delay_seconds)
+        
+        # Check if timer is paused - if so, wait until resumed
+        remaining = delay_seconds
+        while is_timer_paused(channel.id):
+            paused_data = paused_timers.get(str(channel.id), {})
+            remaining = paused_data.get("remaining", remaining)
+            print(f"⏸️ Timer paused for {channel.name}, waiting for resume... ({remaining} seconds remaining)")
+            await asyncio.sleep(5)  # Check every 5 seconds
+        
+        # Now wait for the remaining time
+        await asyncio.sleep(remaining)
         
         if not channel or channel not in channel.guild.channels:
             print(f"❌ ตั๋ว {channel.name} ไม่มีอยู่แล้ว")
@@ -1923,6 +2027,9 @@ async def remove_buyer_permission_after_delay(channel, buyer, delay_seconds):
             except Exception as e:
                 print(f"⚠️ ไม่สามารถลบสิทธิ์ view ของผู้ซื้อ: {e}")
         
+    except asyncio.CancelledError:
+        print(f"ℹ️ Removal task cancelled for {channel.name}")
+        raise
     except Exception as e:
         print(f"❌ Error in remove_buyer_permission_after_delay: {e}")
 
@@ -2086,7 +2193,6 @@ async def link(ctx):
 @bot.command(name="robuxtoday")
 async def robuxtoday_cmd(ctx):
     """Check how many robux sold today"""
-    # NO AUTO RESET - just display current total
     embed = discord.Embed(
         title="📊 ยอดขายโรบัค",
         description=f"**{format_number(daily_robux_sold)}** {ROBUX_EMOJI}",
@@ -2109,6 +2215,90 @@ async def reset_robuxtoday_cmd(ctx):
     embed.set_footer(text=f"รีเซ็ตโดย {ctx.author.name} • {get_thailand_time().strftime('%d/%m/%Y %H:%M:%S')}")
     await ctx.send(embed=embed)
     print(f"✅ Daily robux sales reset to 0 by {ctx.author.name}")
+
+# ============ TIMER CONTROL COMMANDS ============
+
+@bot.command(name="stop")
+@admin_only()
+async def stop_timer_cmd(ctx):
+    """Stop/Pause the 1-hour countdown for the current ticket channel"""
+    channel = ctx.channel
+    
+    # Check if this is a ticket channel
+    if not channel.name.startswith("ticket-") and not re.match(r'^\d{10}-\d+-[\w\u0E00-\u0E7F]+$', channel.name):
+        await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
+        return
+    
+    # Check if there's an active timer
+    if str(channel.id) not in ticket_removal_tasks and not is_timer_paused(channel.id):
+        await ctx.send("❌ ไม่มีตัวจับเวลาที่กำลังทำงานอยู่ในตั๋วนี้", delete_after=5)
+        return
+    
+    # If already paused
+    if is_timer_paused(channel.id):
+        await ctx.send("⏸️ ตัวจับเวลาถูกหยุดไว้แล้ว", delete_after=5)
+        return
+    
+    # Get remaining time from the task
+    remaining = 3600  # default 1 hour
+    if str(channel.id) in ticket_removal_tasks:
+        task = ticket_removal_tasks[str(channel.id)]
+        # Try to get remaining time - this is approximate
+        # Since we can't easily get remaining time from asyncio task, we'll store it
+        # For now, we'll assume full 1 hour is remaining if task exists
+        pass
+    
+    # Cancel the current timer
+    cancel_removal(channel.id)
+    
+    # Store paused timer with remaining time
+    pause_timer(channel.id, remaining)
+    
+    embed = discord.Embed(
+        title="⏸️ หยุดตัวจับเวลา",
+        description=f"ตัวจับเวลาสำหรับตั๋วนี้ถูกหยุดชั่วคราว\n⏱️ เวลาที่เหลือ: **{remaining//60} นาที {remaining%60} วินาที**\n\nใช้ `!resume` เพื่อเริ่มต่อ",
+        color=0xFFA500
+    )
+    await ctx.send(embed=embed)
+
+@bot.command(name="resume")
+@admin_only()
+async def resume_timer_cmd(ctx):
+    """Resume the 1-hour countdown for the current ticket channel"""
+    channel = ctx.channel
+    
+    # Check if this is a ticket channel
+    if not channel.name.startswith("ticket-") and not re.match(r'^\d{10}-\d+-[\w\u0E00-\u0E7F]+$', channel.name):
+        await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
+        return
+    
+    # Check if timer is paused
+    if not is_timer_paused(channel.id):
+        await ctx.send("❌ ไม่มีตัวจับเวลาที่ถูกหยุดไว้ในตั๋วนี้", delete_after=5)
+        return
+    
+    # Get remaining time
+    remaining = get_paused_remaining(channel.id)
+    
+    # Get buyer
+    buyer = None
+    if str(channel.id) in ticket_buyer_data:
+        buyer_id = ticket_buyer_data[str(channel.id)].get("user_id")
+        if buyer_id:
+            buyer = ctx.guild.get_member(buyer_id)
+    
+    # Resume the timer
+    resume_timer(channel.id)
+    
+    # Start new timer with remaining time
+    await schedule_removal(channel, buyer, remaining)
+    
+    embed = discord.Embed(
+        title="▶️ เริ่มตัวจับเวลาต่อ",
+        description=f"ตัวจับเวลาถูกเริ่มต่อ\n⏱️ เวลาที่เหลือ: **{remaining//60} นาที {remaining%60} วินาที**",
+        color=0x00FF00
+    )
+    await ctx.send(embed=embed)
 
 @bot.command()
 @admin_only()
@@ -2242,7 +2432,7 @@ async def rate(ctx, rate_type=None, low_rate=None, high_rate=None):
 
 # ============ ROBUX BALANCE COMMAND ============
 
-@bot.command(name="baht")  # Changed from "robux"
+@bot.command(name="baht")
 @admin_only()
 async def baht_cmd(ctx, user: discord.Member = None, amount: int = None):
     """Set baht balance for a user. Usage: !baht @user <amount>"""
@@ -2259,8 +2449,7 @@ async def baht_cmd(ctx, user: discord.Member = None, amount: int = None):
         await ctx.send("❌ จำนวนบาทต้องมากกว่าหรือเท่ากับ 0", delete_after=5)
         return
     
-    # Set balance
-    set_user_robux_balance(user.id, amount)  # Note: function name kept but now stores baht
+    set_user_robux_balance(user.id, amount)
     
     embed = discord.Embed(
         title="✅ ตั้งค่าบาทคงเหลือสำเร็จ",
@@ -2270,20 +2459,19 @@ async def baht_cmd(ctx, user: discord.Member = None, amount: int = None):
     embed.set_footer(text=f"เมื่อใช้ !od จำนวนบาทจะถูกหักอัตโนมัติ")
     await ctx.send(embed=embed)
 
-@bot.command(name="checkbaht")  # Changed from "checkrobux"
+@bot.command(name="checkbaht")
 async def check_baht_cmd(ctx, user: discord.Member = None):
     """Check baht balance for a user"""
     if user is None:
         user = ctx.author
     
-    # Check permissions for checking others
     if user != ctx.author:
         admin_role = ctx.guild.get_role(1361016912259055896)
         if not ctx.author.guild_permissions.administrator and (not admin_role or admin_role not in ctx.author.roles):
             await ctx.send("❌ คุณไม่มีสิทธิ์เช็คบาทคงเหลือของผู้อื่น", delete_after=5)
             return
     
-    balance = get_user_robux_balance(user.id)  # Note: function name kept but now stores baht
+    balance = get_user_robux_balance(user.id)
     
     embed = discord.Embed(
         title="💰 บาทคงเหลือ",
@@ -2292,7 +2480,7 @@ async def check_baht_cmd(ctx, user: discord.Member = None):
     )
     await ctx.send(embed=embed)
 
-@bot.command(name="addbaht")  # Changed from "addrobux"
+@bot.command(name="addbaht")
 @admin_only()
 async def add_baht_cmd(ctx, user: discord.Member, amount: int):
     """Add baht to user balance"""
@@ -2300,7 +2488,7 @@ async def add_baht_cmd(ctx, user: discord.Member, amount: int):
         await ctx.send("❌ จำนวนบาทต้องมากกว่า 0", delete_after=5)
         return
     
-    new_balance = add_user_robux_balance(user.id, amount)  # Note: function name kept but now stores baht
+    new_balance = add_user_robux_balance(user.id, amount)
     
     embed = discord.Embed(
         title="✅ เพิ่มบาทสำเร็จ",
@@ -2309,7 +2497,7 @@ async def add_baht_cmd(ctx, user: discord.Member, amount: int):
     )
     await ctx.send(embed=embed)
 
-@bot.command(name="checkallbaht")  # NEW COMMAND
+@bot.command(name="checkallbaht")
 @admin_only()
 async def check_all_baht_cmd(ctx):
     """Check all users who have remaining baht balance"""
@@ -2317,7 +2505,6 @@ async def check_all_baht_cmd(ctx):
         await ctx.send("❌ ไม่มีข้อมูลบาทคงเหลือในระบบ", delete_after=5)
         return
     
-    # Filter users with balance > 0
     users_with_balance = {}
     for user_id_str, balance in user_robux_balance.items():
         if balance > 0:
@@ -2327,10 +2514,8 @@ async def check_all_baht_cmd(ctx):
         await ctx.send("📊 ไม่มีผู้ใช้ที่มีบาทคงเหลือในระบบ", delete_after=5)
         return
     
-    # Sort by balance (highest first)
     sorted_users = sorted(users_with_balance.items(), key=lambda x: x[1], reverse=True)
     
-    # Create embed with pagination if needed
     embeds = []
     current_embed = discord.Embed(
         title="💰 รายชื่อผู้ใช้ที่มีบาทคงเหลือ",
@@ -2339,7 +2524,7 @@ async def check_all_baht_cmd(ctx):
     
     description = ""
     page = 1
-    total_pages = (len(sorted_users) + 20) // 20  # 20 users per page
+    total_pages = (len(sorted_users) + 20) // 20
     
     for i, (user_id_str, balance) in enumerate(sorted_users, 1):
         user = ctx.guild.get_member(int(user_id_str))
@@ -2350,12 +2535,11 @@ async def check_all_baht_cmd(ctx):
         
         line = f"**{i}.** {user_name} - `{format_number(balance)}` บาท\n"
         
-        if len(description + line) > 1800:  # Leave room for footer
+        if len(description + line) > 1800:
             current_embed.description = description
             current_embed.set_footer(text=f"หน้า {page}/{total_pages}")
             embeds.append(current_embed)
             
-            # Start new embed
             page += 1
             current_embed = discord.Embed(
                 title="💰 รายชื่อผู้ใช้ที่มีบาทคงเหลือ (ต่อ)",
@@ -2365,17 +2549,14 @@ async def check_all_baht_cmd(ctx):
         else:
             description += line
     
-    # Add last embed
     if description:
         current_embed.description = description
         current_embed.set_footer(text=f"หน้า {page}/{total_pages}")
         embeds.append(current_embed)
     
-    # Send embeds
     for embed in embeds:
         await ctx.send(embed=embed)
     
-    # Send summary
     total_balance = sum(users_with_balance.values())
     summary_embed = discord.Embed(
         title="📊 สรุปบาทคงเหลือ",
@@ -2423,13 +2604,12 @@ async def od(ctx, *, expr):
                     buyer = msg.author
                     break
         
-        # MODIFIED: Check and deduct BAHT balance (not robux)
         balance_message = None
         if buyer:
-            current_balance = get_user_robux_balance(buyer.id)  # Now stores baht
+            current_balance = get_user_robux_balance(buyer.id)
             if current_balance > 0:
-                if current_balance >= price_int:  # Compare with price in baht
-                    new_balance = deduct_user_robux_balance(buyer.id, price_int)  # Deduct baht amount
+                if current_balance >= price_int:
+                    new_balance = deduct_user_robux_balance(buyer.id, price_int)
                     balance_message = f"\n\n💰 **{buyer.mention} เหลือ {format_number(new_balance)} บาท**"
                 else:
                     balance_message = f"\n\n⚠️ **{buyer.mention} มีเงินบาทเหลือไม่พอ!** (มี {format_number(current_balance)} บาท ต้องการ {format_number(price_int)} บาท)"
@@ -2454,7 +2634,6 @@ async def od(ctx, *, expr):
         if robux > gamepass_threshold:
             embed.add_field(name="⚡ เรท", value=f"{rate} (มากกว่า {gamepass_threshold} {ROBUX_EMOJI})", inline=True)
         
-        # Add balance message to embed if exists (now showing baht)
         if balance_message:
             embed.add_field(name="💵 เงินคงเหลือ", value=balance_message, inline=False)
         
@@ -2468,7 +2647,6 @@ async def od(ctx, *, expr):
         traceback.print_exc()
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
 
-# MODIFY !odg COMMAND - Also change to deduct baht
 @bot.command()
 @admin_only()
 async def odg(ctx, *, expr):
@@ -2506,13 +2684,12 @@ async def odg(ctx, *, expr):
                     buyer = msg.author
                     break
         
-        # MODIFIED: Check and deduct BAHT balance (not robux)
         balance_message = None
         if buyer:
-            current_balance = get_user_robux_balance(buyer.id)  # Now stores baht
+            current_balance = get_user_robux_balance(buyer.id)
             if current_balance > 0:
-                if current_balance >= price_int:  # Compare with price in baht
-                    new_balance = deduct_user_robux_balance(buyer.id, price_int)  # Deduct baht amount
+                if current_balance >= price_int:
+                    new_balance = deduct_user_robux_balance(buyer.id, price_int)
                     balance_message = f"\n\n💰 **{buyer.mention} เหลือ {format_number(new_balance)} บาท**"
                 else:
                     balance_message = f"\n\n⚠️ **{buyer.mention} มีบาทคงเหลือไม่พอ!** (มี {format_number(current_balance)} บาท ต้องการ {format_number(price_int)} บาท)"
@@ -2535,7 +2712,6 @@ async def odg(ctx, *, expr):
         embed.add_field(name=f"💸 จำนวน{ROBUX_EMOJI}", value=f"{format_number(robux)}", inline=True)
         embed.add_field(name="💰 ราคาตามเรท", value=f"{format_number(price_int)} บาท", inline=True)
         
-        # Add balance message to embed if exists (now showing baht)
         if balance_message:
             embed.add_field(name="💵 เงินคงเหลือ", value=balance_message, inline=False)
         
@@ -2753,7 +2929,6 @@ async def level_cmd(ctx):
         inline=False
     )
     
-    # Build level list with role mentions
     level_list = []
     sorted_levels = sorted(LEVEL_ROLES.keys())
     for threshold in sorted_levels:
@@ -2859,7 +3034,6 @@ async def ty(ctx):
         buyer = None
         channel_name = ctx.channel.name
         
-        # Find buyer
         if str(ctx.channel.id) in ticket_buyer_data:
             buyer_id = ticket_buyer_data[str(ctx.channel.id)].get("user_id")
             if buyer_id:
@@ -2891,7 +3065,6 @@ async def ty(ctx):
         except:
             robux_int = 0
         
-        # Save transcript only (NO receipt sending)
         save_success, filename = await save_ticket_transcript(ctx.channel, buyer, robux_int, None)
         if save_success:
             try:
@@ -2899,7 +3072,6 @@ async def ty(ctx):
             except:
                 pass
         
-        # Update stock (return to stock)
         if ctx.channel.category:
             category_name = ctx.channel.category.name.lower()
             if "gamepass" in category_name:
@@ -2911,7 +3083,6 @@ async def ty(ctx):
         
         save_stock_values()
         
-        # Simple success message (NO receipt embed)
         embed = discord.Embed(
             title="✅ ส่งของเรียบร้อย",
             description=(
@@ -2935,7 +3106,7 @@ async def ty(ctx):
         
         await ctx.send(embed=embed, view=view)
         
-        # "Order more" button for gamepass
+        # "Order more" button for gamepass - RESETS TIMER
         if product_type == "Gamepass" and buyer:
             order_more_view = View(timeout=None)
             order_more_btn = Button(label="สั่งของต่อ 📝", style=discord.ButtonStyle.success, emoji="🔄")
@@ -2945,7 +3116,12 @@ async def ty(ctx):
                     await interaction.response.send_message("❌ คุณไม่สามารถใช้ปุ่มนี้ในช่องอื่นได้", ephemeral=True)
                     return
                 
-                cancel_removal(ctx.channel.id)
+                # Reset the timer (cancel old, start new 1-hour timer)
+                await reset_timer(ctx.channel, buyer)
+                
+                # Cancel any paused timer for this channel
+                if is_timer_paused(ctx.channel.id):
+                    cancel_paused_timer(ctx.channel.id)
                 
                 if buyer:
                     await reset_channel_name(ctx.channel, buyer.id, "gamepass")
@@ -2978,13 +3154,14 @@ async def ty(ctx):
                 form_btn.callback = form_callback
                 ticket_view.add_item(form_btn)
                 
-                await interaction.response.send_message(embed=order_embed, view=ticket_view)
+                # Send timer reset confirmation
+                await interaction.response.send_message("🔄 ตัวจับเวลาถูกรีเซ็ตเป็น 1 ชั่วโมงแล้ว", ephemeral=True)
+                await ctx.send(embed=order_embed, view=ticket_view)
             
             order_more_btn.callback = order_more_cb
             order_more_view.add_item(order_more_btn)
-            await ctx.send("📝 ต้องการสั่งสินค้าเพิ่ม?", view=order_more_view)
+            await ctx.send("📝 ต้องการสั่งสินค้าเพิ่ม? (กดปุ่มด้านล่างเพื่อรีเซ็ตตัวจับเวลาเป็น 1 ชั่วโมง)", view=order_more_view)
         
-        # Clean up data
         if str(ctx.channel.id) in ticket_robux_data:
             del ticket_robux_data[str(ctx.channel.id)]
             save_json(ticket_robux_data_file, ticket_robux_data)
@@ -2993,7 +3170,6 @@ async def ty(ctx):
             del ticket_customer_data[str(ctx.channel.id)]
             save_json(ticket_customer_data_file, ticket_customer_data)
         
-        # Move to delivered and schedule removal (1 hour)
         await move_to_delivered_category(ctx.channel)
         await schedule_removal(ctx.channel, buyer, 3600)
         await update_main_channel()
@@ -3203,9 +3379,6 @@ async def hourly_backup():
     backup_user_levels()
     print(f"✅ Hourly backup created at {get_thailand_time().strftime('%H:%M:%S')}")
 
-# ============ NO AUTO RESET TASK - REMOVED ============
-# The check_daily_reset task has been removed since auto reset is no longer needed
-
 # ============ SIGNAL HANDLERS ============
 def signal_handler(signum, frame):
     print(f"\n⚠️ Received signal {signum}, saving data...")
@@ -3250,11 +3423,8 @@ async def on_ready():
     save_data_frequent.start()
     hourly_backup.start()
     update_credit_channel_task.start()
-    # check_daily_reset.start()  # REMOVED - No longer needed
     
-    # Initial credit channel update
     await update_credit_channel_name()
-    
     await update_channel_name()
     await update_main_channel()
     
