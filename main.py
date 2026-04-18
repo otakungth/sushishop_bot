@@ -3131,6 +3131,68 @@ async def ty(ctx):
             await ctx.send(f"✅ ให้เครดิตเรียบร้อยแล้ว")
         except:
             pass
+
+async def process_order_more_fixed(channel, buyer, interaction):
+    """Fixed background task for processing 'สั่งของต่อ'"""
+    try:
+        # Reset timer
+        await reset_timer(channel, buyer)
+        
+        if is_timer_paused(channel.id):
+            cancel_paused_timer(channel.id)
+        
+        # Reset channel name
+        if buyer:
+            await reset_channel_name(channel, buyer.id, "gamepass")
+        
+        # Move back to original category
+        await move_to_original_category(channel, "gamepass")
+        
+        # Get admin role mention
+        admin_role = channel.guild.get_role(1486330338539077713)
+        admin_mention = admin_role.mention if admin_role else "@Admin"
+        
+        # Send the order form embed with admin mention
+        order_embed = discord.Embed(
+            title="🍣 Sushi Shop 🍣", 
+            color=0x00FF99
+        )
+        order_embed.add_field(name="👤 ผู้ซื้อ", value=buyer.mention if buyer else "ไม่ระบุ", inline=False)
+        order_embed.add_field(
+            name="🎮 บริการกดเกมพาส", 
+            value=f"📦 โรบัคคงเหลือ: **{format_number(gamepass_stock)}**\n💰 เรท: {gamepass_rate} (ปกติ) | {gamepass_rate_high} (>{gamepass_threshold} {ROBUX_EMOJI})", 
+            inline=False
+        )
+        order_embed.add_field(name="👑 แจ้งผู้ดูแล", value=f"{admin_mention} กรุณาตรวจสอบด้วยค่ะ", inline=False)
+        order_embed.set_footer(text="Sushi Shop")
+        order_embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
+        
+        ticket_view = View(timeout=None)
+        form_btn = Button(label="📝 กรอกแบบฟอร์มเกมพาส", style=discord.ButtonStyle.primary, emoji="📝")
+        
+        async def form_callback(interaction2):
+            if interaction2.channel.id == channel.id:
+                modal = GamepassTicketModal()
+                await interaction2.response.send_modal(modal)
+            else:
+                await interaction2.response.send_message("❌ คุณไม่สามารถใช้ปุ่มนี้ในช่องอื่นได้", ephemeral=True)
+        
+        form_btn.callback = form_callback
+        ticket_view.add_item(form_btn)
+        
+        await channel.send(embed=order_embed, view=ticket_view)
+        
+        # Send followup to user that order more is ready
+        await interaction.followup.send("✅ รีเซ็ตระบบเรียบร้อย! กรุณากรอกแบบฟอร์มด้านบนเพื่อสั่งของเพิ่ม", ephemeral=True)
+        
+        print(f"✅ Order more processed for {channel.name}")
+        
+    except Exception as e:
+        print(f"❌ Error processing order more: {e}")
+        try:
+            await interaction.followup.send(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
+        except:
+            pass
             
 async def save_ticket_transcript_background(channel, buyer, robux_int):
     """Background task for saving transcript and renaming channel"""
