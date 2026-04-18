@@ -3089,7 +3089,7 @@ async def ty(ctx):
         
         await ctx.send(embed=embed, view=view)
         
-        # Handle "สั่งของต่อ" button - this is the critical part that needs to be fast
+        # Handle "สั่งของต่อ" button - FIXED VERSION
         if product_type == "Gamepass" and buyer:
             order_more_view = View(timeout=None)
             order_more_btn = Button(label="สั่งของต่อ 📝", style=discord.ButtonStyle.success, emoji="🔄")
@@ -3099,11 +3099,11 @@ async def ty(ctx):
                     await interaction.response.send_message("❌ คุณไม่สามารถใช้ปุ่มนี้ในช่องอื่นได้", ephemeral=True)
                     return
                 
-                # Fast response - acknowledge immediately
-                await interaction.response.send_message("🔄 กำลังรีเซ็ตระบบ กรุณารอสักครู่...", ephemeral=True)
+                # Acknowledge immediately
+                await interaction.response.defer(ephemeral=True)
                 
-                # Do all the heavy work in background
-                asyncio.create_task(process_order_more(ctx.channel, buyer, interaction))
+                # Process order more in background
+                await process_order_more_fixed(ctx.channel, buyer, interaction)
             
             order_more_btn.callback = order_more_cb
             order_more_view.add_item(order_more_btn)
@@ -3131,7 +3131,7 @@ async def ty(ctx):
             await ctx.send(f"✅ ให้เครดิตเรียบร้อยแล้ว")
         except:
             pass
-
+            
 async def save_ticket_transcript_background(channel, buyer, robux_int):
     """Background task for saving transcript and renaming channel"""
     try:
