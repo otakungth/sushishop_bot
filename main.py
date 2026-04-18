@@ -1789,25 +1789,31 @@ async def handle_open_ticket(interaction, category_name, stock_type):
         ))
         await interaction.followup.send("📩 เปิดตั๋วเรียบร้อย", view=view, ephemeral=True)
         
+        # Get the admin role mention for the ticket embed
+        admin_mention_role = interaction.guild.get_role(1486330338539077713)
+        admin_mention = admin_mention_role.mention if admin_mention_role else "@Admin"
+        
         if admin_role:
-            await channel.send(content=f"{admin_role.mention} มีตั๋วใหม่!")
+            await channel.send(content=f"{admin_role.mention} มีตั๋วใหม่! {admin_mention}")
         
         embed = discord.Embed(
             title="🍣 Sushi Shop 🍣", 
             color=0x00FF99
         )
+        # ADD ADMIN MENTION AT THE TOP OF THE EMBED
+        embed.description = f"{admin_mention}\n\n"
         embed.add_field(name="👤 ผู้ซื้อ", value=interaction.user.mention, inline=False)
         
         if stock_type == "gamepass":
             embed.add_field(
-                name="🎮 กดเกมพาส", 
-                value=f"📦 โรบัคเหลือ: **{format_number(gamepass_stock)}**\n💰 เรท: {gamepass_rate} | 4000R เรท {gamepass_rate_high} ({gamepass_threshold} {ROBUX_EMOJI})", 
+                name="🎮 บริการกดเกมพาส", 
+                value=f"📦 โรบัคคงเหลือ: **{format_number(gamepass_stock)}**\n💰 เรท: {gamepass_rate} (ปกติ) | {gamepass_rate_high} (>{gamepass_threshold} {ROBUX_EMOJI})", 
                 inline=False
             )
         elif stock_type == "group":
             embed.add_field(
                 name="👥 เติมโรบัคกลุ่ม", 
-                value=f"📦 โรบัคเหลือ: **{format_number(group_stock)}**\n💰 เรท: {group_rate_low} | 500 บาท+ เรท {group_rate_high}", 
+                value=f"📦 โรบัคคงเหลือ: **{format_number(group_stock)}**\n💰 เรท: {group_rate_low} | 500 บาท+ เรท {group_rate_high}", 
                 inline=False
             )
         
@@ -1817,7 +1823,7 @@ async def handle_open_ticket(interaction, category_name, stock_type):
         ticket_view = View(timeout=None)
         
         if stock_type == "gamepass":
-            form_btn = Button(label="📝 กรอกข้อมูลเกมพาส", style=discord.ButtonStyle.primary, emoji="📝")
+            form_btn = Button(label="📝 กรอกแบบฟอร์มเกมพาส", style=discord.ButtonStyle.primary, emoji="📝")
             
             async def form_callback(i):
                 if i.channel.id == channel.id:
@@ -1870,7 +1876,6 @@ async def handle_open_ticket(interaction, category_name, stock_type):
             await interaction.followup.send(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
         except:
             pass
-
 async def save_ticket_transcript(channel, action_by=None, robux_amount=None, customer_name=None):
     try:
         print(f"📝 กำลังบันทึกประวัติตั๋ว: {channel.name}")
