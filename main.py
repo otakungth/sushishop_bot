@@ -1876,6 +1876,7 @@ async def handle_open_ticket(interaction, category_name, stock_type):
             await interaction.followup.send(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
         except:
             pass
+            
 async def save_ticket_transcript(channel, action_by=None, robux_amount=None, customer_name=None):
     try:
         print(f"📝 กำลังบันทึกประวัติตั๋ว: {channel.name}")
