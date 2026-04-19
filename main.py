@@ -3290,53 +3290,123 @@ async def dm_cmd(ctx, user: discord.Member, *, message: str):
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}", delete_after=5)
         print(f"❌ Error sending DM: {e}")
 
-# ============ WALLET COMMAND ============
-@bot.command(name="w")
-@admin_only()
-async def wallet_cmd(ctx):
-    """แสดงข้อมูล wallet สำหรับโอนเงิน - Admin only"""
-    await ctx.send("0892278408 ชื่อลัดดา")
+# ============ PAYMENT COMMANDS ============
 
-# ============ QR CODE COMMANDS ============
+class PaymentView(View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        
+        # Green button for QR Code (Krungsri)
+        qr_btn = Button(label="สแกน QR ชำระเงิน", style=discord.ButtonStyle.success, emoji="📲")
+        # Blue button for Bank Account (SCB)
+        account_btn = Button(label="โอนผ่านเลขบัญชี", style=discord.ButtonStyle.primary, emoji="🏦")
+        # Red button for TrueMoney Wallet
+        truemoney_btn = Button(label="ทรูมันนี่วอเล็ต", style=discord.ButtonStyle.danger, emoji="🧡")
+        
+        qr_btn.callback = self.qr_callback
+        account_btn.callback = self.account_callback
+        truemoney_btn.callback = self.truemoney_callback
+        
+        self.add_item(qr_btn)
+        self.add_item(account_btn)
+        self.add_item(truemoney_btn)
+    
+    async def qr_callback(self, interaction: discord.Interaction):
+        """Show Krungsri QR code"""
+        embed = discord.Embed(
+            title="🇹🇭 ชำระเงินผ่าน QR Code (กรุงศรี)",
+            description="⚠️ **โน๊ตสลิป:** เติมโรบัค Sushi Shop เฟส Can pattarapol",
+            color=0x00FF00
+        )
+        embed.add_field(name="1. ชื่อบัญชี (กรุงศรี)", value="**สุทัตตา เถลิงสุข**", inline=False)
+        embed.set_image(url="https://media.discordapp.net/attachments/1485285161955360963/1487457449416982568/Can_Can-1.png")
+        embed.set_footer(text="Sushi Shop 🍣")
+        
+        # Add back button
+        view = BackButtonView(self)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+    
+    async def account_callback(self, interaction: discord.Interaction):
+        """Show SCB bank account"""
+        embed = discord.Embed(
+            title="🏦 ชำระเงินผ่านบัญชีธนาคาร (SCB)",
+            description="⚠️ **โน๊ตสลิป:** เติมโรบัค Sushi Shop เฟส Arisara Srijitjam",
+            color=0x0099FF
+        )
+        embed.add_field(name="1. ชื่อบัญชี (ไทยพานิชย์ SCB)", value="**หจก. วอเตอร์ เทค เซลล์ แอนด์ เซอร์วิส**", inline=False)
+        embed.add_field(name="2. เลขบัญชี", value="**120-239181-3**", inline=False)
+        embed.set_image(url="https://media.discordapp.net/attachments/1361004239043821610/1475334379550281768/Sushi_SCB_3.png")
+        embed.set_footer(text="Sushi Shop 🍣")
+        
+        # Add back button
+        view = BackButtonView(self)
+        
+        # Add copy button
+        copy_btn = Button(label="📋 คัดลอกเลขบัญชี", style=discord.ButtonStyle.secondary, emoji="📋")
+        
+        async def copy_cb(i):
+            await i.response.send_message("```1202391813```", ephemeral=True)
+        
+        copy_btn.callback = copy_cb
+        view.add_item(copy_btn)
+        
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+    
+    async def truemoney_callback(self, interaction: discord.Interaction):
+        """Show TrueMoney Wallet info"""
+        embed = discord.Embed(
+            title="💰 ชำระเงินผ่านทรูมันนี่วอเล็ต",
+            description="**0892278408** ชื่อลัดดา",
+            color=0xFF0000
+        )
+        embed.set_footer(text="Sushi Shop 🍣")
+        
+        # Add back button
+        view = BackButtonView(self)
+        
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+
+
+class BackButtonView(View):
+    def __init__(self, parent_view: PaymentView):
+        super().__init__(timeout=None)
+        self.parent_view = parent_view
+        
+        back_btn = Button(label="◀ กลับ", style=discord.ButtonStyle.secondary, emoji="🔙")
+        back_btn.callback = self.back_callback
+        self.add_item(back_btn)
+    
+    async def back_callback(self, interaction: discord.Interaction):
+        """Return to payment selection menu"""
+        embed = discord.Embed(
+            title="🍣 เลือกช่องทางชำระเงิน",
+            description="กรุณาเลือกช่องทางการชำระเงินที่สะดวก",
+            color=0xFFA500
+        )
+        embed.set_footer(text="Sushi Shop 🍣")
+        embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
+        
+        await interaction.response.edit_message(embed=embed, view=self.parent_view)
+
+
 @bot.command(name="qr")
-@admin_only()
-async def qr_cmd(ctx):
-    """Show SCB QR code - Admin only"""
+async def payment_cmd(ctx):
+    """แสดงช่องทางการชำระเงิน"""
     try:
         await ctx.message.delete()
     except:
         pass
     
-    embed = discord.Embed(title="⚠️โน๊ตสลิป: เติมโรบัค Sushi Shop เฟส Arisara Srijitjam", color=0x00CCFF)
-    embed.add_field(name="1. ชื่อบัญชี (ไทยพานิชย์ SCB)", value="**หจก. วอเตอร์ เทค เซลล์ แอนด์ เซอร์วิส**", inline=False)
-    embed.add_field(name="2. เลขบัญชี", value="**120-239181-3**", inline=False)
-    embed.set_image(url="https://media.discordapp.net/attachments/1361004239043821610/1475334379550281768/Sushi_SCB_3.png")
+    embed = discord.Embed(
+        title="🍣 เลือกช่องทางชำระเงิน",
+        description="กรุณาเลือกช่องทางการชำระเงินที่สะดวก",
+        color=0xFFA500
+    )
+    embed.set_footer(text="Sushi Shop 🍣")
+    embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
     
-    view = View(timeout=None)
-    copy_btn = Button(label="คัดลอกเลขบัญชี", style=discord.ButtonStyle.success, emoji="📋")
-    
-    async def copy_cb(i):
-        await i.response.send_message(f"``` 1202391813| 🟣SCB⚠️โน๊ตสลิป: เติมโรบัค Sushi Shop เฟส Arisara Srijitjam```", ephemeral=True)
-    
-    copy_btn.callback = copy_cb
-    view.add_item(copy_btn)
-    
+    view = PaymentView()
     await ctx.send(embed=embed, view=view)
-
-@bot.command(name="qr2")
-@admin_only()
-async def qr2_cmd(ctx):
-    """Show Krungsri QR code - Admin only"""
-    try:
-        await ctx.message.delete()
-    except:
-        pass
-    
-    embed = discord.Embed(title="⚠️โน๊ตสลิป: เติมโรบัค Sushi Shop เฟส Can pattarapol", color=0x00CCFF)
-    embed.add_field(name="1. ชื่อบัญชี (กรุงศรี)", value="**สุทัตตา เถลิงสุข**", inline=False)
-    embed.set_image(url="https://media.discordapp.net/attachments/1485285161955360963/1487457449416982568/Can_Can-1.png")
-    
-    await ctx.send(embed=embed)
 
 # ============ CALCULATOR COMMANDS ============
 @bot.command(name="calc")
