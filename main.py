@@ -3297,11 +3297,11 @@ class PaymentView(View):
         super().__init__(timeout=None)
         
         # Green button for QR Code (Krungsri)
-        qr_btn = Button(label="สแกน QR ชำระเงิน", style=discord.ButtonStyle.success, emoji="📲")
+        qr_btn = Button(label="🇹🇭 สแกน QR ชำระเงิน (กรุงศรี)", style=discord.ButtonStyle.success, emoji="📱")
         # Blue button for Bank Account (SCB)
-        account_btn = Button(label="โอนผ่านเลขบัญชี", style=discord.ButtonStyle.primary, emoji="🏦")
+        account_btn = Button(label="🏦 โอนเข้าบัญชี (ไทยพานิชย์)", style=discord.ButtonStyle.primary, emoji="💳")
         # Red button for TrueMoney Wallet
-        truemoney_btn = Button(label="ทรูมันนี่วอเล็ต", style=discord.ButtonStyle.danger, emoji="🧡")
+        truemoney_btn = Button(label="💰 ทรูมันนี่วอเล็ต", style=discord.ButtonStyle.danger, emoji="💸")
         
         qr_btn.callback = self.qr_callback
         account_btn.callback = self.account_callback
@@ -3324,12 +3324,12 @@ class PaymentView(View):
         
         # Add back button
         view = BackButtonView(self)
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        await interaction.response.edit_message(embed=embed, view=view)
     
     async def account_callback(self, interaction: discord.Interaction):
         """Show SCB bank account"""
         embed = discord.Embed(
-            title="🏦 ชำระเงินผ่านบัญชีธนาคาร (SCB)",
+            title="🏦 ชำระเงินผ่านบัญชีธนาคาร (ไทยพานิชย์)",
             description="⚠️ **โน๊ตสลิป:** เติมโรบัค Sushi Shop เฟส Arisara Srijitjam",
             color=0x0099FF
         )
@@ -3350,7 +3350,7 @@ class PaymentView(View):
         copy_btn.callback = copy_cb
         view.add_item(copy_btn)
         
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        await interaction.response.edit_message(embed=embed, view=view)
     
     async def truemoney_callback(self, interaction: discord.Interaction):
         """Show TrueMoney Wallet info"""
@@ -3364,7 +3364,7 @@ class PaymentView(View):
         # Add back button
         view = BackButtonView(self)
         
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        await interaction.response.edit_message(embed=embed, view=view)
 
 
 class BackButtonView(View):
@@ -3377,16 +3377,17 @@ class BackButtonView(View):
         self.add_item(back_btn)
     
     async def back_callback(self, interaction: discord.Interaction):
-        """Return to payment selection menu"""
+        """Return to payment selection menu (edits the existing message)"""
         embed = discord.Embed(
             title="🍣 เลือกช่องทางชำระเงิน",
+            description="กรุณาเลือกช่องทางการชำระเงินที่สะดวก",
             color=0xFFA500
         )
         embed.set_footer(text="Sushi Shop 🍣")
         embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
         
+        # Edit the existing message instead of sending a new one
         await interaction.response.edit_message(embed=embed, view=self.parent_view)
-
 
 @bot.command(name="qr")
 async def payment_cmd(ctx):
