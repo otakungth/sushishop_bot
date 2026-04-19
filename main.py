@@ -3297,11 +3297,11 @@ class PaymentView(View):
         super().__init__(timeout=None)
         
         # Green button for QR Code (Krungsri)
-        qr_btn = Button(label="🇹🇭 สแกน QR ชำระเงิน (กรุงศรี)", style=discord.ButtonStyle.success, emoji="📱")
+        qr_btn = Button(label="สแกน QR ชำระเงิน", style=discord.ButtonStyle.success, emoji="📲")
         # Blue button for Bank Account (SCB)
-        account_btn = Button(label="🏦 โอนเข้าบัญชี (ไทยพานิชย์)", style=discord.ButtonStyle.primary, emoji="💳")
+        account_btn = Button(label="โอนผ่านเลขบัญชี", style=discord.ButtonStyle.primary, emoji="🏦")
         # Red button for TrueMoney Wallet
-        truemoney_btn = Button(label="💰 ทรูมันนี่วอเล็ต", style=discord.ButtonStyle.danger, emoji="💸")
+        truemoney_btn = Button(label="ทรูมันนี่วอเล็ต", style=discord.ButtonStyle.danger, emoji="🧡")
         
         qr_btn.callback = self.qr_callback
         account_btn.callback = self.account_callback
@@ -3314,7 +3314,7 @@ class PaymentView(View):
     async def qr_callback(self, interaction: discord.Interaction):
         """Show Krungsri QR code"""
         embed = discord.Embed(
-            title="🇹🇭 ชำระเงินผ่าน QR Code (กรุงศรี)",
+            title="ชำระเงินผ่าน QR Code (กรุงศรี)",
             description="⚠️ **โน๊ตสลิป:** เติมโรบัค Sushi Shop เฟส Can pattarapol",
             color=0x00FF00
         )
@@ -3333,7 +3333,7 @@ class PaymentView(View):
             description="⚠️ **โน๊ตสลิป:** เติมโรบัค Sushi Shop เฟส Arisara Srijitjam",
             color=0x0099FF
         )
-        embed.add_field(name="1. ชื่อบัญชี (ไทยพานิชย์ SCB)", value="**หจก. วอเตอร์ เทค เซลล์ แอนด์ เซอร์วิส**", inline=False)
+        embed.add_field(name="1. ชื่อบัญชี (SCB)", value="**หจก. วอเตอร์ เทค เซลล์ แอนด์ เซอร์วิส**", inline=False)
         embed.add_field(name="2. เลขบัญชี", value="**120-239181-3**", inline=False)
         embed.set_image(url="https://media.discordapp.net/attachments/1361004239043821610/1475334379550281768/Sushi_SCB_3.png")
         embed.set_footer(text="Sushi Shop 🍣")
@@ -3380,7 +3380,6 @@ class BackButtonView(View):
         """Return to payment selection menu (edits the existing message)"""
         embed = discord.Embed(
             title="🍣 เลือกช่องทางชำระเงิน",
-            description="กรุณาเลือกช่องทางการชำระเงินที่สะดวก",
             color=0xFFA500
         )
         embed.set_footer(text="Sushi Shop 🍣")
@@ -3399,7 +3398,6 @@ async def payment_cmd(ctx):
     
     embed = discord.Embed(
         title="🍣 เลือกช่องทางชำระเงิน",
-        description="กรุณาเลือกช่องทางการชำระเงินที่สะดวก",
         color=0xFFA500
     )
     embed.set_footer(text="Sushi Shop 🍣")
