@@ -3380,7 +3380,6 @@ class BackButtonView(View):
         """Return to payment selection menu"""
         embed = discord.Embed(
             title="🍣 เลือกช่องทางชำระเงิน",
-            description="กรุณาเลือกช่องทางการชำระเงินที่สะดวก",
             color=0xFFA500
         )
         embed.set_footer(text="Sushi Shop 🍣")
