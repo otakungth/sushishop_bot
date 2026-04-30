@@ -3563,8 +3563,8 @@ async def apo(ctx):
     await ctx.send("Surv Apo 🧟 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=a05e9e424579ba46af14c33b46bc43eb&type=Server")
 
 @bot.command()
-async def as(ctx):
-    await ctx.send("All Star ⭐ เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/games/4996049426?privateServerLinkCode=06489656861136003660374263112872")
+async def alls(ctx):
+    await ctx.send("All Star ⭐ เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=2eadb9c604f7ad49a2bbcbbfae8f1174&type=Server")
 
 @bot.command()
 async def arx(ctx):
