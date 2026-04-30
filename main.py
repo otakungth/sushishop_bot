@@ -185,6 +185,15 @@ paused_timers = {}
 
 sp_added_tracker = {}
 
+# ============ WALLET PRICE CALCULATION FUNCTION ============
+
+def calculate_wallet_price(price_baht):
+    """คำนวณราคาวอเล็ต บวกเพิ่ม 5% สูงสุดไม่เกิน 20 บาท"""
+    surcharge = price_baht * 0.05  # 5% ของราคา
+    if surcharge > 20:
+        surcharge = 20  # cap ที่ 20 บาท
+    return int(price_baht + surcharge)
+
 # ============ TIMER PAUSE/RESUME FUNCTIONS ============
 
 def load_paused_timers():
@@ -3006,7 +3015,7 @@ async def tkd_cmd(ctx):
         traceback.print_exc()
         await ctx.send(f"❌ เกิดข้อผิดพลาด: {e}")
 
-# ============ TY COMMAND - OPTIMIZED FOR SPEED ============
+# ============ TY COMMAND ============
 
 @bot.command()
 @admin_only()
@@ -3093,7 +3102,7 @@ async def ty(ctx):
         
         await ctx.send(embed=embed, view=view)
         
-        # Handle "สั่งของต่อ" button - FIXED VERSION
+        # Handle "สั่งของต่อ" button
         if product_type == "Gamepass" and buyer:
             order_more_view = View(timeout=None)
             order_more_btn = Button(label="สั่งของต่อ 📝", style=discord.ButtonStyle.success, emoji="🔄")
@@ -3103,10 +3112,7 @@ async def ty(ctx):
                     await interaction.response.send_message("❌ คุณไม่สามารถใช้ปุ่มนี้ในช่องอื่นได้", ephemeral=True)
                     return
                 
-                # Acknowledge immediately
                 await interaction.response.defer(ephemeral=True)
-                
-                # Process order more in background
                 await process_order_more_fixed(ctx.channel, buyer, interaction)
             
             order_more_btn.callback = order_more_cb
@@ -3139,24 +3145,19 @@ async def ty(ctx):
 async def process_order_more_fixed(channel, buyer, interaction):
     """Fixed background task for processing 'สั่งของต่อ'"""
     try:
-        # Reset timer
         await reset_timer(channel, buyer)
         
         if is_timer_paused(channel.id):
             cancel_paused_timer(channel.id)
         
-        # Reset channel name
         if buyer:
             await reset_channel_name(channel, buyer.id, "gamepass")
         
-        # Move back to original category
         await move_to_original_category(channel, "gamepass")
         
-        # Get admin role mention
         admin_role = channel.guild.get_role(1486330338539077713)
         admin_mention = admin_role.mention if admin_role else "@Admin"
         
-        # Send the order form embed with admin mention
         order_embed = discord.Embed(
             title="🍣 Sushi Shop 🍣", 
             color=0x00FF99
@@ -3185,8 +3186,6 @@ async def process_order_more_fixed(channel, buyer, interaction):
         ticket_view.add_item(form_btn)
         
         await channel.send(embed=order_embed, view=ticket_view)
-        
-        # Send followup to user that order more is ready
         await interaction.followup.send("✅ รีเซ็ตระบบเรียบร้อย! กรุณากรอกแบบฟอร์มด้านบนเพื่อสั่งของเพิ่ม", ephemeral=True)
         
         print(f"✅ Order more processed for {channel.name}")
@@ -3214,66 +3213,15 @@ async def save_ticket_transcript_background(channel, buyer, robux_int):
 async def move_to_delivered_category_with_cleanup(channel, buyer):
     """Background task for moving to delivered category and scheduling removal"""
     try:
-        # First ensure we're not already in delivered category
         if channel.category and channel.category.id != DELIVERED_CATEGORY_ID:
             await move_to_delivered_category(channel)
             print(f"✅ Moved {channel.name} to delivered category")
         else:
             print(f"ℹ️ Channel {channel.name} already in delivered category or category not found")
         
-        # Schedule removal
         await schedule_removal(channel, buyer, 3600)
     except Exception as e:
         print(f"❌ Error moving to delivered category: {e}")
-
-async def process_order_more(channel, buyer, interaction):
-    """Background task for processing 'สั่งของต่อ'"""
-    try:
-        # Reset timer
-        await reset_timer(channel, buyer)
-        
-        if is_timer_paused(channel.id):
-            cancel_paused_timer(channel.id)
-        
-        # Reset channel name
-        if buyer:
-            await reset_channel_name(channel, buyer.id, "gamepass")
-        
-        # Move back to original category
-        await move_to_original_category(channel, "gamepass")
-        
-        # Send the order form embed
-        order_embed = discord.Embed(
-            title="🍣 Sushi Shop 🍣", 
-            color=0x00FF99
-        )
-        order_embed.add_field(name="👤 ผู้ซื้อ", value=buyer.mention if buyer else "ไม่ระบุ", inline=False)
-        order_embed.add_field(
-            name="🎮 บริการกดเกมพาส", 
-            value=f"📦 โรบัคคงเหลือ: **{format_number(gamepass_stock)}**\n💰 เรท: {gamepass_rate} (ปกติ) | {gamepass_rate_high} (>{gamepass_threshold} {ROBUX_EMOJI})", 
-            inline=False
-        )
-        order_embed.set_footer(text="Sushi Shop")
-        order_embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
-        
-        ticket_view = View(timeout=None)
-        form_btn = Button(label="📝 กรอกแบบฟอร์มเกมพาส", style=discord.ButtonStyle.primary, emoji="📝")
-        
-        async def form_callback(interaction2):
-            if interaction2.channel.id == channel.id:
-                modal = GamepassTicketModal()
-                await interaction2.response.send_modal(modal)
-            else:
-                await interaction2.response.send_message("❌ คุณไม่สามารถใช้ปุ่มนี้ในช่องอื่นได้", ephemeral=True)
-        
-        form_btn.callback = form_callback
-        ticket_view.add_item(form_btn)
-        
-        await channel.send(embed=order_embed, view=ticket_view)
-        print(f"✅ Order more processed for {channel.name}")
-        
-    except Exception as e:
-        print(f"❌ Error processing order more: {e}")
 
 # ============ DM COMMAND ============
 @bot.command(name="dm")
@@ -3296,11 +3244,8 @@ class PaymentView(View):
     def __init__(self):
         super().__init__(timeout=None)
         
-        # Green button for QR Code (Krungsri)
         qr_btn = Button(label="สแกน QR ชำระเงิน", style=discord.ButtonStyle.success, emoji="📲")
-        # Blue button for Bank Account (SCB)
         account_btn = Button(label="โอนผ่านเลขบัญชี", style=discord.ButtonStyle.primary, emoji="🏦")
-        # Orange button for TrueMoney Wallet (บวกเพิ่ม 5%)
         truemoney_btn = Button(label="🧡วอเล็ต (บวกเพิ่ม 5%)", style=discord.ButtonStyle.danger, emoji="🧡")
         
         qr_btn.callback = self.qr_callback
@@ -3312,7 +3257,6 @@ class PaymentView(View):
         self.add_item(truemoney_btn)
     
     async def qr_callback(self, interaction: discord.Interaction):
-        """Show Krungsri QR code"""
         embed = discord.Embed(
             title="ชำระเงินผ่าน QR Code (กรุงศรี)",
             description="⚠️ **โน๊ตสลิป:** เติมโรบัค Sushi Shop เฟส Can pattarapol",
@@ -3322,12 +3266,10 @@ class PaymentView(View):
         embed.set_image(url="https://media.discordapp.net/attachments/1485285161955360963/1487457449416982568/Can_Can-1.png")
         embed.set_footer(text="Sushi Shop 🍣")
         
-        # Add back button
         view = BackButtonView(self)
         await interaction.response.edit_message(embed=embed, view=view)
     
     async def account_callback(self, interaction: discord.Interaction):
-        """Show SCB bank account"""
         embed = discord.Embed(
             title="🏦 ชำระเงินผ่านบัญชีธนาคาร (ไทยพานิชย์)",
             description="⚠️ **โน๊ตสลิป:** เติมโรบัค Sushi Shop เฟส Arisara Srijitjam",
@@ -3338,10 +3280,7 @@ class PaymentView(View):
         embed.set_image(url="https://media.discordapp.net/attachments/1361004239043821610/1475334379550281768/Sushi_SCB_3.png")
         embed.set_footer(text="Sushi Shop 🍣")
         
-        # Add back button
         view = BackButtonView(self)
-        
-        # Add copy button
         copy_btn = Button(label="📋 คัดลอกเลขบัญชี", style=discord.ButtonStyle.secondary, emoji="📋")
         
         async def copy_cb(i):
@@ -3353,7 +3292,6 @@ class PaymentView(View):
         await interaction.response.edit_message(embed=embed, view=view)
     
     async def truemoney_callback(self, interaction: discord.Interaction):
-        """Show TrueMoney Wallet info with copy button"""
         embed = discord.Embed(
             title="💰 ชำระเงินผ่านทรูมันนี่วอเล็ต",
             description="**0892278408** ชื่อลัดดา (โอนวอเล็ตบวกเพิ่ม 5%)",
@@ -3361,7 +3299,6 @@ class PaymentView(View):
         )
         embed.set_footer(text="Sushi Shop 🍣 • โอนวอเล็ตบวกเพิ่ม 5%")
         
-        # Add back button and copy button
         view = BackButtonView(self)
         copy_btn = Button(label="📋 คัดลอกเบอร์", style=discord.ButtonStyle.secondary, emoji="📋")
         
@@ -3384,7 +3321,6 @@ class BackButtonView(View):
         self.add_item(back_btn)
     
     async def back_callback(self, interaction: discord.Interaction):
-        """Return to payment selection menu (edits the existing message)"""
         embed = discord.Embed(
             title="🍣 เลือกช่องทางชำระเงิน",
             color=0xFFA500
@@ -3392,7 +3328,6 @@ class BackButtonView(View):
         embed.set_footer(text="Sushi Shop 🍣")
         embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
         
-        # Edit the existing message instead of sending a new one
         await interaction.response.edit_message(embed=embed, view=self.parent_view)
 
 @bot.command(name="qr")
@@ -3448,17 +3383,13 @@ async def gp(ctx, *, expr):
         price = robux / rate
         price_int = round_price(price)
         
-        # Add wallet surcharge note for TrueMoney users
-        wallet_price = price_int
-        total_with_wallet = price_int
-        wallet_note = ""
+        # คำนวณราคาวอเล็ต (+5% max 20 บาท)
+        wallet_price = calculate_wallet_price(price_int)
         
         if robux > gamepass_threshold:
-            await ctx.send(f"🎮 Gamepass {format_number(robux)} {ROBUX_EMOJI} = **{format_number(price_int)} บาท** (เรท {rate} - มากกว่า {gamepass_threshold} {ROBUX_EMOJI}) //โอนวอเล็ตบวกเพิ่ม 5% = {format_number(int(total_with_wallet * 1.05))} บาท")
+            await ctx.send(f"🎮 Gamepass {format_number(robux)} {ROBUX_EMOJI} = **{format_number(price_int)} บาท** (เรท {rate} - มากกว่า {gamepass_threshold} {ROBUX_EMOJI}) //โอนวอเล็ตบวกเพิ่ม 5% = {format_number(wallet_price)} บาท")
         else:
-            # Show base price and wallet price with 5% surcharge
-            total_with_wallet = price_int * 1.05
-            await ctx.send(f"🎮 Gamepass {format_number(robux)} {ROBUX_EMOJI} = **{format_number(price_int)} บาท** (เรท {rate}) //โอนวอเล็ตบวกเพิ่ม 5% = {format_number(int(total_with_wallet))} บาท")
+            await ctx.send(f"🎮 Gamepass {format_number(robux)} {ROBUX_EMOJI} = **{format_number(price_int)} บาท** (เรท {rate}) //โอนวอเล็ตบวกเพิ่ม 5% = {format_number(wallet_price)} บาท")
     except:
         await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง เช่น 500 หรือ 100+200", delete_after=5)
 
@@ -3473,7 +3404,6 @@ async def gpb(ctx, *, expr):
         robux_normal = int(baht * gamepass_rate)
         robux_high = int(baht * gamepass_rate_high)
         
-        # Add wallet surcharge note
         await ctx.send(f"🎮 {format_number(int(baht))} บาท = **{format_number(robux_normal)} {ROBUX_EMOJI}** (Gamepass เรท {gamepass_rate})\n หรือ = **{format_number(robux_high)} {ROBUX_EMOJI}** (เรท {gamepass_rate_high} สำหรับซื้อ >{gamepass_threshold} {ROBUX_EMOJI})\n//โอนวอเล็ตบวกเพิ่ม 5%")
     except:
         await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง เช่น 500 หรือ 100+200", delete_after=5)
@@ -3499,9 +3429,11 @@ async def g(ctx, *, expr):
             rate_text = f"เรท {group_rate_low} (ต่ำกว่า 500 บาท)"
         
         price_int = round_price(price)
-        total_with_wallet = price_int * 1.05
         
-        await ctx.send(f"👥 Group {format_number(robux)} {ROBUX_EMOJI} = **{format_number(price_int)} บาท** ({rate_text}) //โอนวอเล็ตบวกเพิ่ม 5% = {format_number(int(total_with_wallet))} บาท")
+        # คำนวณราคาวอเล็ต (+5% max 20 บาท)
+        wallet_price = calculate_wallet_price(price_int)
+        
+        await ctx.send(f"👥 Group {format_number(robux)} {ROBUX_EMOJI} = **{format_number(price_int)} บาท** ({rate_text}) //โอนวอเล็ตบวกเพิ่ม 5% = {format_number(wallet_price)} บาท")
     except Exception as e:
         await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง เช่น 500 หรือ 100+200", delete_after=5)
 
@@ -3543,7 +3475,7 @@ async def tax(ctx, *, expr):
     except:
         await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง", delete_after=5)
 
-# ============ PUBLIC COMMANDS (Keep accessible to everyone) ============
+# ============ PUBLIC COMMANDS ============
 @bot.command()
 async def love(ctx):
     await ctx.send("# LOVE YOU<:sushiheart:1410484970291466300>")
@@ -3554,34 +3486,34 @@ async def say(ctx, *, message):
 
 # ============ Maps ============
 
-@bot.command()
+@Bot.command()
 async def dds(ctx):
-    await ctx.send("DDS 🛵 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=cf4c4c363f24fb49b63215bc522e5252&type=Server")
+    await ctx.send("DDS🛵 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=cf4c4c363f24fb49b63215bc522e5252&type=Server")
 
-@bot.command()
+@Bot.command()
 async def apo(ctx):
-    await ctx.send("Surv Apo 🧟 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=a05e9e424579ba46af14c33b46bc43eb&type=Server")
+    await ctx.send("Surv Apo🧟 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=a05e9e424579ba46af14c33b46bc43eb&type=Server")
 
-@bot.command()
+@Bot.command()
 async def alls(ctx):
-    await ctx.send("All Star ⭐ เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=2eadb9c604f7ad49a2bbcbbfae8f1174&type=Server")
+    await ctx.send("All Star⭐ เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=2eadb9c604f7ad49a2bbcbbfae8f1174&type=Server")
 
-@bot.command()
+@Bot.command()
 async def arx(ctx):
-    await ctx.send("ARX 🦸‍♂️ เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=eeee5fed9fdb9345b99569f6497be97b&type=Server")
+    await ctx.send("ARX🦸‍♂️ เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=eeee5fed9fdb9345b99569f6497be97b&type=Server")
 
-@bot.command()
+@Bot.command()
 async def sp(ctx):
-    await ctx.send("Sailor ⛵ เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=74605c033ce7b54990a5763e423bad3d&type=Server")
+    await ctx.send("Sailor⛵ เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=74605c033ce7b54990a5763e423bad3d&type=Server")
 
-@bot.command()
+@Bot.command()
 async def av(ctx):
-    await ctx.send("AV 🉐 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=a31d55231ce9f5468fd64f5b65b2cb62&type=Server")
+    await ctx.send("AV🉐 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=a31d55231ce9f5468fd64f5b65b2cb62&type=Server")
 
-@bot.command()
+@Bot.command()
 async def bb(ctx):
-    await ctx.send("Blade Ball 🔮 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=0a9513ac83517446aeee34e7fbd4b914&type=Server")
-
+    await ctx.send("Blade Ball🔮 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=0a9513ac83517446aeee34e7fbd4b914&type=Server")
+    
 # ============ BACKGROUND TASKS ============
 @tasks.loop(minutes=1)
 async def update_presence():
