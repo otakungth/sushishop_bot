@@ -831,8 +831,7 @@ def admin_only():
         if admin_role and admin_role in ctx.author.roles:
             return True
         await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะผู้ดูแลระบบเท่านั้น", delete_after=5)
-        return False
-    return commands.check(predicate)
+        return False    return commands.check(predicate)
 
 # ============ EXPRESSION EVALUATION FUNCTION (with space support) ============
 def evaluate_expression(expr: str) -> float:
@@ -3300,8 +3299,8 @@ class PaymentView(View):
         qr_btn = Button(label="สแกน QR ชำระเงิน", style=discord.ButtonStyle.success, emoji="📲")
         # Blue button for Bank Account (SCB)
         account_btn = Button(label="โอนผ่านเลขบัญชี", style=discord.ButtonStyle.primary, emoji="🏦")
-        # Red button for TrueMoney Wallet
-        truemoney_btn = Button(label="ทรูมันนี่วอเล็ต", style=discord.ButtonStyle.danger, emoji="🧡")
+        # Orange button for TrueMoney Wallet (บวกเพิ่ม 5%)
+        truemoney_btn = Button(label="🧡วอเล็ต (บวกเพิ่ม 5%)", style=discord.ButtonStyle.danger, emoji="🧡")
         
         qr_btn.callback = self.qr_callback
         account_btn.callback = self.account_callback
@@ -3353,16 +3352,23 @@ class PaymentView(View):
         await interaction.response.edit_message(embed=embed, view=view)
     
     async def truemoney_callback(self, interaction: discord.Interaction):
-        """Show TrueMoney Wallet info"""
+        """Show TrueMoney Wallet info with copy button"""
         embed = discord.Embed(
             title="💰 ชำระเงินผ่านทรูมันนี่วอเล็ต",
-            description="**0892278408** ชื่อลัดดา",
+            description="**0892278408** ชื่อลัดดา (โอนวอเล็ตบวกเพิ่ม 5%)",
             color=0xFF0000
         )
-        embed.set_footer(text="Sushi Shop 🍣")
+        embed.set_footer(text="Sushi Shop 🍣 • โอนวอเล็ตบวกเพิ่ม 5%")
         
-        # Add back button
+        # Add back button and copy button
         view = BackButtonView(self)
+        copy_btn = Button(label="📋 คัดลอกเบอร์", style=discord.ButtonStyle.secondary, emoji="📋")
+        
+        async def copy_cb(i):
+            await i.response.send_message("```0892278408```", ephemeral=True)
+        
+        copy_btn.callback = copy_cb
+        view.add_item(copy_btn)
         
         await interaction.response.edit_message(embed=embed, view=view)
 
@@ -3441,10 +3447,33 @@ async def gp(ctx, *, expr):
         price = robux / rate
         price_int = round_price(price)
         
+        # Add wallet surcharge note for TrueMoney users
+        wallet_price = price_int
+        total_with_wallet = price_int
+        wallet_note = ""
+        
         if robux > gamepass_threshold:
-            await ctx.send(f"🎮 Gamepass {format_number(robux)} {ROBUX_EMOJI} = **{format_number(price_int)} บาท** (เรท {rate} - มากกว่า {gamepass_threshold} {ROBUX_EMOJI})")
+            await ctx.send(f"🎮 Gamepass {format_number(robux)} {ROBUX_EMOJI} = **{format_number(price_int)} บาท** (เรท {rate} - มากกว่า {gamepass_threshold} {ROBUX_EMOJI}) //โอนวอเล็ตบวกเพิ่ม 5% = {format_number(int(total_with_wallet * 1.05))} บาท")
         else:
-            await ctx.send(f"🎮 Gamepass {format_number(robux)} {ROBUX_EMOJI} = **{format_number(price_int)} บาท** (เรท {rate})")
+            # Show base price and wallet price with 5% surcharge
+            total_with_wallet = price_int * 1.05
+            await ctx.send(f"🎮 Gamepass {format_number(robux)} {ROBUX_EMOJI} = **{format_number(price_int)} บาท** (เรท {rate}) //โอนวอเล็ตบวกเพิ่ม 5% = {format_number(int(total_with_wallet))} บาท")
+    except:
+        await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง เช่น 500 หรือ 100+200", delete_after=5)
+
+@bot.command()
+async def gpb(ctx, *, expr):
+    """Calculate gamepass price (Baht to Robux) - Public"""
+    global gamepass_rate, gamepass_rate_high, gamepass_threshold
+    try:
+        expr_clean = expr.replace(",", "").replace(" ", "")
+        baht = float(eval(expr_clean))
+        
+        robux_normal = int(baht * gamepass_rate)
+        robux_high = int(baht * gamepass_rate_high)
+        
+        # Add wallet surcharge note
+        await ctx.send(f"🎮 {format_number(int(baht))} บาท = **{format_number(robux_normal)} {ROBUX_EMOJI}** (Gamepass เรท {gamepass_rate})\n หรือ = **{format_number(robux_high)} {ROBUX_EMOJI}** (เรท {gamepass_rate_high} สำหรับซื้อ >{gamepass_threshold} {ROBUX_EMOJI})\n//โอนวอเล็ตบวกเพิ่ม 5%")
     except:
         await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง เช่น 500 หรือ 100+200", delete_after=5)
 
@@ -3469,23 +3498,10 @@ async def g(ctx, *, expr):
             rate_text = f"เรท {group_rate_low} (ต่ำกว่า 500 บาท)"
         
         price_int = round_price(price)
-        await ctx.send(f"👥 Group {format_number(robux)} {ROBUX_EMOJI} = **{format_number(price_int)} บาท** ({rate_text})")
+        total_with_wallet = price_int * 1.05
+        
+        await ctx.send(f"👥 Group {format_number(robux)} {ROBUX_EMOJI} = **{format_number(price_int)} บาท** ({rate_text}) //โอนวอเล็ตบวกเพิ่ม 5% = {format_number(int(total_with_wallet))} บาท")
     except Exception as e:
-        await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง เช่น 500 หรือ 100+200", delete_after=5)
-
-@bot.command()
-async def gpb(ctx, *, expr):
-    """Calculate gamepass price (Baht to Robux) - Public"""
-    global gamepass_rate, gamepass_rate_high, gamepass_threshold
-    try:
-        expr_clean = expr.replace(",", "").replace(" ", "")
-        baht = float(eval(expr_clean))
-        
-        robux_normal = int(baht * gamepass_rate)
-        robux_high = int(baht * gamepass_rate_high)
-        
-        await ctx.send(f"🎮 {format_number(int(baht))} บาท = **{format_number(robux_normal)} {ROBUX_EMOJI}** (Gamepass เรท {gamepass_rate})\n หรือ = **{format_number(robux_high)} {ROBUX_EMOJI}** (เรท {gamepass_rate_high} สำหรับซื้อ >{gamepass_threshold} {ROBUX_EMOJI})")
-    except:
         await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง เช่น 500 หรือ 100+200", delete_after=5)
 
 @bot.command()
@@ -3504,7 +3520,8 @@ async def gb(ctx, *, expr):
             rate_text = f"เรท {group_rate_low} (ต่ำกว่า 500 บาท)"
         
         robux = int(baht * rate)
-        await ctx.send(f"👥 {format_number(int(baht))} บาท = **{format_number(robux)} {ROBUX_EMOJI}** ({rate_text})")
+        
+        await ctx.send(f"👥 {format_number(int(baht))} บาท = **{format_number(robux)} {ROBUX_EMOJI}** ({rate_text}) //โอนวอเล็ตบวกเพิ่ม 5%")
     except Exception as e:
         await ctx.send("❌ กรุณากรอกตัวเลขให้ถูกต้อง เช่น 500 หรือ 100+200 หรือ 100 + 200", delete_after=5)
 
@@ -3533,6 +3550,36 @@ async def love(ctx):
 @bot.command()
 async def say(ctx, *, message):
     await ctx.send(f"# {message.upper()} <:sushiheart:1410484970291466300>")
+
+# ============ Maps ============
+
+@bot.command()
+async def dds(ctx):
+    await ctx.send("DDS 🛵 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=cf4c4c363f24fb49b63215bc522e5252&type=Server")
+
+@bot.command()
+async def apo(ctx):
+    await ctx.send("Surv Apo 🧟 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=a05e9e424579ba46af14c33b46bc43eb&type=Server")
+
+@bot.command()
+async def as(ctx):
+    await ctx.send("All Star ⭐ เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/games/4996049426?privateServerLinkCode=06489656861136003660374263112872")
+
+@bot.command()
+async def arx(ctx):
+    await ctx.send("ARX 🦸‍♂️ เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=eeee5fed9fdb9345b99569f6497be97b&type=Server")
+
+@bot.command()
+async def sp(ctx):
+    await ctx.send("Sailor ⛵ เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=74605c033ce7b54990a5763e423bad3d&type=Server")
+
+@bot.command()
+async def av(ctx):
+    await ctx.send("AV 🉐 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=a31d55231ce9f5468fd64f5b65b2cb62&type=Server")
+
+@bot.command()
+async def bb(ctx):
+    await ctx.send("Blade Ball 🔮 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=0a9513ac83517446aeee34e7fbd4b914&type=Server")
 
 # ============ BACKGROUND TASKS ============
 @tasks.loop(minutes=1)
