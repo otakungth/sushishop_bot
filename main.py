@@ -121,18 +121,23 @@ LEVEL_ROLES = {
     25000: 1488073771662315614,
     50000: 1488073590162329640,
     100000: 1488073619543294153,
-    555555: 1488075865337106563
+    250000: 1488075865337106563,
+    500000: 1494960679495663737,
+    1000000: 1499400497239687188
+    
 }
 
 # Level names
 LEVEL_NAMES = {
-    0: "🍣 | Sushi Lover",
-    5000: "🐱 | Sushi Silver",
-    10000: "😼 | Sushi Pass",
-    25000: "🐈 | Sushi Platinum",
-    50000: "🐈‍⬛ | Sushi Premium",
-    100000: "🥡 | Sushi Otoro",
-    555555: "👑 | Sushi Wistom"
+    0: "Sushi Lover",
+    5000: "Sushi Silver",
+    10000: "Sushi Pass",
+    25000: "Sushi Platinum",
+    50000: "Sushi Premium",
+    100000: "Sushi Luxury",
+    250000: "Sushi Wistom",
+    500000: "Sushi Emperor",
+    1000000: "CUSTOM ROLE",
 }
 
 GAMEPASS_CATEGORY_NAME = "sushi gamepass"
