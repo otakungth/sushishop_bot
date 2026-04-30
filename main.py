@@ -3486,31 +3486,31 @@ async def say(ctx, *, message):
 
 # ============ Maps ============
 
-@Bot.command()
+@bot.command()
 async def dds(ctx):
     await ctx.send("DDS🛵 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=cf4c4c363f24fb49b63215bc522e5252&type=Server")
 
-@Bot.command()
+@bot.command()
 async def apo(ctx):
     await ctx.send("Surv Apo🧟 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=a05e9e424579ba46af14c33b46bc43eb&type=Server")
 
-@Bot.command()
+@bot.command()
 async def alls(ctx):
     await ctx.send("All Star⭐ เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=2eadb9c604f7ad49a2bbcbbfae8f1174&type=Server")
 
-@Bot.command()
+@bot.command()
 async def arx(ctx):
     await ctx.send("ARX🦸‍♂️ เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=eeee5fed9fdb9345b99569f6497be97b&type=Server")
 
-@Bot.command()
+@bot.command()
 async def sp(ctx):
     await ctx.send("Sailor⛵ เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=74605c033ce7b54990a5763e423bad3d&type=Server")
 
-@Bot.command()
+@bot.command()
 async def av(ctx):
     await ctx.send("AV🉐 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=a31d55231ce9f5468fd64f5b65b2cb62&type=Server")
 
-@Bot.command()
+@bot.command()
 async def bb(ctx):
     await ctx.send("Blade Ball🔮 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=0a9513ac83517446aeee34e7fbd4b914&type=Server")
     
