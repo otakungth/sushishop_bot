@@ -831,7 +831,8 @@ def admin_only():
         if admin_role and admin_role in ctx.author.roles:
             return True
         await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะผู้ดูแลระบบเท่านั้น", delete_after=5)
-        return False    return commands.check(predicate)
+        return False
+    return commands.check(predicate)
 
 # ============ EXPRESSION EVALUATION FUNCTION (with space support) ============
 def evaluate_expression(expr: str) -> float:
