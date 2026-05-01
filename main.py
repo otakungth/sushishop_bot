@@ -1854,22 +1854,8 @@ async def handle_open_ticket(interaction, category_name, stock_type):
             
             form_btn.callback = form_callback
         
-        close_btn = Button(label="🔒 ปิดตั๋ว", style=discord.ButtonStyle.danger, emoji="🔒")
-        
-        async def close_callback(i):
-            if i.channel.id == channel.id:
-                if i.user == interaction.user or (admin_role and admin_role in i.user.roles):
-                    await save_ticket_transcript(channel, i.user)
-                    await i.response.send_message("📪 กำลังปิดตั๋ว...")
-                    await asyncio.sleep(2)
-                    await channel.delete()
-                else:
-                    await i.response.send_message("❌ คุณไม่มีสิทธิ์ปิดตั๋วนี้", ephemeral=True)
-        
-        close_btn.callback = close_callback
-        
+        # REMOVED CLOSE BUTTON - Only the form button remains
         ticket_view.add_item(form_btn)
-        ticket_view.add_item(close_btn)
         
         await channel.send(embed=embed, view=ticket_view)
         print(f"✅ ส่ง embed ต้อนรับในตั๋ว {channel.name} เรียบร้อย")
