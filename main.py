@@ -2195,7 +2195,17 @@ async def close_cmd(ctx):
 
 @bot.command()
 async def link(ctx):
-    await ctx.send("# 🔗 ลิงก์กลุ่ม\nเข้ากลุ่มนี้ 15 วันก่อนซื้อโรกลุ่ม: https://www.roblox.com/communities/34713179/VALKYs\nSushi Shop 🍣")
+    embed = discord.Embed(
+        title="🔗 ลิงก์กลุ่ม",
+        description="เข้า 4 กลุ่มนี้ 15 วันก่อนซื้อโรกลุ่ม:",
+        color=0xFFA500
+    )
+    embed.add_field(name="1.", value="https://www.roblox.com/communities/944554/Sonic2271TV", inline=False)
+    embed.add_field(name="2.", value="https://www.roblox.com/communities/15959780/Meedee-X", inline=False)
+    embed.add_field(name="3.", value="https://www.roblox.com/communities/34431261/PARAGON", inline=False)
+    embed.add_field(name="4.", value="https://www.roblox.com/communities/358427/orbital-defence-troopers", inline=False)
+    embed.set_footer(text="Sushi Shop <:sushiheart:1485273027431108810>")
+    await ctx.send(embed=embed)
 
 @bot.command(name="robuxtoday")
 @admin_only()
