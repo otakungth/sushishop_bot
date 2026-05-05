@@ -3485,6 +3485,12 @@ async def love(ctx):
 async def say(ctx, *, message):
     await ctx.send(f"# {message.upper()} <:sushiheart:1410484970291466300>")
 
+@bot.command()
+async def user(ctx):
+    await ctx.send("ขอชื่อในเกมหน่อยค่ะ หรือวี<:sushiheart:1410484970291466300>")
+
+
+
 # ============ Maps ============
 
 @bot.command()
@@ -3514,6 +3520,18 @@ async def av(ctx):
 @bot.command()
 async def bb(ctx):
     await ctx.send("Blade Ball🔮 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=0a9513ac83517446aeee34e7fbd4b914&type=Server")
+
+@bot.command()
+async def evade(ctx):
+    await ctx.send("Evade🏃‍♂️ เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=2ec0428785b33d43bdeb860a7d5b547e&type=Server")
+
+@bot.command()
+async def evade(ctx):
+    await ctx.send("DTI👗 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=e4ef0b7c5bf38e42b31edf1ec45808d5&type=Server")
+
+@bot.command()
+async def dh(ctx):
+    await ctx.send("DH🔫 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=6c89b68830011c4a9eac1d15476ffc9a&type=Server")
     
 # ============ BACKGROUND TASKS ============
 @tasks.loop(minutes=1)
