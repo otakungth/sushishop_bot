@@ -3527,7 +3527,7 @@ async def evd(ctx):
     await ctx.send("evade🏃‍♂️ เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=2ec0428785b33d43bdeb860a7d5b547e&type=Server")
 
     @bot.command()
-async def dti(ctx):
+async def dress(ctx):
     await ctx.send("DTI👗 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=e4ef0b7c5bf38e42b31edf1ec45808d5&type=Server")
     
 # ============ BACKGROUND TASKS ============
