@@ -3486,10 +3486,8 @@ async def say(ctx, *, message):
     await ctx.send(f"# {message.upper()} <:sushiheart:1410484970291466300>")
 
 @bot.command()
-async def user(ctx):
-    await ctx.send("ขอชื่อในเกมหน่อยค่ะ หรือวี<:sushiheart:1410484970291466300>")
-
-
+async def name(ctx):
+    await ctx.send("ขอชื่อในเกมหน่อยค่ะ หรือวี <:sushiheart:1410484970291466300>")
 
 # ============ Maps ============
 
