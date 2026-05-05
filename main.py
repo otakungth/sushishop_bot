@@ -2197,14 +2197,13 @@ async def close_cmd(ctx):
 async def link(ctx):
     embed = discord.Embed(
         title="🔗 ลิงก์กลุ่ม",
-        description="เข้า 4 กลุ่มนี้ 15 วันก่อนซื้อโรกลุ่ม:",
+        description="เข้า 3 กลุ่มนี้ 15 วันก่อนซื้อโรกลุ่ม:",
         color=0xFFA500
     )
     embed.add_field(name="1.", value="https://www.roblox.com/communities/944554/Sonic2271TV", inline=False)
     embed.add_field(name="2.", value="https://www.roblox.com/communities/15959780/Meedee-X", inline=False)
     embed.add_field(name="3.", value="https://www.roblox.com/communities/34431261/PARAGON", inline=False)
-    embed.add_field(name="4.", value="https://www.roblox.com/communities/358427/orbital-defence-troopers", inline=False)
-    embed.set_footer(text="Sushi Shop <:sushiheart:1485273027431108810>")
+    embed.set_footer(text="Sushi Shop 🍣")
     await ctx.send(embed=embed)
 
 @bot.command(name="robuxtoday")
@@ -3482,12 +3481,12 @@ async def love(ctx):
     await ctx.send("# LOVE YOU<:sushiheart:1410484970291466300>")
 
 @bot.command()
-async def say(ctx, *, message):
-    await ctx.send(f"# {message.upper()} <:sushiheart:1410484970291466300>")
+async def usr(ctx):
+    await ctx.send("ขอชื่อในเกมหน่อยค่ะ หรือเซิร์ฟวี")
 
 @bot.command()
-async def name(ctx):
-    await ctx.send("ขอชื่อในเกมหน่อยค่ะ หรือวี <:sushiheart:1410484970291466300>")
+async def say(ctx, *, message):
+    await ctx.send(f"# {message.upper()} <:sushiheart:1410484970291466300>")
 
 # ============ Maps ============
 
@@ -3518,18 +3517,18 @@ async def av(ctx):
 @bot.command()
 async def bb(ctx):
     await ctx.send("Blade Ball🔮 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=0a9513ac83517446aeee34e7fbd4b914&type=Server")
+    
+@bot.command()
+async def dah(ctx):
+    await ctx.send("dh🔫 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=6c89b68830011c4a9eac1d15476ffc9a&type=Server")
 
 @bot.command()
-async def evade(ctx):
-    await ctx.send("Evade🏃‍♂️ เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=2ec0428785b33d43bdeb860a7d5b547e&type=Server")
+async def evd(ctx):
+    await ctx.send("evade🏃‍♂️ เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=2ec0428785b33d43bdeb860a7d5b547e&type=Server")
 
-@bot.command()
-async def evade(ctx):
+    @bot.command()
+async def dti(ctx):
     await ctx.send("DTI👗 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=e4ef0b7c5bf38e42b31edf1ec45808d5&type=Server")
-
-@bot.command()
-async def dh(ctx):
-    await ctx.send("DH🔫 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=6c89b68830011c4a9eac1d15476ffc9a&type=Server")
     
 # ============ BACKGROUND TASKS ============
 @tasks.loop(minutes=1)
