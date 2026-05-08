@@ -3357,6 +3357,24 @@ class BackButtonView(View):
         
         await interaction.response.edit_message(embed=embed, view=self.parent_view)
 
+@bot.command(name="qr")
+async def payment_cmd(ctx):
+    """แสดงช่องทางการชำระเงิน"""
+    try:
+        await ctx.message.delete()
+    except:
+        pass
+    
+    embed = discord.Embed(
+        title="🍣 เลือกช่องทางชำระเงิน",
+        color=0xFFA500
+    )
+    embed.set_footer(text="Sushi Shop 🍣")
+    embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
+    
+    view = PaymentView()
+    await ctx.send(embed=embed, view=view)
+
 # ============ CALCULATOR COMMANDS ============
 @bot.command(name="calc")
 @admin_only()
