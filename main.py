@@ -3285,13 +3285,14 @@ class PaymentView(View):
     
     async def qr_callback(self, interaction: discord.Interaction):
         embed = discord.Embed(
-            title="ชำระเงินผ่าน QR Code (กรุงศรี)",
+            title="💳 ชำระเงินผ่าน QR Code (ธนาคารกรุงศรี)",
             description="⚠️ **โน๊ตสลิป:** เติมโรบัค Sushi Shop เฟส Can pattarapol",
             color=0x00FF00
         )
-        embed.add_field(name="1. ชื่อบัญชี (กรุงศรี)", value="**สุทัตตา เถลิงสุข**", inline=False)
+        embed.add_field(name="🏦 ชื่อบัญชี", value="**สุทัตตา เถลิงสุข**", inline=False)
+        embed.add_field(name="🏦 ธนาคาร", value="**กรุงศรี (Krungsri)**", inline=False)
         embed.set_image(url="https://media.discordapp.net/attachments/1485285161955360963/1487457449416982568/Can_Can-1.png")
-        embed.set_footer(text="Sushi Shop 🍣")
+        embed.set_footer(text="Sushi Shop 🍣 • สแกน QR Code เพื่อชำระเงิน")
         
         view = BackButtonView(self)
         await interaction.response.edit_message(embed=embed, view=view)
@@ -3350,52 +3351,13 @@ class BackButtonView(View):
     async def back_callback(self, interaction: discord.Interaction):
         embed = discord.Embed(
             title="🍣 เลือกช่องทางชำระเงิน",
+            description="กรุณาเลือกช่องทางการชำระเงินด้านล่าง",
             color=0xFFA500
         )
         embed.set_footer(text="Sushi Shop 🍣")
         embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
         
         await interaction.response.edit_message(embed=embed, view=self.parent_view)
-
-@bot.command(name="qr")
-async def payment_cmd(ctx):
-    """แสดงช่องทางการชำระเงิน"""
-    try:
-        await ctx.message.delete()
-    except:
-        pass
-    
-    embed = discord.Embed(
-        title="🍣 เลือกช่องทางชำระเงิน",
-        color=0xFFA500
-    )
-    embed.set_footer(text="Sushi Shop 🍣")
-    embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
-    
-    view = PaymentView()
-    await ctx.send(embed=embed, view=view)
-
-# ============ CALCULATOR COMMANDS ============
-@bot.command(name="calc")
-@admin_only()
-async def calculator_cmd(ctx):
-    """Show calculator - Admin only"""
-    try:
-        embed = discord.Embed(
-            title="🍣 เครื่องคิดเลข Sushi Shop",
-            description="เลือกปุ่มด้านล่างเพื่อคำนวณราคา",
-            color=0xFFA500
-        )
-        embed.add_field(name="🎮 เกมพาส", value=f"เรท {gamepass_rate} (ปกติ) | {gamepass_rate_high} (>{gamepass_threshold} {ROBUX_EMOJI})\n1 บาท = {gamepass_rate} {ROBUX_EMOJI}", inline=True)
-        embed.add_field(name="👥 โรกลุ่ม", value=f"เรท {group_rate_low} (ต่ำกว่า 500 บาท)\nเรท {group_rate_high} (500 บาทขึ้นไป)", inline=True)
-        embed.set_image(url="https://media.discordapp.net/attachments/1485285161955360963/1485285565761847417/image.png")
-        embed.set_footer(text="Sushi Shop 🍣")
-        
-        view = CalculatorView()
-        await ctx.send(embed=embed, view=view)
-    except Exception as e:
-        print(f"❌ Error in calculator command: {e}")
-        await ctx.send("❌ เกิดข้อผิดพลาดในการแสดงเครื่องคิดเลข")
 
 # ============ SIMPLE CALCULATOR COMMANDS (Public) ============
 @bot.command()
