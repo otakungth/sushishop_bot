@@ -3271,14 +3271,30 @@ class PaymentView(View):
     def __init__(self):
         super().__init__(timeout=None)
         
+        qr_btn = Button(label="สแกน QR ชำระเงิน", style=discord.ButtonStyle.success, emoji="📲")
         account_btn = Button(label="โอนผ่านเลขบัญชี", style=discord.ButtonStyle.primary, emoji="🏦")
         truemoney_btn = Button(label="🧡วอเล็ต (บวกเพิ่ม 5%)", style=discord.ButtonStyle.danger, emoji="🧡")
         
+        qr_btn.callback = self.qr_callback
         account_btn.callback = self.account_callback
         truemoney_btn.callback = self.truemoney_callback
         
+        self.add_item(qr_btn)
         self.add_item(account_btn)
         self.add_item(truemoney_btn)
+    
+    async def qr_callback(self, interaction: discord.Interaction):
+        embed = discord.Embed(
+            title="ชำระเงินผ่าน QR Code (กรุงศรี)",
+            description="⚠️ **โน๊ตสลิป:** เติมโรบัค Sushi Shop เฟส Can pattarapol",
+            color=0x00FF00
+        )
+        embed.add_field(name="1. ชื่อบัญชี (กรุงศรี)", value="**สุทัตตา เถลิงสุข**", inline=False)
+        embed.set_image(url="https://media.discordapp.net/attachments/1485285161955360963/1487457449416982568/Can_Can-1.png")
+        embed.set_footer(text="Sushi Shop 🍣")
+        
+        view = BackButtonView(self)
+        await interaction.response.edit_message(embed=embed, view=view)
     
     async def account_callback(self, interaction: discord.Interaction):
         embed = discord.Embed(
@@ -3340,24 +3356,6 @@ class BackButtonView(View):
         embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
         
         await interaction.response.edit_message(embed=embed, view=self.parent_view)
-
-@bot.command(name="qr")
-async def payment_cmd(ctx):
-    """แสดงช่องทางการชำระเงิน"""
-    try:
-        await ctx.message.delete()
-    except:
-        pass
-    
-    embed = discord.Embed(
-        title="🍣 เลือกช่องทางชำระเงิน",
-        color=0xFFA500
-    )
-    embed.set_footer(text="Sushi Shop 🍣")
-    embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
-    
-    view = PaymentView()
-    await ctx.send(embed=embed, view=view)
 
 # ============ CALCULATOR COMMANDS ============
 @bot.command(name="calc")
