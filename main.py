@@ -1543,7 +1543,7 @@ bot = MyBot()
 
 # ============ TICKET HELPER FUNCTIONS ============
 async def schedule_removal(channel, buyer, delay_seconds):
-    """Schedule removal of buyer permission after delay_seconds"""
+    """Schedule removal of buyer permission after delay_seconds - ONLY FOR ACTIVE TICKETS BEFORE DELIVERY"""
     if is_timer_paused(channel.id):
         print(f"⏸️ Timer is paused for {channel.name}, not scheduling")
         return
@@ -1797,20 +1797,22 @@ async def handle_open_ticket(interaction, category_name, stock_type):
         ))
         await interaction.followup.send("📩 เปิดตั๋วเรียบร้อย", view=view, ephemeral=True)
         
-        # Get the admin role mention for the ticket embed
-        admin_mention_role = interaction.guild.get_role(1486330338539077713)
-        admin_mention = admin_mention_role.mention if admin_mention_role else "@Admin"
-        
+        # Send admin notification separately (hidden from customer view)
         if admin_role:
-            await channel.send(content=f"{admin_role.mention} มีตั๋วใหม่! {admin_mention}")
+            await channel.send(content=f"{admin_role.mention} มีตั๋วใหม่!", delete_after=10)
+        
+        # Get user's baht balance
+        user_balance = get_user_robux_balance(interaction.user.id)
+        balance_display = f"{user_balance:.2f}" if user_balance > 0 else "0"
         
         embed = discord.Embed(
             title="🍣 Sushi Shop 🍣", 
             color=0x00FF99
         )
-        # ADD ADMIN MENTION AT THE TOP OF THE EMBED
-        embed.description = f"{admin_mention}\n\n"
+        # REMOVED admin mention from embed
+        embed.description = ""
         embed.add_field(name="👤 ผู้ซื้อ", value=interaction.user.mention, inline=False)
+        embed.add_field(name="💵 เงินคงเหลือ", value=f"**{balance_display}** บาท", inline=False)
         
         if stock_type == "gamepass":
             embed.add_field(
@@ -1854,17 +1856,12 @@ async def handle_open_ticket(interaction, category_name, stock_type):
             
             form_btn.callback = form_callback
         
-        # REMOVED CLOSE BUTTON - Only the form button remains
         ticket_view.add_item(form_btn)
         
         await channel.send(embed=embed, view=ticket_view)
         print(f"✅ ส่ง embed ต้อนรับในตั๋ว {channel.name} เรียบร้อย")
         
-        # Get admin role mention
-        admin_mention_role = interaction.guild.get_role(1486330338539077713)
-        admin_mention = admin_mention_role.mention if admin_mention_role else "@Admin"
-
-        welcome_msg = await channel.send(f"# สนใจซื้ออะไรแจ้งแอดมินได้เลยค่ะ <:sushiheart:1410484970291466300>\n{admin_mention}")
+        welcome_msg = await channel.send(f"# สนใจซื้ออะไรแจ้งแอดมินได้เลยค่ะ <:sushiheart:1410484970291466300>")
         print(f"✅ ส่งข้อความต้อนรับในตั๋ว {channel.name}")
         
     except Exception as e:
@@ -1923,6 +1920,7 @@ async def save_ticket_transcript(channel, action_by=None, robux_amount=None, cus
         return False, str(e)
 
 async def move_to_delivered_category(channel):
+    """Move ticket to delivered category and schedule auto-delete (no permission removal)"""
     try:
         if not channel:
             return False
@@ -1943,6 +1941,7 @@ async def move_to_delivered_category(channel):
         await channel.edit(category=delivered_category)
         print(f"✅ ย้ายตั๋ว {channel.name} ไปยัง category ส่งของแล้ว")
         
+        # Only schedule auto-delete for delivered category (1 hour)
         await schedule_auto_delete_after_delivered(channel, 3600)
         print(f"⏰ Ticket {channel.name} will be auto-deleted in 1 hour")
         
@@ -1953,6 +1952,7 @@ async def move_to_delivered_category(channel):
         return False
 
 async def move_to_original_category(channel, product_type):
+    """Move ticket back to original category and RESTORE customer permissions"""
     try:
         if not channel:
             return False
@@ -1971,6 +1971,24 @@ async def move_to_original_category(channel, product_type):
             print(f"❌ ไม่พบ category สำหรับ {product_type}")
             return False
         
+        # Restore customer permissions before moving
+        buyer_id = None
+        if str(channel.id) in ticket_buyer_data:
+            buyer_id = ticket_buyer_data[str(channel.id)].get("user_id")
+        
+        if buyer_id:
+            buyer = guild.get_member(buyer_id)
+            if buyer:
+                # Get current overwrites
+                overwrites = channel.overwrites
+                # Ensure customer can see the channel again
+                if buyer in overwrites:
+                    overwrites[buyer].update(read_messages=True)
+                else:
+                    overwrites[buyer] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
+                await channel.edit(overwrites=overwrites)
+                print(f"✅ Restored view permission for {buyer.name}")
+        
         await channel.edit(category=target_category)
         print(f"✅ ย้ายตั๋ว {channel.name} กลับไปยัง category {target_category.name}")
         return True
@@ -1980,6 +1998,7 @@ async def move_to_original_category(channel, product_type):
         return False
 
 async def reset_channel_name(channel, user_id, product_type):
+    """Reset channel name to ticket format"""
     try:
         user = None
         for member in channel.guild.members:
@@ -2012,6 +2031,7 @@ async def reset_channel_name(channel, user_id, product_type):
         return False
 
 async def remove_buyer_permission_after_delay(channel, buyer, delay_seconds):
+    """Remove buyer permission after delay (ONLY for active tickets, not after delivery)"""
     try:
         print(f"⏳ กำลังรอ {delay_seconds} วินาทีก่อนลบสิทธิ์การดูของ {channel.name}")
         
@@ -2026,6 +2046,11 @@ async def remove_buyer_permission_after_delay(channel, buyer, delay_seconds):
         
         if not channel or channel not in channel.guild.channels:
             print(f"❌ ตั๋ว {channel.name} ไม่มีอยู่แล้ว")
+            return
+        
+        # Only remove permission if ticket is NOT in delivered category
+        if channel.category and channel.category.id == DELIVERED_CATEGORY_ID:
+            print(f"ℹ️ Ticket {channel.name} is in delivered category, skipping permission removal")
             return
         
         if buyer:
@@ -3143,7 +3168,7 @@ async def ty(ctx):
             pass
 
 async def process_order_more_fixed(channel, buyer, interaction):
-    """Fixed background task for processing 'สั่งของต่อ'"""
+    """Fixed background task for processing 'สั่งของต่อ' - RESTORES customer permissions"""
     try:
         await reset_timer(channel, buyer)
         
@@ -3153,6 +3178,7 @@ async def process_order_more_fixed(channel, buyer, interaction):
         if buyer:
             await reset_channel_name(channel, buyer.id, "gamepass")
         
+        # This function now restores customer permissions
         await move_to_original_category(channel, "gamepass")
         
         admin_role = channel.guild.get_role(1486330338539077713)
@@ -3168,7 +3194,6 @@ async def process_order_more_fixed(channel, buyer, interaction):
             value=f"📦 โรบัคคงเหลือ: **{format_number(gamepass_stock)}**\n💰 เรท: {gamepass_rate} (ปกติ) | {gamepass_rate_high} (>{gamepass_threshold} {ROBUX_EMOJI})", 
             inline=False
         )
-        order_embed.add_field(name="👑 แจ้งผู้ดูแล", value=f"{admin_mention} กรุณาตรวจสอบด้วยค่ะ", inline=False)
         order_embed.set_footer(text="Sushi Shop")
         order_embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
         
@@ -3211,7 +3236,7 @@ async def save_ticket_transcript_background(channel, buyer, robux_int):
         print(f"❌ Error in background transcript save: {e}")
 
 async def move_to_delivered_category_with_cleanup(channel, buyer):
-    """Background task for moving to delivered category and scheduling removal"""
+    """Background task for moving to delivered category (NO permission removal)"""
     try:
         if channel.category and channel.category.id != DELIVERED_CATEGORY_ID:
             await move_to_delivered_category(channel)
@@ -3219,7 +3244,9 @@ async def move_to_delivered_category_with_cleanup(channel, buyer):
         else:
             print(f"ℹ️ Channel {channel.name} already in delivered category or category not found")
         
-        await schedule_removal(channel, buyer, 3600)
+        # IMPORTANT: DO NOT schedule removal here - the move_to_delivered_category already schedules auto-delete
+        # await schedule_removal(channel, buyer, 3600)  # REMOVED - causes double deletion
+        
     except Exception as e:
         print(f"❌ Error moving to delivered category: {e}")
 
@@ -3465,7 +3492,7 @@ async def love(ctx):
     await ctx.send("# LOVE YOU<:sushiheart:1410484970291466300>")
 
 @bot.command()
-async def usr(ctx):
+async def u(ctx):
     await ctx.send("ขอชื่อในเกมหน่อยค่ะ หรือเซิร์ฟวี")
 
 @bot.command()
@@ -3513,6 +3540,14 @@ async def evd(ctx):
 @bot.command()
 async def dti(ctx):
     await ctx.send("DTI👗 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=e4ef0b7c5bf38e42b31edf1ec45808d5&type=Server")
+
+@bot.command()
+async def slime(ctx):
+    await ctx.send("Slime🦠 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=af56b5de5b2fc548a5b064dd008a4c45&type=Server")
+
+@bot.command()
+async def utd(ctx):
+    await ctx.send("UTDX🌌 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=807f0df0b599fe459edc3e224144e813&type=Server")
     
 # ============ BACKGROUND TASKS ============
 @tasks.loop(minutes=1)
