@@ -3194,7 +3194,6 @@ async def process_order_more_fixed(channel, buyer, interaction):
             value=f"📦 โรบัคคงเหลือ: **{format_number(gamepass_stock)}**\n💰 เรท: {gamepass_rate} (ปกติ) | {gamepass_rate_high} (>{gamepass_threshold} {ROBUX_EMOJI})", 
             inline=False
         )
-        order_embed.add_field(name="👑 แจ้งผู้ดูแล", value=f"{admin_mention} กรุณาตรวจสอบด้วยค่ะ", inline=False)
         order_embed.set_footer(text="Sushi Shop")
         order_embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
         
@@ -3272,9 +3271,9 @@ class PaymentView(View):
     def __init__(self):
         super().__init__(timeout=None)
         
-        qr_btn = Button(label="📲 สแกน QR ชำระเงิน", style=discord.ButtonStyle.success, emoji="📲")
-        account_btn = Button(label="🏦 โอนผ่านเลขบัญชี", style=discord.ButtonStyle.primary, emoji="🏦")
-        truemoney_btn = Button(label="🧡 วอเล็ต (บวกเพิ่ม 5%)", style=discord.ButtonStyle.danger, emoji="🧡")
+        qr_btn = Button(label="สแกน QR ชำระเงิน", style=discord.ButtonStyle.success, emoji="📲")
+        account_btn = Button(label="โอนผ่านเลขบัญชี", style=discord.ButtonStyle.primary, emoji="🏦")
+        truemoney_btn = Button(label="วอเล็ต (บวกเพิ่ม 5%)", style=discord.ButtonStyle.danger, emoji="🧡")
         
         qr_btn.callback = self.qr_callback
         account_btn.callback = self.account_callback
