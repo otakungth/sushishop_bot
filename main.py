@@ -88,15 +88,15 @@ intents.message_content = True
 intents.members = True
 
 # Global variables
-gamepass_rate = 7
-gamepass_rate_high = 7
+gamepass_rate = 8
+gamepass_rate_high = 8
 gamepass_threshold = 3999
 group_rate_low = 4
 group_rate_high = 4.5
 shop_open = True
 group_ticket_enabled = True
-gamepass_stock = 20000
-group_stock = 25000
+gamepass_stock = 500000
+group_stock = 5000
 
 # Daily robux sales tracking
 daily_robux_sold = 0
