@@ -3515,7 +3515,7 @@ async def love(ctx):
     await ctx.send("# LOVE YOU<:sushiheart:1410484970291466300>")
 
 @bot.command()
-async def usr(ctx):
+async def u(ctx):
     await ctx.send("ขอชื่อในเกมหน่อยค่ะ หรือเซิร์ฟวี")
 
 @bot.command()
