@@ -88,15 +88,15 @@ intents.message_content = True
 intents.members = True
 
 # Global variables
-gamepass_rate = 8
-gamepass_rate_high = 8
+gamepass_rate = 7
+gamepass_rate_high = 7
 gamepass_threshold = 3999
 group_rate_low = 4
 group_rate_high = 4.5
 shop_open = True
 group_ticket_enabled = True
-gamepass_stock = 500000
-group_stock = 5000
+gamepass_stock = 20000
+group_stock = 25000
 
 # Daily robux sales tracking
 daily_robux_sold = 0
@@ -3194,6 +3194,7 @@ async def process_order_more_fixed(channel, buyer, interaction):
             value=f"📦 โรบัคคงเหลือ: **{format_number(gamepass_stock)}**\n💰 เรท: {gamepass_rate} (ปกติ) | {gamepass_rate_high} (>{gamepass_threshold} {ROBUX_EMOJI})", 
             inline=False
         )
+        order_embed.add_field(name="👑 แจ้งผู้ดูแล", value=f"{admin_mention} กรุณาตรวจสอบด้วยค่ะ", inline=False)
         order_embed.set_footer(text="Sushi Shop")
         order_embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
         
@@ -3271,9 +3272,9 @@ class PaymentView(View):
     def __init__(self):
         super().__init__(timeout=None)
         
-        qr_btn = Button(label="สแกน QR ชำระเงิน", style=discord.ButtonStyle.success, emoji="📲")
-        account_btn = Button(label="โอนผ่านเลขบัญชี", style=discord.ButtonStyle.primary, emoji="🏦")
-        truemoney_btn = Button(label="🧡วอเล็ต (บวกเพิ่ม 5%)", style=discord.ButtonStyle.danger, emoji="🧡")
+        qr_btn = Button(label="📲 สแกน QR ชำระเงิน", style=discord.ButtonStyle.success, emoji="📲")
+        account_btn = Button(label="🏦 โอนผ่านเลขบัญชี", style=discord.ButtonStyle.primary, emoji="🏦")
+        truemoney_btn = Button(label="🧡 วอเล็ต (บวกเพิ่ม 5%)", style=discord.ButtonStyle.danger, emoji="🧡")
         
         qr_btn.callback = self.qr_callback
         account_btn.callback = self.account_callback
@@ -3285,12 +3286,12 @@ class PaymentView(View):
     
     async def qr_callback(self, interaction: discord.Interaction):
         embed = discord.Embed(
-            title="💳 ชำระเงินผ่าน QR Code (ธนาคารกรุงศรี)",
-            description="⚠️ **โน๊ตสลิป:** เติมโรบัค Sushi Shop เฟส Can pattarapol",
+            title="💳 ชำระเงินผ่าน QR Code",
+            description="**ธนาคารกรุงศรี (Krungsri)**",
             color=0x00FF00
         )
-        embed.add_field(name="🏦 ชื่อบัญชี", value="**สุทัตตา เถลิงสุข**", inline=False)
-        embed.add_field(name="🏦 ธนาคาร", value="**กรุงศรี (Krungsri)**", inline=False)
+        embed.add_field(name="🏦 ชื่อบัญชี", value="สุทัตตา เถลิงสุข", inline=False)
+        embed.add_field(name="⚠️ โน๊ตสลิป", value="เติมโรบัค Sushi Shop เฟส Can pattarapol", inline=False)
         embed.set_image(url="https://media.discordapp.net/attachments/1485285161955360963/1487457449416982568/Can_Can-1.png")
         embed.set_footer(text="Sushi Shop 🍣 • สแกน QR Code เพื่อชำระเงิน")
         
@@ -3299,12 +3300,13 @@ class PaymentView(View):
     
     async def account_callback(self, interaction: discord.Interaction):
         embed = discord.Embed(
-            title="🏦 ชำระเงินผ่านบัญชีธนาคาร (ไทยพานิชย์)",
-            description="⚠️ **โน๊ตสลิป:** เติมโรบัค Sushi Shop เฟส Arisara Srijitjam",
+            title="🏦 ชำระเงินผ่านบัญชีธนาคาร",
+            description="**ธนาคารไทยพานิชย์ (SCB)**",
             color=0x0099FF
         )
-        embed.add_field(name="1. ชื่อบัญชี (SCB)", value="**หจก. วอเตอร์ เทค เซลล์ แอนด์ เซอร์วิส**", inline=False)
-        embed.add_field(name="2. เลขบัญชี", value="**120-239181-3**", inline=False)
+        embed.add_field(name="🏦 ชื่อบัญชี", value="หจก. วอเตอร์ เทค เซลล์ แอนด์ เซอร์วิส", inline=False)
+        embed.add_field(name="🔢 เลขบัญชี", value="**120-239181-3**", inline=False)
+        embed.add_field(name="⚠️ โน๊ตสลิป", value="เติมโรบัค Sushi Shop เฟส Arisara Srijitjam", inline=False)
         embed.set_image(url="https://media.discordapp.net/attachments/1361004239043821610/1475334379550281768/Sushi_SCB_3.png")
         embed.set_footer(text="Sushi Shop 🍣")
         
@@ -3322,9 +3324,11 @@ class PaymentView(View):
     async def truemoney_callback(self, interaction: discord.Interaction):
         embed = discord.Embed(
             title="💰 ชำระเงินผ่านทรูมันนี่วอเล็ต",
-            description="**0892278408** ชื่อลัดดา (โอนวอเล็ตบวกเพิ่ม 5%)",
+            description="**เบอร์โทรศัพท์:** 0892278408",
             color=0xFF0000
         )
+        embed.add_field(name="👤 ชื่อบัญชี", value="ลัดดา", inline=False)
+        embed.add_field(name="⚠️ หมายเหตุ", value="โอนวอเล็ตบวกเพิ่ม 5%", inline=False)
         embed.set_footer(text="Sushi Shop 🍣 • โอนวอเล็ตบวกเพิ่ม 5%")
         
         view = BackButtonView(self)
@@ -3358,6 +3362,48 @@ class BackButtonView(View):
         embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
         
         await interaction.response.edit_message(embed=embed, view=self.parent_view)
+
+@bot.command(name="qr")
+async def payment_cmd(ctx):
+    """แสดงช่องทางการชำระเงิน"""
+    embed = discord.Embed(
+        title="🍣 เลือกช่องทางชำระเงิน",
+        description="กรุณาเลือกช่องทางการชำระเงินด้านล่าง",
+        color=0xFFA500
+    )
+    embed.set_footer(text="Sushi Shop 🍣")
+    embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
+    
+    view = PaymentView()
+    await ctx.send(embed=embed, view=view)
+    
+    # Try to delete the command message if possible (optional)
+    try:
+        await ctx.message.delete()
+    except:
+        pass  # Ignore if can't delete
+
+# ============ CALCULATOR COMMANDS ============
+@bot.command(name="calc")
+@admin_only()
+async def calculator_cmd(ctx):
+    """Show calculator - Admin only"""
+    try:
+        embed = discord.Embed(
+            title="🍣 เครื่องคิดเลข Sushi Shop",
+            description="เลือกปุ่มด้านล่างเพื่อคำนวณราคา",
+            color=0xFFA500
+        )
+        embed.add_field(name="🎮 เกมพาส", value=f"เรท {gamepass_rate} (ปกติ) | {gamepass_rate_high} (>{gamepass_threshold} {ROBUX_EMOJI})\n1 บาท = {gamepass_rate} {ROBUX_EMOJI}", inline=True)
+        embed.add_field(name="👥 โรกลุ่ม", value=f"เรท {group_rate_low} (ต่ำกว่า 500 บาท)\nเรท {group_rate_high} (500 บาทขึ้นไป)", inline=True)
+        embed.set_image(url="https://media.discordapp.net/attachments/1485285161955360963/1485285565761847417/image.png")
+        embed.set_footer(text="Sushi Shop 🍣")
+        
+        view = CalculatorView()
+        await ctx.send(embed=embed, view=view)
+    except Exception as e:
+        print(f"❌ Error in calculator command: {e}")
+        await ctx.send("❌ เกิดข้อผิดพลาดในการแสดงเครื่องคิดเลข")
 
 # ============ SIMPLE CALCULATOR COMMANDS (Public) ============
 @bot.command()
@@ -3470,7 +3516,7 @@ async def love(ctx):
     await ctx.send("# LOVE YOU<:sushiheart:1410484970291466300>")
 
 @bot.command()
-async def u(ctx):
+async def usr(ctx):
     await ctx.send("ขอชื่อในเกมหน่อยค่ะ หรือเซิร์ฟวี")
 
 @bot.command()
@@ -3508,7 +3554,7 @@ async def bb(ctx):
     await ctx.send("Blade Ball🔮 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=0a9513ac83517446aeee34e7fbd4b914&type=Server")
     
 @bot.command()
-async def dah(ctx):
+async def dh(ctx):
     await ctx.send("dh🔫 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=6c89b68830011c4a9eac1d15476ffc9a&type=Server")
 
 @bot.command()
