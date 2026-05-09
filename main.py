@@ -199,74 +199,6 @@ def calculate_wallet_price(price_baht):
         surcharge = 20  # cap ที่ 20 บาท
     return int(price_baht + surcharge)
 
-# ============ TIMER PAUSE/RESUME FUNCTIONS ============
-
-def load_paused_timers():
-    """Load paused timer data from file"""
-    global paused_timers
-    try:
-        if os.path.exists(timer_pause_file):
-            with open(timer_pause_file, 'r', encoding='utf-8') as f:
-                paused_timers = json.load(f)
-                print(f"✅ Loaded {len(paused_timers)} paused timers")
-        else:
-            paused_timers = {}
-            save_paused_timers()
-    except Exception as e:
-        print(f"❌ Error loading paused timers: {e}")
-        paused_timers = {}
-
-def save_paused_timers():
-    """Save paused timer data to file"""
-    try:
-        with open(timer_pause_file, 'w', encoding='utf-8') as f:
-            json.dump(paused_timers, f, ensure_ascii=False, indent=2)
-        print(f"✅ Saved {len(paused_timers)} paused timers")
-        return True
-    except Exception as e:
-        print(f"❌ Error saving paused timers: {e}")
-        return False
-
-def is_timer_paused(channel_id):
-    """Check if timer is paused for a channel"""
-    return str(channel_id) in paused_timers
-
-def get_paused_remaining(channel_id):
-    """Get remaining time for paused timer"""
-    channel_id_str = str(channel_id)
-    if channel_id_str in paused_timers:
-        return paused_timers[channel_id_str].get("remaining", 0)
-    return 0
-
-def pause_timer(channel_id, remaining_seconds):
-    """Pause a timer and store remaining time"""
-    channel_id_str = str(channel_id)
-    paused_timers[channel_id_str] = {
-        "remaining": remaining_seconds,
-        "paused_at": time.time()
-    }
-    save_paused_timers()
-    print(f"⏸️ Timer paused for channel {channel_id} with {remaining_seconds} seconds remaining")
-
-def resume_timer(channel_id):
-    """Resume a timer and return remaining time, removes from paused storage"""
-    channel_id_str = str(channel_id)
-    if channel_id_str in paused_timers:
-        remaining = paused_timers[channel_id_str].get("remaining", 0)
-        del paused_timers[channel_id_str]
-        save_paused_timers()
-        print(f"▶️ Timer resumed for channel {channel_id} with {remaining} seconds remaining")
-        return remaining
-    return 0
-
-def cancel_paused_timer(channel_id):
-    """Remove a paused timer without resuming"""
-    channel_id_str = str(channel_id)
-    if channel_id_str in paused_timers:
-        del paused_timers[channel_id_str]
-        save_paused_timers()
-        print(f"🗑️ Paused timer cancelled for channel {channel_id}")
-
 # ============ ROBUX BALANCE FUNCTIONS ============
 
 def load_robux_balance():
@@ -495,7 +427,6 @@ def save_all_data_sync():
     success &= save_json(user_levels_file, user_levels)
     success &= save_json(user_robux_balance_file, user_robux_balance)
     save_stock_values()
-    save_paused_timers()
     print("✅ All data saved (sync)")
     return success
 
@@ -509,7 +440,6 @@ async def save_all_data():
     success &= save_json(user_levels_file, user_levels)
     success &= save_json(user_robux_balance_file, user_robux_balance)
     save_stock_values()
-    save_paused_timers()
     print(f"✅ All data saved at {get_thailand_time().strftime('%H:%M:%S')}")
     return success
 
@@ -527,7 +457,6 @@ def load_all_data():
     load_stock_values()
     load_daily_sales()
     load_robux_balance()
-    load_paused_timers()
     
     print(f"✅ Loaded all data from JSON:")
     print(f"   - {len(user_data)} users")
@@ -535,7 +464,6 @@ def load_all_data():
     print(f"   - {len(ticket_buyer_data)} buyer records")
     print(f"   - {len(user_levels)} users with SP")
     print(f"   - {len(user_robux_balance)} users with robux balance")
-    print(f"   - {len(paused_timers)} paused timers")
     print(f"   - Total SP: {sum(data['sp'] for data in user_levels.values())}")
     print(f"   - Stock: GP={gamepass_stock}, Group={group_stock}")
     print(f"   - Daily Sales: {daily_robux_sold} Robux")
@@ -1542,29 +1470,6 @@ class MyBot(commands.Bot):
 bot = MyBot()
 
 # ============ TICKET HELPER FUNCTIONS ============
-async def schedule_removal(channel, buyer, delay_seconds):
-    """Schedule removal of buyer permission after delay_seconds - ONLY FOR ACTIVE TICKETS BEFORE DELIVERY"""
-    if is_timer_paused(channel.id):
-        print(f"⏸️ Timer is paused for {channel.name}, not scheduling")
-        return
-    
-    if str(channel.id) in ticket_removal_tasks:
-        try:
-            ticket_removal_tasks[str(channel.id)].cancel()
-        except:
-            pass
-    
-    task = asyncio.create_task(remove_buyer_permission_after_delay(channel, buyer, delay_seconds))
-    ticket_removal_tasks[str(channel.id)] = task
-    
-    try:
-        await task
-    except asyncio.CancelledError:
-        print(f"ℹ️ Removal task cancelled for {channel.name}")
-    finally:
-        if str(channel.id) in ticket_removal_tasks:
-            del ticket_removal_tasks[str(channel.id)]
-
 def cancel_removal(channel_id):
     """Cancel the removal timer for a channel"""
     if str(channel_id) in ticket_removal_tasks:
@@ -1575,16 +1480,12 @@ def cancel_removal(channel_id):
     return False
 
 async def reset_timer(channel, buyer):
-    """Reset the 1-hour timer for a channel (used when customer clicks 'สั่งของต่อ')"""
-    print(f"🔄 Resetting timer for channel {channel.name}")
+    """Reset/Cancel the 1-hour timer for a channel (used when customer clicks 'สั่งของต่อ')"""
+    print(f"🔄 Cancelling timer for channel {channel.name} (customer wants to order more)")
     
+    # Cancel any existing removal timer
     cancel_removal(channel.id)
-    
-    if is_timer_paused(channel.id):
-        cancel_paused_timer(channel.id)
-    
-    await schedule_removal(channel, buyer, 3600)
-    print(f"✅ Timer reset to 1 hour for {channel.name}")
+    print(f"✅ Timer cancelled for {channel.name} - customer will not lose access")
 
 async def schedule_auto_delete_after_delivered(channel, delay_seconds):
     """Schedule ticket to be deleted after being in delivered category for delay_seconds"""
@@ -2030,46 +1931,6 @@ async def reset_channel_name(channel, user_id, product_type):
         print(f"❌ Error resetting channel name: {e}")
         return False
 
-async def remove_buyer_permission_after_delay(channel, buyer, delay_seconds):
-    """Remove buyer permission after delay (ONLY for active tickets, not after delivery)"""
-    try:
-        print(f"⏳ กำลังรอ {delay_seconds} วินาทีก่อนลบสิทธิ์การดูของ {channel.name}")
-        
-        remaining = delay_seconds
-        while is_timer_paused(channel.id):
-            paused_data = paused_timers.get(str(channel.id), {})
-            remaining = paused_data.get("remaining", remaining)
-            print(f"⏸️ Timer paused for {channel.name}, waiting for resume... ({remaining} seconds remaining)")
-            await asyncio.sleep(5)
-        
-        await asyncio.sleep(remaining)
-        
-        if not channel or channel not in channel.guild.channels:
-            print(f"❌ ตั๋ว {channel.name} ไม่มีอยู่แล้ว")
-            return
-        
-        # Only remove permission if ticket is NOT in delivered category
-        if channel.category and channel.category.id == DELIVERED_CATEGORY_ID:
-            print(f"ℹ️ Ticket {channel.name} is in delivered category, skipping permission removal")
-            return
-        
-        if buyer:
-            try:
-                overwrites = channel.overwrites
-                if buyer in overwrites:
-                    overwrites[buyer].update(read_messages=False)
-                    await bot.channel_edit_rate_limiter.acquire()
-                    await channel.edit(overwrites=overwrites)
-                    print(f"✅ ลบสิทธิ์การดูของผู้ซื้อ {buyer.name} เรียบร้อย")
-            except Exception as e:
-                print(f"⚠️ ไม่สามารถลบสิทธิ์ view ของผู้ซื้อ: {e}")
-        
-    except asyncio.CancelledError:
-        print(f"ℹ️ Removal task cancelled for {channel.name}")
-        raise
-    except Exception as e:
-        print(f"❌ Error in remove_buyer_permission_after_delay: {e}")
-
 async def add_buyer_role(buyer, guild):
     try:
         if not buyer:
@@ -2257,72 +2118,6 @@ async def reset_robuxtoday_cmd(ctx):
     embed.set_footer(text=f"รีเซ็ตโดย {ctx.author.name} • {get_thailand_time().strftime('%d/%m/%Y %H:%M:%S')}")
     await ctx.send(embed=embed)
     print(f"✅ Daily robux sales reset to 0 by {ctx.author.name}")
-
-# ============ TIMER CONTROL COMMANDS ============
-
-@bot.command(name="stop")
-@admin_only()
-async def stop_timer_cmd(ctx):
-    """Stop/Pause the 1-hour countdown for the current ticket channel"""
-    channel = ctx.channel
-    
-    if not channel.name.startswith("ticket-") and not re.match(r'^\d{10}-\d+-[\w\u0E00-\u0E7F]+$', channel.name):
-        await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
-        return
-    
-    if str(channel.id) not in ticket_removal_tasks and not is_timer_paused(channel.id):
-        await ctx.send("❌ ไม่มีตัวจับเวลาที่กำลังทำงานอยู่ในตั๋วนี้", delete_after=5)
-        return
-    
-    if is_timer_paused(channel.id):
-        await ctx.send("⏸️ ตัวจับเวลาถูกหยุดไว้แล้ว", delete_after=5)
-        return
-    
-    remaining = 3600
-    if str(channel.id) in ticket_removal_tasks:
-        pass
-    
-    cancel_removal(channel.id)
-    pause_timer(channel.id, remaining)
-    
-    embed = discord.Embed(
-        title="⏸️ หยุดตัวจับเวลา",
-        description=f"ตัวจับเวลาสำหรับตั๋วนี้ถูกหยุดชั่วคราว\n⏱️ เวลาที่เหลือ: **{remaining//60} นาที {remaining%60} วินาที**\n\nใช้ `!resume` เพื่อเริ่มต่อ",
-        color=0xFFA500
-    )
-    await ctx.send(embed=embed)
-
-@bot.command(name="resume")
-@admin_only()
-async def resume_timer_cmd(ctx):
-    """Resume the 1-hour countdown for the current ticket channel"""
-    channel = ctx.channel
-    
-    if not channel.name.startswith("ticket-") and not re.match(r'^\d{10}-\d+-[\w\u0E00-\u0E7F]+$', channel.name):
-        await ctx.send("❌ คำสั่งนี้ใช้ได้เฉพาะในตั๋วเท่านั้น", delete_after=5)
-        return
-    
-    if not is_timer_paused(channel.id):
-        await ctx.send("❌ ไม่มีตัวจับเวลาที่ถูกหยุดไว้ในตั๋วนี้", delete_after=5)
-        return
-    
-    remaining = get_paused_remaining(channel.id)
-    
-    buyer = None
-    if str(channel.id) in ticket_buyer_data:
-        buyer_id = ticket_buyer_data[str(channel.id)].get("user_id")
-        if buyer_id:
-            buyer = ctx.guild.get_member(buyer_id)
-    
-    resume_timer(channel.id)
-    await schedule_removal(channel, buyer, remaining)
-    
-    embed = discord.Embed(
-        title="▶️ เริ่มตัวจับเวลาต่อ",
-        description=f"ตัวจับเวลาถูกเริ่มต่อ\n⏱️ เวลาที่เหลือ: **{remaining//60} นาที {remaining%60} วินาที**",
-        color=0x00FF00
-    )
-    await ctx.send(embed=embed)
 
 @bot.command()
 @admin_only()
@@ -3045,7 +2840,7 @@ async def tkd_cmd(ctx):
 @bot.command()
 @admin_only()
 async def ty(ctx):
-    """Give credit - Optimized for faster 'สั่งของต่อ' response"""
+    """Give credit - Timer starts only when customer doesn't click 'สั่งของต่อ'"""
     global gamepass_stock, group_stock
     
     if not ctx.channel.name.startswith("ticket-") and not re.match(r'^\d{10}-\d+-[\w\u0E00-\u0E7F]+$', ctx.channel.name):
@@ -3127,7 +2922,7 @@ async def ty(ctx):
         
         await ctx.send(embed=embed, view=view)
         
-        # Handle "สั่งของต่อ" button
+        # Handle "สั่งของต่อ" button - Timer only starts if customer DOESN'T click this
         if product_type == "Gamepass" and buyer:
             order_more_view = View(timeout=None)
             order_more_btn = Button(label="สั่งของต่อ 📝", style=discord.ButtonStyle.success, emoji="🔄")
@@ -3138,11 +2933,12 @@ async def ty(ctx):
                     return
                 
                 await interaction.response.defer(ephemeral=True)
+                # When customer clicks "สั่งของต่อ", timer is cancelled (not started)
                 await process_order_more_fixed(ctx.channel, buyer, interaction)
             
             order_more_btn.callback = order_more_cb
             order_more_view.add_item(order_more_btn)
-            await ctx.send("📝 ต้องการสั่งของเพิ่มมั้ยคะ? ", view=order_more_view)
+            await ctx.send("📝 ต้องการสั่งของเพิ่มมั้ยคะ?", view=order_more_view)
         
         # Clean up data in background
         if str(ctx.channel.id) in ticket_robux_data:
@@ -3153,7 +2949,8 @@ async def ty(ctx):
             del ticket_customer_data[str(ctx.channel.id)]
             save_json(ticket_customer_data_file, ticket_customer_data)
         
-        # Move to delivered category and schedule removal in background
+        # Move to delivered category and schedule auto-delete in background
+        # Note: No timer for removing buyer permissions - only auto-delete after 1 hour in delivered category
         asyncio.create_task(move_to_delivered_category_with_cleanup(ctx.channel, buyer))
         await update_main_channel()
         
@@ -3168,17 +2965,15 @@ async def ty(ctx):
             pass
 
 async def process_order_more_fixed(channel, buyer, interaction):
-    """Fixed background task for processing 'สั่งของต่อ' - RESTORES customer permissions"""
+    """Fixed background task for processing 'สั่งของต่อ' - Cancels timer and restores permissions"""
     try:
+        # IMPORTANT: Cancel any timer (no 1-hour cooldown when ordering more)
         await reset_timer(channel, buyer)
-        
-        if is_timer_paused(channel.id):
-            cancel_paused_timer(channel.id)
         
         if buyer:
             await reset_channel_name(channel, buyer.id, "gamepass")
         
-        # This function now restores customer permissions
+        # This function restores customer permissions and moves back to original category
         await move_to_original_category(channel, "gamepass")
         
         admin_role = channel.guild.get_role(1486330338539077713)
@@ -3213,7 +3008,7 @@ async def process_order_more_fixed(channel, buyer, interaction):
         await channel.send(embed=order_embed, view=ticket_view)
         await interaction.followup.send("✅ รีเซ็ตระบบเรียบร้อย! กรุณากรอกแบบฟอร์มด้านบนเพื่อสั่งของเพิ่ม", ephemeral=True)
         
-        print(f"✅ Order more processed for {channel.name}")
+        print(f"✅ Order more processed for {channel.name} - Timer cancelled")
         
     except Exception as e:
         print(f"❌ Error processing order more: {e}")
@@ -3236,16 +3031,14 @@ async def save_ticket_transcript_background(channel, buyer, robux_int):
         print(f"❌ Error in background transcript save: {e}")
 
 async def move_to_delivered_category_with_cleanup(channel, buyer):
-    """Background task for moving to delivered category (NO permission removal)"""
+    """Background task for moving to delivered category (NO permission removal - ONLY auto-delete after 1 hour)"""
     try:
         if channel.category and channel.category.id != DELIVERED_CATEGORY_ID:
             await move_to_delivered_category(channel)
             print(f"✅ Moved {channel.name} to delivered category")
+            # Note: move_to_delivered_category already schedules auto-delete after 1 hour
         else:
             print(f"ℹ️ Channel {channel.name} already in delivered category or category not found")
-        
-        # IMPORTANT: DO NOT schedule removal here - the move_to_delivered_category already schedules auto-delete
-        # await schedule_removal(channel, buyer, 3600)  # REMOVED - causes double deletion
         
     except Exception as e:
         print(f"❌ Error moving to delivered category: {e}")
@@ -3647,23 +3440,6 @@ async def on_ready():
     total_sp = sum(data["sp"] for data in user_levels.values())
     print(f"\n📊 Loaded SP data: {len(user_levels)} users, total {format_number(total_sp)} SP")
     print("\n🎯 บอทพร้อมใช้งาน!")
-
-@bot.event
-async def on_message(message):
-    if message.author == bot.user:
-        return
-    
-    if message.channel.id == CREDIT_CHANNEL_ID:
-        if message.author != bot.user:
-            await asyncio.sleep(2)
-            for emoji in ["❤️", "🍣", "💎"]:
-                try:
-                    await message.add_reaction(emoji)
-                    await asyncio.sleep(1)
-                except:
-                    pass
-    
-    await bot.process_commands(message)
 
 @bot.event
 async def on_member_join(member):
