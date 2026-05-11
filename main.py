@@ -1762,8 +1762,9 @@ async def handle_open_ticket(interaction, category_name, stock_type):
         await channel.send(embed=embed, view=ticket_view)
         print(f"✅ ส่ง embed ต้อนรับในตั๋ว {channel.name} เรียบร้อย")
         
-        admin_role_mention = admin_role.mention if admin_role else "@ADMIN"
-        welcome_msg = await channel.send(f"# สนใจซื้ออะไรแจ้งแอดมินได้เลยค่ะ <:sushiheart:1410484970291466300> {admin_role_mention}")
+        admin_role = interaction.guild.get_role(1361016912259055896)  # Role ID ของแอดมิน
+        admin_mention = admin_role.mention if admin_role else "@ADMIN"
+        welcome_msg = await channel.send(f"# สนใจซื้ออะไรแจ้งแอดมินได้เลยค่ะ <:sushiheart:1410484970291466300> {admin_mention}")
         
     except Exception as e:
         print(f"❌ Error opening ticket: {e}")
