@@ -1599,7 +1599,8 @@ async def handle_open_ticket(interaction, category_name, stock_type):
             view.add_item(discord.ui.Button(
                 label="📩 ไปที่ตั๋ว", 
                 url=f"https://discord.com/channels/{existing.guild.id}/{existing.id}", 
-                style=discord.ButtonStyle.link            ))
+                style=discord.ButtonStyle.link
+            ))
             await interaction.response.send_message(
                 "📌 คุณมีตั๋วเปิดอยู่แล้ว กดปุ่มด้านล่างเพื่อไปที่ตั๋ว", 
                 view=view, 
@@ -1677,9 +1678,7 @@ async def handle_open_ticket(interaction, category_name, stock_type):
         ))
         await interaction.followup.send("📩 เปิดตั๋วเรียบร้อย", view=view, ephemeral=True)
         
-        if admin_role:
-            await channel.send(content=f"{admin_role.mention} มีตั๋วใหม่!", delete_after=10)
-        
+        # Get user's baht balance
         user_balance = get_user_robux_balance(interaction.user.id)
         balance_display = f"{user_balance:.2f}" if user_balance > 0 else "0"
         
@@ -1737,11 +1736,19 @@ async def handle_open_ticket(interaction, category_name, stock_type):
         
         await channel.send(embed=embed, view=ticket_view)
         print(f"✅ ส่ง embed ต้อนรับในตั๋ว {channel.name} เรียบร้อย")
-        
-        # This is the line you wanted to change - now it properly mentions the admin role
-        admin_mention = admin_role.mention if admin_role else "@ADMIN"
+
+        # ============ THIS IS THE FIXED SECTION ============
+        if admin_role:
+            admin_mention = admin_role.mention
+            await channel.send(content=f"{admin_role.mention} มีตั๋วใหม่!", delete_after=10)
+        else:
+            print(f"⚠️ Admin role not found with ID: {ADMIN_ROLE_ID}")
+            admin_mention = f"<@&{ADMIN_ROLE_ID}>"  # Show role ID in mention format
+
+        # Send the welcome message with admin mention
         welcome_msg = await channel.send(f"# สนใจซื้ออะไรแจ้งแอดมินได้เลยค่ะ <:sushiheart:1410484970291466300> {admin_mention}")
         print(f"✅ ส่งข้อความต้อนรับในตั๋ว {channel.name}")
+        # ===================================================
         
     except Exception as e:
         print(f"❌ Error opening ticket: {e}")
