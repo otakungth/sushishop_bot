@@ -113,6 +113,7 @@ WELCOME_CHANNEL_ID = 1475344769679888455
 SUSHI_GAMEPASS_CATEGORY_ID = 1475342278976606228
 ANONYMOUS_USER_ROLE_ID = 1486352633290821673
 ADMIN_ROLE_ID = 1486330338539077713  # Admin role ID for mention
+NOTES_BUTTON_CHANNEL_ID = 1485277532088696995  # Channel for the notes button
 NOTES_LOG_CHANNEL_ID = 1504349990460461066  # Channel for form submissions
 
 # Level roles
@@ -164,7 +165,7 @@ ticket_buyer_data_file = os.path.join(DATA_DIR, "ticket_buyer_data.json")
 user_levels_file = os.path.join(DATA_DIR, "user_levels.json")
 daily_sales_file = os.path.join(DATA_DIR, "daily_sales.json")
 user_robux_balance_file = os.path.join(DATA_DIR, "user_robux_balance.json")
-user_notes_file = os.path.join(DATA_DIR, "user_notes.json")  # New file for notes
+user_notes_file = os.path.join(DATA_DIR, "user_notes.json")  # File for notes
 
 print(f"📄 Data files will be saved to:")
 print(f"   - {user_levels_file}")
@@ -1102,6 +1103,18 @@ class GroupBahtCalculatorModal(Modal, title="🍣 คำนวณเงินบ
         except Exception as e:
             await interaction.response.send_message(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
 
+class NotesButtonView(View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        
+        notes_btn = Button(label="📝 จดวันเข้ากลุ่ม", style=discord.ButtonStyle.secondary, emoji="📝")
+        
+        async def notes_cb(i):
+            await i.response.send_modal(PersonalNoteModal())
+        
+        notes_btn.callback = notes_cb
+        self.add_item(notes_btn)
+
 class EmbedShopView(View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -1122,7 +1135,6 @@ class EmbedShopView(View):
             emoji="👥", 
             disabled=not shop_open
         )
-        notes_btn = Button(label="จดวันที่เข้ากลุ่ม", style=discord.ButtonStyle.secondary, emoji="📝")
         
         async def gamepass_cb(i):
             if not shop_open:
@@ -1136,16 +1148,11 @@ class EmbedShopView(View):
                 return
             await handle_open_ticket(i, "💰Robux Group💰", "group")
         
-        async def notes_cb(i):
-            await i.response.send_modal(PersonalNoteModal())
-        
         gamepass_btn.callback = gamepass_cb
         group_btn.callback = group_cb
-        notes_btn.callback = notes_cb
         
         self.add_item(gamepass_btn)
         self.add_item(group_btn)
-        self.add_item(notes_btn)
 
 class PersonalNoteModal(Modal, title="📝 จดวันที่เข้ากลุ่ม"):
     note = TextInput(
@@ -1638,6 +1645,40 @@ async def update_main_channel():
         
     except Exception as e:
         print(f"❌ Error updating main channel: {e}")
+        traceback.print_exc()
+
+async def update_notes_channel():
+    """Update the notes button channel with the button"""
+    try:
+        channel = bot.get_channel(NOTES_BUTTON_CHANNEL_ID)
+        if not channel:
+            print(f"❌ Notes button channel not found with ID: {NOTES_BUTTON_CHANNEL_ID}")
+            return
+        
+        # Create embed for notes channel
+        embed = discord.Embed(
+            title="📝 จดบันทึกวันที่เข้ากลุ่ม",
+            description="กดปุ่มด้านล่างเพื่อบันทึกวันที่เข้ากลุ่ม\n\n**ตัวอย่าง:**\n• 20/10/67\n• 20 ต.ค. 67\n• 20 October 2024",
+            color=0xFFA500
+        )
+        embed.set_footer(text="Sushi Shop 🍣")
+        
+        view = NotesButtonView()
+        
+        # Check for existing message
+        async for msg in channel.history(limit=10):
+            if msg.author == bot.user and len(msg.embeds) > 0:
+                if "จดบันทึกวันที่เข้ากลุ่ม" in msg.embeds[0].title:
+                    await msg.edit(embed=embed, view=view)
+                    print("✅ Updated existing notes channel message")
+                    return
+        
+        # Send new message if none found
+        await channel.send(embed=embed, view=view)
+        print("✅ Sent new notes channel message")
+        
+    except Exception as e:
+        print(f"❌ Error updating notes channel: {e}")
         traceback.print_exc()
 
 async def handle_open_ticket(interaction, category_name, stock_type):
@@ -3504,9 +3545,15 @@ async def on_ready():
     # Test notes channel
     notes_channel = bot.get_channel(NOTES_LOG_CHANNEL_ID)
     if notes_channel:
-        print(f"✅ Notes channel found: {notes_channel.name} (ID: {NOTES_LOG_CHANNEL_ID})")
+        print(f"✅ Notes log channel found: {notes_channel.name} (ID: {NOTES_LOG_CHANNEL_ID})")
     else:
-        print(f"⚠️ Notes channel not found with ID: {NOTES_LOG_CHANNEL_ID}")
+        print(f"⚠️ Notes log channel not found with ID: {NOTES_LOG_CHANNEL_ID}")
+    
+    notes_button_channel = bot.get_channel(NOTES_BUTTON_CHANNEL_ID)
+    if notes_button_channel:
+        print(f"✅ Notes button channel found: {notes_button_channel.name} (ID: {NOTES_BUTTON_CHANNEL_ID})")
+    else:
+        print(f"⚠️ Notes button channel not found with ID: {NOTES_BUTTON_CHANNEL_ID}")
     
     try:
         print("🔄 กำลัง sync slash commands...")
@@ -3527,6 +3574,7 @@ async def on_ready():
     await update_credit_channel_name()
     await update_channel_name()
     await update_main_channel()
+    await update_notes_channel()  # Update the notes channel with the button
     
     total_sp = sum(data["sp"] for data in user_levels.values())
     print(f"\n📊 Loaded SP data: {len(user_levels)} users, total {format_number(total_sp)} SP")
