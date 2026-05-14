@@ -1655,10 +1655,10 @@ async def update_notes_channel():
             print(f"❌ Notes button channel not found with ID: {NOTES_BUTTON_CHANNEL_ID}")
             return
         
-        # Create embed for notes channel
+        # Create embed for notes channel with simplified text
         embed = discord.Embed(
             title="📝 จดบันทึกวันที่เข้ากลุ่ม",
-            description="กดปุ่มด้านล่างเพื่อบันทึกวันที่เข้ากลุ่ม\n\n**ตัวอย่าง:**\n• 20/10/67\n• 20 ต.ค. 67\n• 20 October 2024",
+            description="ตัวอย่าง:\n• 6/7/2026",
             color=0xFFA500
         )
         embed.set_footer(text="Sushi Shop 🍣")
