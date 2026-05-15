@@ -1,4 +1,5 @@
-import os, datetime, discord, re, asyncio, json, traceback, time, aiohttp, loggingimport random
+import os, datetime, discord, re, asyncio, json, traceback, time, aiohttp, loggingimport 
+import random
 import math
 import signal
 import sys
