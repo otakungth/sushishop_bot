@@ -11,6 +11,7 @@ from flask import Flask, jsonify
 from threading import Thread
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime as dt
+from datetime import timedelta
 
 # ============ STARTUP DEBUG ============
 print("=" * 60)
@@ -1118,9 +1119,14 @@ class NotesButtonView(View):
                 current_time = get_thailand_time()
                 formatted_date = current_time.strftime("%d/%m/%Y %H:%M:%S")
                 
-                # Store note with current date/time
+                # Calculate eligibility date (15 days after recorded date)
+                eligibility_date = current_time + timedelta(days=15)
+                formatted_eligibility = eligibility_date.strftime("%d/%m/%Y %H:%M:%S")
+                
+                # Store note with current date/time and eligibility date
                 user_notes[str(interaction.user.id)] = {
                     "note": f"บันทึกวันที่ {formatted_date}", 
+                    "eligibility_date": formatted_eligibility,
                     "created_at": current_time.isoformat(), 
                     "updated_at": current_time.isoformat(),
                     "user_name": interaction.user.name,
@@ -1135,7 +1141,7 @@ class NotesButtonView(View):
                 if notes_channel:
                     embed = discord.Embed(
                         title="📝 ใหม่! บันทึกวันที่เข้ากลุ่ม",
-                        description=f"**ผู้ใช้:** {interaction.user.mention}\n**ชื่อในระบบ:** {interaction.user.name}\n**ID:** {interaction.user.id}\n\n**📅 วันที่บันทึก:**\n```{formatted_date}```",
+                        description=f"**ผู้ใช้:** {interaction.user.mention}\n**ชื่อในระบบ:** {interaction.user.name}\n**ID:** {interaction.user.id}\n\n**📅 วันที่บันทึก:**\n```{formatted_date}```\n\n**✅ วันที่จะซื้อได้:**\n```{formatted_eligibility}```",
                         color=0x00FF00,
                         timestamp=current_time
                     )
@@ -1145,7 +1151,7 @@ class NotesButtonView(View):
                 else:
                     print(f"⚠️ Notes channel {NOTES_LOG_CHANNEL_ID} not found")
                 
-                # Send DM to customer with copyable timestamp
+                # Send DM to customer with eligibility date
                 try:
                     dm_embed = discord.Embed(
                         title="📝 บันทึกวันที่เข้ากลุ่มเรียบร้อย",
@@ -1154,7 +1160,8 @@ class NotesButtonView(View):
                         timestamp=current_time
                     )
                     # Make the timestamp copyable by using code block
-                    dm_embed.add_field(name="🕐 เวลาที่บันทึก", value=f"```{formatted_date}```", inline=False)
+                    dm_embed.add_field(name="🕐 วันที่บันทึก", value=f"```{formatted_date}```", inline=False)
+                    dm_embed.add_field(name="✅ วันที่จะซื้อได้", value=f"```{formatted_eligibility}```", inline=False)
                     dm_embed.add_field(name="📌 หมายเหตุ", value="กรุณาเข้ากลุ่มตามลิงก์ด้านล่างให้ครบ 15 วันก่อนเติมโรกลุ่ม", inline=False)
                     dm_embed.add_field(name="🔗 ลิงก์กลุ่ม", value="https://www.roblox.com/communities/944554/Sonic2271TV\nhttps://www.roblox.com/communities/15959780/Meedee-X\nhttps://www.roblox.com/communities/34431261/PARAGON", inline=False)
                     dm_embed.set_footer(text="Sushi Shop 🍣")
@@ -2134,9 +2141,9 @@ async def view_notes_cmd(ctx, user: discord.Member = None):
                 color=0x00FF99
             )
             embed.add_field(name="📝 เนื้อหา", value=note_data.get("note", "ไม่มีข้อมูล"), inline=False)
+            embed.add_field(name="✅ วันที่จะซื้อได้", value=note_data.get("eligibility_date", "ไม่ทราบ"), inline=False)
             embed.add_field(name="👤 บันทึกโดย", value=note_data.get("user_mention", user.mention), inline=True)
             embed.add_field(name="🕐 สร้างเมื่อ", value=note_data.get("created_at", "ไม่ทราบ"), inline=True)
-            embed.add_field(name="🔄 อัปเดตล่าสุด", value=note_data.get("updated_at", "ไม่ทราบ"), inline=True)
             await ctx.send(embed=embed)
         else:
             await ctx.send(f"❌ {user.mention} ยังไม่มีโน้ตที่บันทึกไว้", delete_after=5)
@@ -2154,14 +2161,15 @@ async def view_notes_cmd(ctx, user: discord.Member = None):
         for i, (user_id_str, note_data) in enumerate(user_notes.items(), 1):
             user_mention = note_data.get("user_mention", f"<@{user_id_str}>")
             note_preview = note_data.get("note", "ไม่มีข้อมูล")[:50]
-            if len(note_data.get("note", "")) > 50:
+            eligibility = note_data.get("eligibility_date", "ไม่ทราบ")[:50]
+            if len(note_data.get("note", "")) > 30:
                 note_preview += "..."
             
             created_time = note_data.get('created_at', 'ไม่ทราบ')
             if len(created_time) > 16:
                 created_time = created_time[:16]
             
-            line = f"**{i}.** {user_mention}\n   📝 `{note_preview}`\n   🕐 {created_time}\n\n"
+            line = f"**{i}.** {user_mention}\n   📝 `{note_preview}`\n   ✅ ซื้อได้: `{eligibility}`\n   🕐 {created_time}\n\n"
             
             if len(description + line) > 1800:
                 current_embed.description = description
@@ -3572,7 +3580,7 @@ async def on_ready():
     await update_credit_channel_name()
     await update_channel_name()
     await update_main_channel()
-    await update_notes_channel()  # Update the notes channel with the button
+    await update_notes_channel()
     
     total_sp = sum(data["sp"] for data in user_levels.values())
     print(f"\n📊 Loaded SP data: {len(user_levels)} users, total {format_number(total_sp)} SP")
