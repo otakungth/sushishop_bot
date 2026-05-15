@@ -165,7 +165,7 @@ ticket_buyer_data_file = os.path.join(DATA_DIR, "ticket_buyer_data.json")
 user_levels_file = os.path.join(DATA_DIR, "user_levels.json")
 daily_sales_file = os.path.join(DATA_DIR, "daily_sales.json")
 user_robux_balance_file = os.path.join(DATA_DIR, "user_robux_balance.json")
-user_notes_file = os.path.join(DATA_DIR, "user_notes.json")  # File for notes
+user_notes_file = os.path.join(DATA_DIR, "user_notes.json")
 
 print(f"📄 Data files will be saved to:")
 print(f"   - {user_levels_file}")
@@ -1107,10 +1107,77 @@ class NotesButtonView(View):
     def __init__(self):
         super().__init__(timeout=None)
         
-        notes_btn = Button(label="📝 จดวันเข้ากลุ่ม", style=discord.ButtonStyle.secondary, emoji="📝")
+        notes_btn = Button(label="📝 บันทึกวันเข้ากลุ่ม", style=discord.ButtonStyle.success, emoji="📝")
         
-        async def notes_cb(i):
-            await i.response.send_modal(PersonalNoteModal())
+        async def notes_cb(interaction):
+            # Defer immediately to prevent timeout
+            await interaction.response.defer(ephemeral=True)
+            
+            try:
+                # Get current time
+                current_time = get_thailand_time()
+                formatted_date = current_time.strftime("%d/%m/%Y %H:%M:%S")
+                
+                # Store note with current date/time
+                user_notes[str(interaction.user.id)] = {
+                    "note": f"บันทึกวันที่ {formatted_date}", 
+                    "created_at": current_time.isoformat(), 
+                    "updated_at": current_time.isoformat(),
+                    "user_name": interaction.user.name,
+                    "user_display": interaction.user.display_name,
+                    "user_id": interaction.user.id,
+                    "user_mention": interaction.user.mention
+                }
+                save_notes()
+                
+                # Send to the notes log channel for admins
+                notes_channel = interaction.guild.get_channel(NOTES_LOG_CHANNEL_ID)
+                if notes_channel:
+                    embed = discord.Embed(
+                        title="📝 ใหม่! บันทึกวันที่เข้ากลุ่ม",
+                        description=f"**ผู้ใช้:** {interaction.user.mention}\n**ชื่อในระบบ:** {interaction.user.name}\n**ID:** {interaction.user.id}\n\n**📅 วันที่บันทึก:**\n```{formatted_date}```",
+                        color=0x00FF00,
+                        timestamp=current_time
+                    )
+                    embed.set_footer(text=f"User ID: {interaction.user.id}")
+                    await notes_channel.send(embed=embed)
+                    print(f"✅ Sent note to channel {NOTES_LOG_CHANNEL_ID}")
+                else:
+                    print(f"⚠️ Notes channel {NOTES_LOG_CHANNEL_ID} not found")
+                
+                # Send DM to customer with copyable timestamp
+                try:
+                    dm_embed = discord.Embed(
+                        title="📝 บันทึกวันที่เข้ากลุ่มเรียบร้อย",
+                        description="ทางร้านได้บันทึกวันที่เข้ากลุ่มของคุณแล้วค่ะ",
+                        color=0x00FF00,
+                        timestamp=current_time
+                    )
+                    # Make the timestamp copyable by using code block
+                    dm_embed.add_field(name="🕐 เวลาที่บันทึก", value=f"```{formatted_date}```", inline=False)
+                    dm_embed.add_field(name="📌 หมายเหตุ", value="กรุณาเข้ากลุ่มตามลิงก์ด้านล่างให้ครบ 15 วันก่อนเติมโรกลุ่ม", inline=False)
+                    dm_embed.add_field(name="🔗 ลิงก์กลุ่ม", value="https://www.roblox.com/communities/944554/Sonic2271TV\nhttps://www.roblox.com/communities/15959780/Meedee-X\nhttps://www.roblox.com/communities/34431261/PARAGON", inline=False)
+                    dm_embed.set_footer(text="Sushi Shop 🍣")
+                    dm_embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
+                    
+                    await interaction.user.send(embed=dm_embed)
+                    print(f"✅ Sent DM confirmation to {interaction.user.name}")
+                except discord.Forbidden:
+                    print(f"⚠️ Cannot send DM to {interaction.user.name} (DMs disabled)")
+                    await interaction.followup.send("⚠️ ไม่สามารถส่ง DM ถึงคุณได้ กรุณาเปิดการรับ DM แล้วลองใหม่อีกครั้ง", ephemeral=True)
+                    return
+                except Exception as e:
+                    print(f"⚠️ Error sending DM to {interaction.user.name}: {e}")
+                    await interaction.followup.send(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
+                    return
+                
+                # Send confirmation to user in channel
+                await interaction.followup.send("✅ บันทึกวันที่เข้ากลุ่มเรียบร้อยแล้ว! ตรวจสอบ DM ของคุณได้เลยค่ะ", ephemeral=True)
+                
+            except Exception as e:
+                print(f"❌ Error in notes callback: {e}")
+                traceback.print_exc()
+                await interaction.followup.send(f"❌ เกิดข้อผิดพลาด: {e}", ephemeral=True)
         
         notes_btn.callback = notes_cb
         self.add_item(notes_btn)
@@ -1153,85 +1220,6 @@ class EmbedShopView(View):
         
         self.add_item(gamepass_btn)
         self.add_item(group_btn)
-
-class PersonalNoteModal(Modal, title="📝 จดวันที่เข้ากลุ่ม"):
-    note = TextInput(
-        label="จดวันที่เข้ากลุ่ม ดูจากวันที่ปัจจุบัน", 
-        placeholder="เช่น: 20/10 , 20 ต.ค.", 
-        style=discord.TextStyle.paragraph, 
-        required=False, 
-        max_length=1000
-    )
-    
-    async def on_submit(self, i):
-        if self.note.value.strip():
-            # Get current time
-            current_time = get_thailand_time()
-            
-            # Store note with user information
-            user_notes[str(i.user.id)] = {
-                "note": self.note.value, 
-                "created_at": current_time.isoformat(), 
-                "updated_at": current_time.isoformat(),
-                "user_name": i.user.name,
-                "user_display": i.user.display_name,
-                "user_id": i.user.id,
-                "user_mention": i.user.mention
-            }
-            save_notes()
-            
-            # Send to the notes log channel
-            notes_channel = i.guild.get_channel(NOTES_LOG_CHANNEL_ID)
-            if notes_channel:
-                embed = discord.Embed(
-                    title="📝 ใหม่! จดวันที่เข้ากลุ่ม",
-                    description=f"**ผู้ใช้:** {i.user.mention}\n**ชื่อในระบบ:** {i.user.name}\n**ID:** {i.user.id}\n\n**📅 วันที่บันทึก:**\n```{self.note.value}```",
-                    color=0xFFA500,
-                    timestamp=current_time
-                )
-                embed.set_footer(text=f"User ID: {i.user.id}")
-                await notes_channel.send(embed=embed)
-                print(f"✅ Sent note to channel {NOTES_LOG_CHANNEL_ID}")
-            else:
-                print(f"⚠️ Notes channel {NOTES_LOG_CHANNEL_ID} not found")
-            
-            # Send DM to customer
-            try:
-                dm_embed = discord.Embed(
-                    title="📝 บันทึกวันที่เข้ากลุ่มเรียบร้อย",
-                    description=f"ทางร้านได้รับบันทึกของท่านเรียบร้อยแล้วค่ะ",
-                    color=0x00FF00,
-                    timestamp=current_time
-                )
-                dm_embed.add_field(name="📅 วันที่บันทึก", value=f"```{self.note.value}```", inline=False)
-                dm_embed.add_field(name="🕐 เวลาที่บันทึก", value=current_time.strftime("%d/%m/%Y %H:%M:%S"), inline=False)
-                dm_embed.add_field(name="📌 หมายเหตุ", value="กรุณาเข้ากลุ่มตามลิงก์ด้านล่างให้ครบ 15 วันก่อนทำรายการ", inline=False)
-                dm_embed.add_field(name="🔗 ลิงก์กลุ่ม", value="https://www.roblox.com/communities/944554/Sonic2271TV\nhttps://www.roblox.com/communities/15959780/Meedee-X\nhttps://www.roblox.com/communities/34431261/PARAGON", inline=False)
-                dm_embed.set_footer(text="Sushi Shop 🍣")
-                dm_embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
-                
-                await i.user.send(embed=dm_embed)
-                print(f"✅ Sent DM confirmation to {i.user.name}")
-            except discord.Forbidden:
-                print(f"⚠️ Cannot send DM to {i.user.name} (DMs disabled)")
-            except Exception as e:
-                print(f"⚠️ Error sending DM to {i.user.name}: {e}")
-            
-            # Send confirmation to user in channel
-            embed = discord.Embed(title="✅ บันทึกโน้ตเรียบร้อย", color=0x00FF00)
-            embed.add_field(name="📝 จดวันที่เข้ากลุ่ม", value=self.note.value)
-            embed.add_field(name="👤 บันทึกโดย", value=i.user.mention, inline=False)
-            embed.add_field(name="📅 เวลาที่บันทึก", value=current_time.strftime("%d/%m/%Y %H:%M:%S"), inline=False)
-            await i.response.send_message(embed=embed, ephemeral=True)
-            
-        else:
-            # Delete note if empty
-            if str(i.user.id) in user_notes:
-                del user_notes[str(i.user.id)]
-                save_notes()
-                await i.response.send_message("🗑️ ลบโน้ตส่วนตัวเรียบร้อยแล้ว", ephemeral=True)
-            else:
-                await i.response.send_message("❌ คุณยังไม่มีโน้ตที่บันทึกไว้", ephemeral=True)
 
 class GamepassTicketModal(Modal, title="📋 แบบฟอร์มกดเกมพาส"):
     map_name = TextInput(
@@ -1670,34 +1658,22 @@ async def update_main_channel():
         traceback.print_exc()
 
 async def update_notes_channel():
-    """Update the notes button channel with the button"""
+    """Update the notes button channel with just text and button"""
     try:
         channel = bot.get_channel(NOTES_BUTTON_CHANNEL_ID)
         if not channel:
             print(f"❌ Notes button channel not found with ID: {NOTES_BUTTON_CHANNEL_ID}")
             return
         
-        # Create embed for notes channel with simplified text
-        embed = discord.Embed(
-            title="📝 จดบันทึกวันที่เข้ากลุ่ม",
-            description="ตัวอย่าง:\n• 6/7/2026",
-            color=0xFFA500
-        )
-        embed.set_footer(text="Sushi Shop 🍣")
-        
-        view = NotesButtonView()
-        
-        # Check for existing message
+        # Clear any existing messages and send new text-only message
         async for msg in channel.history(limit=10):
-            if msg.author == bot.user and len(msg.embeds) > 0:
-                if "จดบันทึกวันที่เข้ากลุ่ม" in msg.embeds[0].title:
-                    await msg.edit(embed=embed, view=view)
-                    print("✅ Updated existing notes channel message")
-                    return
+            if msg.author == bot.user:
+                await msg.delete()
         
-        # Send new message if none found
-        await channel.send(embed=embed, view=view)
-        print("✅ Sent new notes channel message")
+        # Send simple text with button
+        view = NotesButtonView()
+        await channel.send("# กดปุ่มเพื่อบันทึกวันที่เข้ากลุ่ม", view=view)
+        print("✅ Sent notes button message")
         
     except Exception as e:
         print(f"❌ Error updating notes channel: {e}")
