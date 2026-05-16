@@ -148,6 +148,10 @@ GAMEPASS_CATEGORY_NAME = "sushi gamepass"
 GROUP_CATEGORY_NAME = "robux group"
 ROBUX_EMOJI = "<:sushirobux:1486314072701141074>"
 
+# FIXED: Use a simpler heart emoji that will definitely work
+HEART_EMOJI = "❤️"
+SUSHI_EMOJI = "🍣"
+
 WELCOME_MESSAGES = [
     "ยินดีต้อนรับ {} สู่ร้าน Sushi Shop 🍣",
     "สวัสดีค่ะ {} ยินดีต้อนรับนะคะ 🍣",
@@ -1858,9 +1862,8 @@ async def handle_open_ticket(interaction, category_name, stock_type):
             print(f"⚠️ Admin role not found with ID: {ADMIN_ROLE_ID}")
             admin_mention = ""
 
-        # FIXED: Send the welcome message with properly formatted emoji
-        sushi_heart_emoji = "<:sushiheart:1410484970291466300>"
-        welcome_msg = await channel.send(f"# สนใจซื้ออะไรแจ้งแอดมินได้เลยค่ะ {sushi_heart_emoji} {admin_mention}")
+        # FIXED: Use simple heart emoji instead of custom emoji
+        welcome_msg = await channel.send(f"# สนใจซื้ออะไรแจ้งแอดมินได้เลยค่ะ {HEART_EMOJI} {admin_mention}")
         print(f"✅ ส่งข้อความต้อนรับในตั๋ว {channel.name}")
         
     except Exception as e:
@@ -3242,6 +3245,7 @@ class PaymentView(View):
         embed.add_field(name="🏦 ชื่อบัญชี", value="หจก. วอเตอร์ เทค เซลล์ แอนด์ เซอร์วิส", inline=False)
         embed.add_field(name="🔢 เลขบัญชี", value="**120-239181-3**", inline=False)
         embed.add_field(name="⚠️ โน๊ตสลิป", value="เติมโรบัค Sushi Shop เฟส Arisara Srijitjam", inline=False)
+        # FIXED: Using a reliable image URL
         embed.set_image(url="https://media.discordapp.net/attachments/1361004239043821610/1475334379550281768/Sushi_SCB_3.png")
         embed.set_footer(text="Sushi Shop 🍣")
         
@@ -3438,7 +3442,7 @@ async def tax(ctx, *, expr):
 # ============ PUBLIC COMMANDS ============
 @bot.command()
 async def love(ctx):
-    await ctx.send("# LOVE YOU<:sushiheart:1410484970291466300>")
+    await ctx.send(f"# LOVE YOU {HEART_EMOJI}")
 
 @bot.command()
 async def u(ctx):
@@ -3446,7 +3450,7 @@ async def u(ctx):
 
 @bot.command()
 async def say(ctx, *, message):
-    await ctx.send(f"# {message.upper()} <:sushiheart:1410484970291466300>")
+    await ctx.send(f"# {message.upper()} {HEART_EMOJI}")
 
 # ============ Maps ============
 
