@@ -147,10 +147,7 @@ LEVEL_NAMES = {
 GAMEPASS_CATEGORY_NAME = "sushi gamepass"
 GROUP_CATEGORY_NAME = "robux group"
 ROBUX_EMOJI = "<:sushirobux:1486314072701141074>"
-
-# FIXED: Use a simpler heart emoji that will definitely work
-HEART_EMOJI = "❤️"
-SUSHI_EMOJI = "🍣"
+SUSHI_HEART_EMOJI = "<:sushiheart:1410484970291466300>"  # FIXED: Store emoji in variable
 
 WELCOME_MESSAGES = [
     "ยินดีต้อนรับ {} สู่ร้าน Sushi Shop 🍣",
@@ -1862,8 +1859,8 @@ async def handle_open_ticket(interaction, category_name, stock_type):
             print(f"⚠️ Admin role not found with ID: {ADMIN_ROLE_ID}")
             admin_mention = ""
 
-        # FIXED: Use simple heart emoji instead of custom emoji
-        welcome_msg = await channel.send(f"# สนใจซื้ออะไรแจ้งแอดมินได้เลยค่ะ {HEART_EMOJI} {admin_mention}")
+        # FIXED: Send the welcome message with properly formatted custom emoji
+        welcome_msg = await channel.send(f"# สนใจซื้ออะไรแจ้งแอดมินได้เลยค่ะ {SUSHI_HEART_EMOJI} {admin_mention}")
         print(f"✅ ส่งข้อความต้อนรับในตั๋ว {channel.name}")
         
     except Exception as e:
@@ -2496,7 +2493,7 @@ async def check_all_baht_cmd(ctx):
             users_with_balance[user_id_str] = balance
     
     if not users_with_balance:
-        await ctx.send("📊 ไม่มีผู้ใช้ที่มีเงืนคงเหลือในระบบ", delete_after=5)
+        await ctx.send("📊 ไม่มีผู้ใช้ที่มีเงินคงเหลือในระบบ", delete_after=5)
         return
     
     sorted_users = sorted(users_with_balance.items(), key=lambda x: x[1], reverse=True)
@@ -3245,7 +3242,6 @@ class PaymentView(View):
         embed.add_field(name="🏦 ชื่อบัญชี", value="หจก. วอเตอร์ เทค เซลล์ แอนด์ เซอร์วิส", inline=False)
         embed.add_field(name="🔢 เลขบัญชี", value="**120-239181-3**", inline=False)
         embed.add_field(name="⚠️ โน๊ตสลิป", value="เติมโรบัค Sushi Shop เฟส Arisara Srijitjam", inline=False)
-        # FIXED: Using a reliable image URL
         embed.set_image(url="https://media.discordapp.net/attachments/1361004239043821610/1475334379550281768/Sushi_SCB_3.png")
         embed.set_footer(text="Sushi Shop 🍣")
         
@@ -3442,7 +3438,7 @@ async def tax(ctx, *, expr):
 # ============ PUBLIC COMMANDS ============
 @bot.command()
 async def love(ctx):
-    await ctx.send(f"# LOVE YOU {HEART_EMOJI}")
+    await ctx.send(f"# LOVE YOU {SUSHI_HEART_EMOJI}")
 
 @bot.command()
 async def u(ctx):
@@ -3450,7 +3446,7 @@ async def u(ctx):
 
 @bot.command()
 async def say(ctx, *, message):
-    await ctx.send(f"# {message.upper()} {HEART_EMOJI}")
+    await ctx.send(f"# {message.upper()} {SUSHI_HEART_EMOJI}")
 
 # ============ Maps ============
 
