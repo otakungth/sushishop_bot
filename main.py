@@ -3497,7 +3497,7 @@ async def utd(ctx):
     await ctx.send("UTDX🌌 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=807f0df0b599fe459edc3e224144e813&type=Server")
 
 @bot.command()
-async def utd(ctx):
+async def aw3(ctx):
     await ctx.send("Warrior 3⚔️ เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=fe239bd0f172564eb8c4690c77b0d6d8&type=Server")
     
 # ============ BACKGROUND TASKS ============
