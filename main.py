@@ -1856,9 +1856,11 @@ async def handle_open_ticket(interaction, category_name, stock_type):
             await channel.send(content=f"{admin_role.mention} มีตั๋วใหม่!", delete_after=10)
         else:
             print(f"⚠️ Admin role not found with ID: {ADMIN_ROLE_ID}")
+            admin_mention = ""
 
-        # Send the welcome message with admin mention
-        welcome_msg = await channel.send(f"# สนใจซื้ออะไรแจ้งแอดมินได้เลยค่ะ <:sushiheart:1410484970291466300> {admin_mention}")
+        # FIXED: Send the welcome message with properly formatted emoji
+        sushi_heart_emoji = "<:sushiheart:1410484970291466300>"
+        welcome_msg = await channel.send(f"# สนใจซื้ออะไรแจ้งแอดมินได้เลยค่ะ {sushi_heart_emoji} {admin_mention}")
         print(f"✅ ส่งข้อความต้อนรับในตั๋ว {channel.name}")
         
     except Exception as e:
