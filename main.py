@@ -3490,11 +3490,15 @@ async def dti(ctx):
 
 @bot.command()
 async def slime(ctx):
-    await ctx.send("Slime🦠 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=af56b5de5b2fc548a5b064dd008a4c45&type=Server")
+    await ctx.send("Bid💰 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=a5b1a87fd36f64499a7dcdb04071de04&type=Server")
 
 @bot.command()
 async def utd(ctx):
     await ctx.send("UTDX🌌 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=807f0df0b599fe459edc3e224144e813&type=Server")
+
+@bot.command()
+async def utd(ctx):
+    await ctx.send("Warrior 3⚔️ เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=fe239bd0f172564eb8c4690c77b0d6d8&type=Server")
     
 # ============ BACKGROUND TASKS ============
 @tasks.loop(minutes=1)
