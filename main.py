@@ -148,8 +148,8 @@ GAMEPASS_CATEGORY_NAME = "sushi gamepass"
 GROUP_CATEGORY_NAME = "robux group"
 ROBUX_EMOJI = "<:sushirobux:1486314072701141074>"
 
-# IMPORTANT: Keep your exact emoji format
-SUSHI_HEART_EMOJI = "<:sushiheart:1410484970291466300>"
+# FIXED: Using the correct emoji ID
+SUSHI_HEART_EMOJI = "<:sushiheart:1485273027431108810>"
 
 WELCOME_MESSAGES = [
     "ยินดีต้อนรับ {} สู่ร้าน Sushi Shop 🍣",
@@ -1861,7 +1861,7 @@ async def handle_open_ticket(interaction, category_name, stock_type):
             print(f"⚠️ Admin role not found with ID: {ADMIN_ROLE_ID}")
             admin_mention = ""
 
-        # FIXED: Use raw string to ensure Discord renders the emoji properly
+        # FIXED: Using the correct emoji ID
         welcome_msg = await channel.send(f"# สนใจซื้ออะไรแจ้งแอดมินได้เลยค่ะ {SUSHI_HEART_EMOJI} {admin_mention}")
         print(f"✅ ส่งข้อความต้อนรับในตั๋ว {channel.name}")
         
