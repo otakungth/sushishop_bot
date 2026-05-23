@@ -3493,7 +3493,7 @@ async def dti(ctx):
     await ctx.send("DTI👗 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=e4ef0b7c5bf38e42b31edf1ec45808d5&type=Server")
 
 @bot.command()
-async def slime(ctx):
+async def bid(ctx):
     await ctx.send("Bid💰 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=a5b1a87fd36f64499a7dcdb04071de04&type=Server")
 
 @bot.command()
