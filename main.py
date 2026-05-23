@@ -3503,6 +3503,18 @@ async def utd(ctx):
 @bot.command()
 async def aw3(ctx):
     await ctx.send("Warrior 3⚔️ เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=fe239bd0f172564eb8c4690c77b0d6d8&type=Server")
+
+@bot.command()
+async def as2(ctx):
+    await ctx.send("Story 2📓 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=7ea5efd91a5e5c45874d1bd120474ded&type=Server")
+
+@bot.command()
+async def slime(ctx):
+    await ctx.send("Slime🦠 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=a832205f5887d9459ed17ef70aefadef&type=Server")
+
+@bot.command()
+async def mini(ctx):
+    await ctx.send("Mini War🤛 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=b8622e6e4e341f438418a392d37d8f8e&type=Server")
     
 # ============ BACKGROUND TASKS ============
 @tasks.loop(minutes=1)
