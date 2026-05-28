@@ -3229,7 +3229,7 @@ class PaymentView(View):
         )
         embed.add_field(name="🏦 ชื่อบัญชี", value="สุทัตตา เถลิงสุข", inline=False)
         embed.add_field(name="⚠️ โน๊ตสลิป", value="เติมโรบัค Sushi Shop เฟส Can pattarapol", inline=False)
-        embed.set_image(url="https://media.discordapp.net/attachments/1485285161955360963/1487457449416982568/Can_Can-1.png")
+        embed.set_image(url="https://media.discordapp.net/attachments/1485285161955360963/1509440952270589974/canQR.png?ex=6a192fef&is=6a17de6f&hm=f15e0d8c3211ce1d4ae402b1e3891af28f34a31dd5ec47d003e372a179c9a3bc&=&format=webp&quality=lossless&width=567&height=1004")
         embed.set_footer(text="Sushi Shop 🍣 • สแกน QR Code เพื่อชำระเงิน")
         
         view = BackButtonView(self)
