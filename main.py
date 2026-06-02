@@ -3237,14 +3237,13 @@ class PaymentView(View):
     
     async def account_callback(self, interaction: discord.Interaction):
         embed = discord.Embed(
-            title="🏦 ชำระเงินผ่านบัญชีธนาคาร",
-            description="**กรุงศรี Krungsri**",
+            title="🏦 ธนาคารกรุงศรี Krungsri",
             color=0x0099FF
         )
         embed.add_field(name="🏦 ชื่อบัญชี", value="สุทัตตา เถลิงสุข", inline=False)
         embed.add_field(name="🔢 เลขบัญชี", value="**778-156804-4 **", inline=False)
         embed.add_field(name="⚠️ โน๊ตสลิป", value="เติมโรบัค Sushi Shop เฟส Can pattarapol", inline=False)
-        embed.set_image(url="https://media.discordapp.net/attachments/1475342583667490859/1475342637367300126/Sushi_SCB_2.png?ex=6a1fa7e7&is=6a1e5667&hm=15156f89815dddaa7b4774e7a0fc6894b0c0d777ea5b41be25ef74082db521ba&=&format=webp&quality=lossless&width=1161&height=831")
+        embed.set_image(url="https://media.discordapp.net/attachments/1485285161955360963/1511326590372675674/37f6d1bf7fe4bcf4841257e392a19678.jpg?ex=6a200c12&is=6a1eba92&hm=b215f35c0420487b651eee9cfca8cc5f0fb2611c6e1bcf0a6ff82273dc9d269f&=&format=webp&width=863&height=1295")
         embed.set_footer(text="Sushi Shop 🍣")
         
         view = BackButtonView(self)
