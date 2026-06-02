@@ -3238,20 +3238,20 @@ class PaymentView(View):
     async def account_callback(self, interaction: discord.Interaction):
         embed = discord.Embed(
             title="🏦 ชำระเงินผ่านบัญชีธนาคาร",
-            description="**ธนาคารไทยพานิชย์ (SCB)**",
+            description="**กรุงศรี Krungsri**",
             color=0x0099FF
         )
-        embed.add_field(name="🏦 ชื่อบัญชี", value="หจก. วอเตอร์ เทค เซลล์ แอนด์ เซอร์วิส", inline=False)
-        embed.add_field(name="🔢 เลขบัญชี", value="**120-239181-3**", inline=False)
-        embed.add_field(name="⚠️ โน๊ตสลิป", value="เติมโรบัค Sushi Shop เฟส Arisara Srijitjam", inline=False)
-        embed.set_image(url="https://media.discordapp.net/attachments/1361004239043821610/1475334379550281768/Sushi_SCB_3.png")
+        embed.add_field(name="🏦 ชื่อบัญชี", value="สุทัตตา เถลิงสุข", inline=False)
+        embed.add_field(name="🔢 เลขบัญชี", value="**778-156804-4 **", inline=False)
+        embed.add_field(name="⚠️ โน๊ตสลิป", value="เติมโรบัค Sushi Shop เฟส Can pattarapol", inline=False)
+        embed.set_image(url="https://media.discordapp.net/attachments/1475342583667490859/1475342637367300126/Sushi_SCB_2.png?ex=6a1fa7e7&is=6a1e5667&hm=15156f89815dddaa7b4774e7a0fc6894b0c0d777ea5b41be25ef74082db521ba&=&format=webp&quality=lossless&width=1161&height=831")
         embed.set_footer(text="Sushi Shop 🍣")
         
         view = BackButtonView(self)
         copy_btn = Button(label="📋 คัดลอกเลขบัญชี", style=discord.ButtonStyle.secondary, emoji="📋")
         
         async def copy_cb(i):
-            await i.response.send_message("```1202391813```", ephemeral=True)
+            await i.response.send_message("```7781568044```", ephemeral=True)
         
         copy_btn.callback = copy_cb
         view.add_item(copy_btn)
@@ -3266,7 +3266,7 @@ class PaymentView(View):
         )
         embed.add_field(name="👤 ชื่อบัญชี", value="ลัดดา", inline=False)
         embed.add_field(name="⚠️ หมายเหตุ", value="โอนวอเล็ตบวกเพิ่ม 5%", inline=False)
-        embed.set_footer(text="Sushi Shop 🍣 • โอนวอเล็ตบวกเพิ่ม 5%")
+        embed.set_footer(text="Sushi Shop 🍣")
         
         view = BackButtonView(self)
         copy_btn = Button(label="📋 คัดลอกเบอร์", style=discord.ButtonStyle.secondary, emoji="📋")
