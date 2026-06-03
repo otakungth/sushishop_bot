@@ -3464,32 +3464,20 @@ async def alls(ctx):
     await ctx.send("All Star⭐ เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=2eadb9c604f7ad49a2bbcbbfae8f1174&type=Server")
 
 @bot.command()
-async def arx(ctx):
-    await ctx.send("ARX🦸‍♂️ เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=eeee5fed9fdb9345b99569f6497be97b&type=Server")
-
-@bot.command()
-async def sp(ctx):
-    await ctx.send("Sailor⛵ เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=74605c033ce7b54990a5763e423bad3d&type=Server")
-
-@bot.command()
-async def av(ctx):
-    await ctx.send("AV🉐 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=a31d55231ce9f5468fd64f5b65b2cb62&type=Server")
-
-@bot.command()
 async def bb(ctx):
     await ctx.send("Blade Ball🔮 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=0a9513ac83517446aeee34e7fbd4b914&type=Server")
     
 @bot.command()
 async def dh(ctx):
-    await ctx.send("dh🔫 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=6c89b68830011c4a9eac1d15476ffc9a&type=Server")
+    await ctx.send("dh🔫 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=dab1626449dc054bb9e1b0725849933a&type=Server")
 
 @bot.command()
 async def evd(ctx):
-    await ctx.send("evade🏃‍♂️ เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=2ec0428785b33d43bdeb860a7d5b547e&type=Server")
+    await ctx.send("evade🏃‍♂️ เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=c78e6734a0d2a144a53d34ee9cfe0ecc&type=Server")
 
 @bot.command()
 async def dti(ctx):
-    await ctx.send("DTI👗 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=e4ef0b7c5bf38e42b31edf1ec45808d5&type=Server")
+    await ctx.send("DTI👗 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=c2b10d95f362d54f9e4c849a4e6e9b4a&type=Server")
 
 @bot.command()
 async def bid(ctx):
@@ -3513,7 +3501,15 @@ async def slime(ctx):
 
 @bot.command()
 async def mini(ctx):
-    await ctx.send("Mini War🤛 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=b8622e6e4e341f438418a392d37d8f8e&type=Server")
+    await ctx.send("Mini War🤛 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=3bc9b8ac3595b442a8bbce14a6089a59&type=Server")
+
+@bot.command()
+async def iron(ctx):
+    await ctx.send("Iron Soul🤘 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=6b961c585d324b40bde26f1005cc9b2c&type=Server")
+
+@bot.command()
+async def ring(ctx):
+    await ctx.send("Ring Farm🧑‍🌾 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=6b961c585d324b40bde26f1005cc9b2c&type=Server")
     
 # ============ BACKGROUND TASKS ============
 @tasks.loop(minutes=1)
