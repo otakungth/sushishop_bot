@@ -3497,7 +3497,7 @@ async def as2(ctx):
 
 @bot.command()
 async def slime(ctx):
-    await ctx.send("Slime🦠 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=a832205f5887d9459ed17ef70aefadef&type=Server")
+    await ctx.send("Slime🦠 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=146a6f598373674cb53bb8629d8315f5&type=Server")
 
 @bot.command()
 async def mini(ctx):
