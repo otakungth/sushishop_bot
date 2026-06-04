@@ -3509,7 +3509,7 @@ async def iron(ctx):
 
 @bot.command()
 async def ring(ctx):
-    await ctx.send("Ring Farm🧑‍🌾 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=6b961c585d324b40bde26f1005cc9b2c&type=Server")
+    await ctx.send("Ring Farm🧑‍🌾 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=df6cbcc92e54904b8e9a1f93615d3157&type=Server")
     
 # ============ BACKGROUND TASKS ============
 @tasks.loop(minutes=1)
