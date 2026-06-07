@@ -3501,7 +3501,7 @@ async def slime(ctx):
 
 @bot.command()
 async def mini(ctx):
-    await ctx.send("Mini War🤛 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=3bc9b8ac3595b442a8bbce14a6089a59&type=Server")
+    await ctx.send("Mini War🤛 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=473b13a44c78f54b9cc9e9697d72ca30&type=Server")
 
 @bot.command()
 async def iron(ctx):
