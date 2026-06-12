@@ -3510,6 +3510,14 @@ async def iron(ctx):
 @bot.command()
 async def ring(ctx):
     await ctx.send("Ring Farm🧑‍🌾 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=df6cbcc92e54904b8e9a1f93615d3157&type=Server")
+
+@bot.command()
+async def defend(ctx):
+    await ctx.send("Defend 🛡️ เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=04840eeeb6d5ea489fc2f33714efaa32&type=Server")
+
+@bot.command()
+async def squad(ctx):
+    await ctx.send("Squadron 👩‍👩‍👧‍👧 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=cc44300b0dba194db0ff642a8c5696c3&type=Server")
     
 # ============ BACKGROUND TASKS ============
 @tasks.loop(minutes=1)
