@@ -3474,15 +3474,19 @@ async def ring(ctx):
 
 @bot.command()
 async def defend(ctx):
-    await ctx.send("Defend 🛡️ เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=04840eeeb6d5ea489fc2f33714efaa32&type=Server")
+    await ctx.send("Defend🛡️ เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=04840eeeb6d5ea489fc2f33714efaa32&type=Server")
 
 @bot.command()
 async def asq(ctx):
-    await ctx.send("Squadron 👩‍👩‍👧‍👧 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=cc44300b0dba194db0ff642a8c5696c3&type=Server")
+    await ctx.send("Squadron👩‍👩‍👧‍👧 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=cc44300b0dba194db0ff642a8c5696c3&type=Server")
 
 @bot.command()
 async def gag2(ctx):
-    await ctx.send("GAG 2 🌱 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=bfa1301709ec4840aed420d2b40fd695&type=Server")
+    await ctx.send("GAG 2🌱 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=bfa1301709ec4840aed420d2b40fd695&type=Server")
+
+@bot.command()
+async def kick(ctx):
+    await ctx.send("Kick📦 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=531d9915e51cb94f9f751a237e5b7fa5&type=Server")
     
 # ============ BACKGROUND TASKS ============
 @tasks.loop(minutes=1)
