@@ -191,6 +191,7 @@ ticket_activity = {}
 ticket_removal_tasks = {}
 ticket_anonymous_mode = {}
 ticket_counter = {"counter": 1, "date": get_thailand_time().strftime("%d%m%y")}
+ticket_archived_timers = {}
 user_robux_balance = {}
 
 sp_added_tracker = {}
@@ -1562,6 +1563,42 @@ async def reset_timer(channel, buyer):
     cancel_removal(channel.id)
     print(f"✅ Timer cancelled for {channel.name} - customer will not lose access")
 
+async def schedule_auto_delete_after_delivered(channel, delay_seconds):
+    if str(channel.id) in ticket_archived_timers:
+        try:
+            ticket_archived_timers[str(channel.id)].cancel()
+        except:
+            pass
+    
+    task = asyncio.create_task(auto_delete_ticket_after_delay(channel, delay_seconds))
+    ticket_archived_timers[str(channel.id)] = task
+    
+    try:
+        await task
+    except asyncio.CancelledError:
+        print(f"ℹ️ Auto-delete task cancelled for {channel.name}")
+    finally:
+        if str(channel.id) in ticket_archived_timers:
+            del ticket_archived_timers[str(channel.id)]
+
+async def auto_delete_ticket_after_delay(channel, delay_seconds):
+    try:
+        print(f"⏳ Ticket {channel.name} will be deleted in {delay_seconds/3600} hours")
+        await asyncio.sleep(delay_seconds)
+        
+        if not channel or channel not in channel.guild.channels:
+            print(f"❌ Ticket {channel.name} no longer exists")
+            return
+        
+        await save_ticket_transcript(channel, "ระบบอัตโนมัติ (1 ชั่วโมง)")
+        await asyncio.sleep(2)
+        
+        print(f"🗑️ Auto-deleting ticket {channel.name} after {delay_seconds/3600} hours")
+        await channel.delete()
+        
+    except Exception as e:
+        print(f"❌ Error in auto_delete_ticket_after_delay: {e}")
+
 async def update_channel_name():
     try:
         channel = bot.get_channel(MAIN_CHANNEL_ID)
@@ -1904,7 +1941,8 @@ async def move_to_delivered_category(channel):
         await channel.edit(category=delivered_category)
         print(f"✅ ย้ายตั๋ว {channel.name} ไปยัง category ส่งของแล้ว")
         
-        # NO AUTO-DELETE - Removed completely
+        await schedule_auto_delete_after_delivered(channel, 3600)
+        print(f"⏰ Ticket {channel.name} will be auto-deleted in 1 hour")
         
         return True
         
@@ -3022,7 +3060,8 @@ async def ty(ctx):
             title="✅ ส่งของเรียบร้อย",
             description=(
                 "**ขอบคุณที่ใช้บริการ Sushi Shop** 🍣\n"
-                "ฝากให้เครดิต +1 ด้วยนะคะ ❤️"
+                "ฝากให้เครดิต +1 ด้วยนะคะ ❤️\n\n"
+                "⚠️ **หมายเหตุ:** ตั๋วนี้จะถูกลบใน 1 ชั่วโมง"
             ),
             color=0x00FF00
         )
@@ -3487,6 +3526,10 @@ async def gag2(ctx):
 @bot.command()
 async def kick(ctx):
     await ctx.send("Kick📦 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=531d9915e51cb94f9f751a237e5b7fa5&type=Server")
+
+@bot.command()
+async def av(ctx):
+    await ctx.send("Vanguard🐯 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=a31d55231ce9f5468fd64f5b65b2cb62&type=Server")
     
 # ============ BACKGROUND TASKS ============
 @tasks.loop(minutes=1)
