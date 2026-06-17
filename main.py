@@ -3530,6 +3530,10 @@ async def kick(ctx):
 @bot.command()
 async def av(ctx):
     await ctx.send("Vanguard🐯 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=a31d55231ce9f5468fd64f5b65b2cb62&type=Server")
+
+@bot.command()
+async def evo(ctx):
+    await ctx.send("Evomon🐹 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=9641e497b133df4d8810246619db3c7f&type=Server")
     
 # ============ BACKGROUND TASKS ============
 @tasks.loop(minutes=1)
