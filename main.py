@@ -3542,6 +3542,10 @@ async def pet(ctx):
 @bot.command()
 async def fisch(ctx):
     await ctx.send("Fisch🐟 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=5e2a76d091d83847b68c9dba82b13bd4&type=Server")
+
+@bot.command()
+async def fish(ctx):
+    await ctx.send("Fish it🎣 เข้าเซิฟนี้มานะคะ ถ้าเข้าไม่ได้บอกนะ https://www.roblox.com/share?code=6e0c9708ce5006449c781456927f3a4b&type=Server")
     
 # ============ BACKGROUND TASKS ============
 @tasks.loop(minutes=1)
