@@ -3317,6 +3317,102 @@ async def payment_cmd(ctx):
     except:
         pass
 
+    # ============ QR2 PAYMENT COMMANDS ============
+
+class PaymentView2(View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        
+        bank_btn = Button(label="🏦 ธนาคารกรุงไทย", style=discord.ButtonStyle.primary, emoji="🔵")
+        wallet_btn = Button(label="🧡 ทรูมันนี่วอเล็ต", style=discord.ButtonStyle.danger, emoji="🟠")
+        
+        bank_btn.callback = self.bank_callback
+        wallet_btn.callback = self.wallet_callback
+        
+        self.add_item(bank_btn)
+        self.add_item(wallet_btn)
+    
+    async def bank_callback(self, interaction: discord.Interaction):
+        embed = discord.Embed(
+            title="🏦 ธนาคารกรุงไทย (สำรอง)",
+            color=0x1A47A0
+        )
+        embed.add_field(name="🏦 ชื่อบัญชี", value="ลัดดา บุญมั่ง", inline=False)
+        embed.add_field(name="🔢 เลขบัญชี", value="**183-0-90672-0**", inline=False)
+        embed.add_field(name="⚠️ โน๊ตสลิป", value="เติมโรบัค Sushi Shop", inline=False)
+        embed.set_footer(text="Sushi Shop 🍣 • ช่องทางสำรอง")
+        
+        view = BackButtonView2(self)
+        copy_btn = Button(label="📋 คัดลอกเลขบัญชี", style=discord.ButtonStyle.secondary, emoji="📋")
+        
+        async def copy_cb(i):
+            await i.response.send_message("```1830906720```", ephemeral=True)
+        
+        copy_btn.callback = copy_cb
+        view.add_item(copy_btn)
+        
+        await interaction.response.edit_message(embed=embed, view=view)
+    
+    async def wallet_callback(self, interaction: discord.Interaction):
+        embed = discord.Embed(
+            title="💰 ทรูมันนี่วอเล็ต (สำรอง)",
+            description="**เบอร์โทรศัพท์:** 0892278408",
+            color=0xFF6600
+        )
+        embed.add_field(name="👤 ชื่อบัญชี", value="ลัดดา บุญมั่ง", inline=False)
+        embed.add_field(name="⚠️ หมายเหตุ", value="โอนวอเล็ตบวกเพิ่ม 5%", inline=False)
+        embed.set_footer(text="Sushi Shop 🍣 • ช่องทางสำรอง")
+        
+        view = BackButtonView2(self)
+        copy_btn = Button(label="📋 คัดลอกเบอร์", style=discord.ButtonStyle.secondary, emoji="📋")
+        
+        async def copy_cb(i):
+            await i.response.send_message("```0892278408```", ephemeral=True)
+        
+        copy_btn.callback = copy_cb
+        view.add_item(copy_btn)
+        
+        await interaction.response.edit_message(embed=embed, view=view)
+
+
+class BackButtonView2(View):
+    def __init__(self, parent_view: PaymentView2):
+        super().__init__(timeout=None)
+        self.parent_view = parent_view
+        
+        back_btn = Button(label="◀ กลับ", style=discord.ButtonStyle.secondary, emoji="🔙")
+        back_btn.callback = self.back_callback
+        self.add_item(back_btn)
+    
+    async def back_callback(self, interaction: discord.Interaction):
+        embed = discord.Embed(
+            title="🍣 ช่องทางโอนเงิน Sushi Shop (สำรอง)💰",
+            description="กรุณาเลือกช่องทางการชำระเงินด้านล่าง",
+            color=0xFFA500
+        )
+        embed.set_footer(text="Sushi Shop 🍣")
+        embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
+        
+        await interaction.response.edit_message(embed=embed, view=self.parent_view)
+
+@bot.command(name="qr2")
+async def payment2_cmd(ctx):
+    embed = discord.Embed(
+        title="🍣 ช่องทางโอนเงิน Sushi Shop (สำรอง)💰",
+        description="กรุณาเลือกช่องทางการชำระเงินด้านล่าง",
+        color=0xFFA500
+    )
+    embed.set_footer(text="Sushi Shop 🍣")
+    embed.set_thumbnail(url="https://cdn.discordapp.com/attachments/717757556889747657/1403684950770847754/noFilter.png")
+    
+    view = PaymentView2()
+    await ctx.send(embed=embed, view=view)
+    
+    try:
+        await ctx.message.delete()
+    except:
+        pass
+        
 # ============ CALCULATOR COMMANDS ============
 @bot.command(name="calc")
 @admin_only()
